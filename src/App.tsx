@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Icon, type IconName } from "./components/Icon";
 import { JobStatus } from "./components/JobStatus";
@@ -11,6 +11,8 @@ import { SetupPage } from "./pages/SetupPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { SortPage } from "./pages/SortPage";
+import { TripsPage } from "./pages/TripsPage";
+import type { TripRange } from "./lib/trips";
 
 export type PageId =
   "library" | "sort" | "trips" | "suggestions" | "import" | "duplicates" | "history" | "settings";
@@ -40,6 +42,13 @@ export default function App() {
 function Shell() {
   const { settings } = useSettings();
   const [page, setPage] = useState<PageId>("library");
+  // Days picked in the Library for a new trip, until the Trips page opens them.
+  const [tripDraft, setTripDraft] = useState<TripRange | null>(null);
+  const clearTripDraft = useCallback(() => setTripDraft(null), []);
+  const createTrip = useCallback((range: TripRange) => {
+    setTripDraft(range);
+    setPage("trips");
+  }, []);
 
   // The tray menu can ask for a page (e.g. "Import photos...").
   useEffect(() => {
@@ -88,18 +97,38 @@ function Shell() {
         </div>
       </nav>
       <main className="min-w-0 flex-1 overflow-y-auto">
-        <CurrentPage page={page} onNavigate={setPage} />
+        <CurrentPage
+          page={page}
+          onNavigate={setPage}
+          tripDraft={tripDraft}
+          onTripDraftUsed={clearTripDraft}
+          onCreateTrip={createTrip}
+        />
       </main>
     </div>
   );
 }
 
-function CurrentPage({ page, onNavigate }: { page: PageId; onNavigate: (page: PageId) => void }) {
+function CurrentPage({
+  page,
+  onNavigate,
+  tripDraft,
+  onTripDraftUsed,
+  onCreateTrip,
+}: {
+  page: PageId;
+  onNavigate: (page: PageId) => void;
+  tripDraft: TripRange | null;
+  onTripDraftUsed: () => void;
+  onCreateTrip: (range: TripRange) => void;
+}) {
   switch (page) {
     case "library":
-      return <LibraryPage />;
+      return <LibraryPage onCreateTrip={onCreateTrip} />;
     case "sort":
       return <SortPage onNavigate={onNavigate} />;
+    case "trips":
+      return <TripsPage draft={tripDraft} onDraftUsed={onTripDraftUsed} onNavigate={onNavigate} />;
     case "history":
       return <HistoryPage />;
     case "settings":

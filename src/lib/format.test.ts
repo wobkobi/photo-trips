@@ -11,7 +11,16 @@ import {
 } from "./format";
 
 function tile(id: number, takenAt: string): Tile {
-  return { id, takenAt, kind: "photo", ext: "jpg", uncertain: false, extra: 0, version: 0 };
+  return {
+    id,
+    takenAt,
+    kind: "photo",
+    ext: "jpg",
+    uncertain: false,
+    extra: 0,
+    version: 0,
+    trip: null,
+  };
 }
 
 describe("dates", () => {

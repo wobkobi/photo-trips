@@ -1,7 +1,15 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { thumbUrl, type Tile } from "../lib/api";
 import { timelineRows } from "../lib/format";
+import { tripBg } from "../lib/trips";
 import { Icon } from "./Icon";
 
 /** Preferred tile edge in CSS pixels; the real size stretches to fill the row. */
@@ -10,22 +18,32 @@ const GAP = 4;
 const SIDE_PADDING = 32;
 const HEADER_HEIGHT = 64;
 
+/** Click or right-click on a tile, with the modifier keys that decide what it does. */
+export type TileEvent = ReactMouseEvent<HTMLButtonElement>;
+
 /**
  * Month-grouped photo grid that only renders the rows on screen.
  * @param props.tiles - tiles, newest first
- * @param props.onOpen - called with a tile's index when it is clicked
+ * @param props.selected - ids of selected tiles
+ * @param props.onTileClick - called with a tile's index and the click
+ * @param props.onTileMenu - called with a tile's index and the right-click
  * @param props.onThumbError - called when Windows has no thumbnail for a tile
  * @returns the scrolling grid
  */
 export function TimelineGrid({
   tiles,
-  onOpen,
+  selected,
+  onTileClick,
+  onTileMenu,
   onThumbError,
 }: {
   tiles: Tile[];
-  onOpen: (index: number) => void;
+  selected: ReadonlySet<number>;
+  onTileClick: (index: number, event: TileEvent) => void;
+  onTileMenu: (index: number, event: TileEvent) => void;
   onThumbError: (tile: Tile) => void;
 }) {
+  const selecting = selected.size > 0;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -89,7 +107,10 @@ export function TimelineGrid({
                         key={tile.id}
                         tile={tile}
                         size={tileSize}
-                        onOpen={() => onOpen(row.start + offset)}
+                        selecting={selecting}
+                        selected={selected.has(tile.id)}
+                        onClick={(event) => onTileClick(row.start + offset, event)}
+                        onMenu={(event) => onTileMenu(row.start + offset, event)}
                         onThumbError={onThumbError}
                       />
                     ))}
@@ -107,22 +128,33 @@ export function TimelineGrid({
 function TileButton({
   tile,
   size,
-  onOpen,
+  selecting,
+  selected,
+  onClick,
+  onMenu,
   onThumbError,
 }: {
   tile: Tile;
   size: number;
-  onOpen: () => void;
+  /** Some tile is selected, so a plain click selects instead of opening. */
+  selecting: boolean;
+  selected: boolean;
+  onClick: (event: TileEvent) => void;
+  onMenu: (event: TileEvent) => void;
   onThumbError: (tile: Tile) => void;
 }) {
   const [failed, setFailed] = useState(false);
-  const label = `${tile.kind === "video" ? "Video" : "Photo"} taken ${tile.takenAt.replace("T", " ")}`;
+  const kind = tile.kind === "video" ? "Video" : "Photo";
+  const trip = tile.trip ? `, ${tile.trip.name} trip` : "";
+  const label = `${kind} taken ${tile.takenAt.replace("T", " ")}${trip}`;
 
   return (
     <button
       type="button"
-      onClick={onOpen}
+      onClick={onClick}
+      onContextMenu={onMenu}
       aria-label={label}
+      aria-pressed={selecting ? selected : undefined}
       className="group relative shrink-0 overflow-hidden rounded-[3px] bg-surface focus-visible:outline-offset-0"
       style={{ width: size, height: size }}
     >
@@ -160,6 +192,24 @@ function TileButton({
               +{tile.extra}
             </span>
           )}
+        </span>
+      )}
+      {tile.trip && (
+        <span
+          title={tile.trip.name}
+          className={`absolute inset-x-0 bottom-0 h-1 ${tripBg(tile.trip.colour)}`}
+        />
+      )}
+      {selected && (
+        <span className="pointer-events-none absolute inset-0 rounded-[3px] ring-2 ring-paper ring-inset" />
+      )}
+      {selecting && (
+        <span
+          className={`absolute top-1.5 left-1.5 flex h-5 w-5 items-center justify-center rounded-full ${
+            selected ? "bg-paper text-ground" : "border border-paper/70 bg-ground/40"
+          }`}
+        >
+          {selected && <Icon name="check" size={14} />}
         </span>
       )}
     </button>

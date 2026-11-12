@@ -1,5 +1,5 @@
-// Commands for sorting the library into year and month folders: a dry-run preview for the
-// user to review, then applying exactly that preview as one undoable batch.
+// Commands for sorting the library into trip and year/month folders: a dry-run preview for
+// the user to review, then applying exactly that preview as one undoable batch.
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
@@ -13,19 +13,22 @@ use tauri::{AppHandle, Manager, State};
 use crate::AppState;
 use crate::commands::{format_table, library_root, lock_db};
 use crate::error::{Error, Result};
-use crate::executor::{self, Env};
+use crate::executor::{self, Env, NewBatch, OnBegin};
 use crate::groups;
 use crate::index;
 use crate::jobs;
 use crate::planner::{self, Plan, Rules};
+use crate::trips;
 
 /// A previewed plan waiting for the user to apply it.
-struct Pending {
-    id: u64,
-    kind: &'static str,
-    label: String,
-    root: PathBuf,
-    plan: Plan,
+pub struct PendingBatch {
+    /// Batch kind for History: `organise`, `trip`.
+    pub kind: &'static str,
+    pub label: String,
+    pub root: PathBuf,
+    pub plan: Plan,
+    /// Database change saved with the batch (a trip's new dates, say).
+    pub on_begin: Option<Arc<OnBegin>>,
 }
 
 /// Managed state: the latest preview. Applying names its id, so what runs is exactly what the
@@ -33,36 +36,34 @@ struct Pending {
 #[derive(Default)]
 pub struct Previews {
     next_id: AtomicU64,
-    latest: Mutex<Option<Arc<Pending>>>,
+    latest: Mutex<Option<(u64, Arc<PendingBatch>)>>,
 }
 
 impl Previews {
-    fn store(&self, kind: &'static str, label: String, root: PathBuf, plan: Plan) -> u64 {
+    /// Keep `pending` as the latest preview, replacing any older one. Returns its id.
+    pub fn store(&self, pending: PendingBatch) -> u64 {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
         if let Ok(mut latest) = self.latest.lock() {
-            *latest = Some(Arc::new(Pending {
-                id,
-                kind,
-                label,
-                root,
-                plan,
-            }));
+            *latest = Some((id, Arc::new(pending)));
         }
         id
     }
 
-    fn get(&self, id: u64) -> Result<Arc<Pending>> {
+    fn get(&self, id: u64) -> Result<Arc<PendingBatch>> {
         self.latest
             .lock()
             .ok()
             .and_then(|latest| latest.clone())
-            .filter(|pending| pending.id == id)
+            .filter(|(latest_id, _)| *latest_id == id)
+            .map(|(_, pending)| pending)
             .ok_or_else(|| Error::msg("This preview is out of date. Check the changes again."))
     }
 
     fn clear(&self, id: u64) {
         if let Ok(mut latest) = self.latest.lock()
-            && latest.as_ref().is_some_and(|p| p.id == id)
+            && latest
+                .as_ref()
+                .is_some_and(|(latest_id, _)| *latest_id == id)
         {
             *latest = None;
         }
@@ -109,21 +110,25 @@ pub struct PreviewItem {
     pub renamed: bool,
 }
 
-/// Work out the moves that would put every file in its year and month folder.
+/// Work out the moves that would put every file in its trip or year and month folder.
 #[tauri::command(async)]
 pub fn plan_organise(state: State<'_, AppState>, previews: State<'_, Previews>) -> Result<Preview> {
-    let (root, table, rows) = {
+    let (root, table, rows, trips) = {
         let conn = lock_db(&state)?;
         (
             library_root(&conn)?,
             format_table(&conn)?,
             index::load_rows(&conn)?,
+            trips::load(&conn)?,
         )
     };
     let versions: HashMap<i64, i64> = rows.iter().map(|r| (r.id, r.mtime)).collect();
     let (groups, orphans) = groups::build(rows);
     let plan = planner::plan(
-        &Rules { root: &root },
+        &Rules {
+            root: &root,
+            trips: &trips,
+        },
         &groups,
         orphans.len(),
         &table,
@@ -131,11 +136,17 @@ pub fn plan_organise(state: State<'_, AppState>, previews: State<'_, Previews>) 
     );
     let files = plan.file_count();
     let label = format!(
-        "Sorted {files} {} into year and month folders",
+        "Sorted {files} {} into their folders",
         if files == 1 { "file" } else { "files" }
     );
     let mut preview = describe(&root, &plan, &versions);
-    preview.id = previews.store("organise", label, root, plan);
+    preview.id = previews.store(PendingBatch {
+        kind: "organise",
+        label,
+        root,
+        plan,
+        on_begin: None,
+    });
     Ok(preview)
 }
 
@@ -154,13 +165,20 @@ pub fn apply_plan(app: AppHandle, previews: State<Previews>, id: u64) -> Result<
             cancel: ctx.cancel_flag(),
             report: &|stage, done, total| ctx.report(stage, done, total),
         };
-        executor::apply(&env, pending.kind, &pending.label, &pending.plan)
+        let batch = NewBatch {
+            kind: pending.kind,
+            label: &pending.label,
+            on_begin: pending.on_begin.as_deref(),
+        };
+        executor::apply(&env, &batch, &pending.plan)
     })?;
     previews.clear(id);
     Ok(())
 }
 
-fn describe(root: &Path, plan: &Plan, versions: &HashMap<i64, i64>) -> Preview {
+/// Summarise a plan for the review screen. `versions` maps media ids to their modified time,
+/// for thumbnail URLs.
+pub(crate) fn describe(root: &Path, plan: &Plan, versions: &HashMap<i64, i64>) -> Preview {
     let mut folders: BTreeMap<String, usize> = BTreeMap::new();
     let items = plan
         .groups

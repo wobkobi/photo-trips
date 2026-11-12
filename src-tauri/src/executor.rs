@@ -60,18 +60,36 @@ struct Entry {
     media_id: Option<i64>,
 }
 
+/// A database change that belongs to a batch (saving a trip, say), made in the same
+/// transaction that records the batch. Returns JSON that undo needs to reverse it, if any.
+pub type OnBegin = dyn Fn(&Connection) -> Result<Option<String>> + Send + Sync;
+
+/// What a new batch is called, plus any database change that goes with it.
+pub struct NewBatch<'a> {
+    /// `organise`, `trip`, and so on.
+    pub kind: &'a str,
+    /// One line for History, e.g. "Sorted 12 files into year and month folders".
+    pub label: &'a str,
+    pub on_begin: Option<&'a OnBegin>,
+}
+
 /// Record a batch and all its moves as pending, in one transaction, before any file is
-/// touched. Returns the batch id and the journal ids, shaped like `groups`.
+/// touched. Returns the batch id and the journal ids, shaped like `groups`. If `on_begin`
+/// fails, nothing is recorded.
 pub fn begin(
     conn: &mut Connection,
-    kind: &str,
-    label: &str,
+    batch: &NewBatch,
     groups: &[GroupMove],
 ) -> Result<(i64, Vec<Vec<i64>>)> {
     let tx = conn.transaction()?;
+    let undo_data = match batch.on_begin {
+        Some(change) => change(&tx)?,
+        None => None,
+    };
     tx.execute(
-        "INSERT INTO batches (kind, label, status, created_at) VALUES (?1, ?2, 'running', ?3)",
-        params![kind, label, db::now()],
+        "INSERT INTO batches (kind, label, status, created_at, undo_data)
+         VALUES (?1, ?2, 'running', ?3, ?4)",
+        params![batch.kind, batch.label, db::now(), undo_data],
     )?;
     let batch_id = tx.last_insert_rowid();
     let mut ids = Vec::with_capacity(groups.len());
@@ -103,9 +121,9 @@ pub fn begin(
 
 /// Run a plan as one undoable batch. A file that can't be moved (in use, name taken since the
 /// preview) is reported in the journal and the rest carry on.
-pub fn apply(env: &Env, kind: &str, label: &str, plan: &Plan) -> Result<ApplySummary> {
+pub fn apply(env: &Env, batch: &NewBatch, plan: &Plan) -> Result<ApplySummary> {
     let total = plan.file_count();
-    let (batch_id, ids) = begin(&mut *lock(env.db)?, kind, label, &plan.groups)?;
+    let (batch_id, ids) = begin(&mut *lock(env.db)?, batch, &plan.groups)?;
     let mut summary = ApplySummary {
         batch_id,
         ..ApplySummary::default()
@@ -531,18 +549,17 @@ fn lock(db: &Mutex<Connection>) -> Result<MutexGuard<'_, Connection>> {
     db.lock().map_err(|_| Error::msg("Database lock poisoned"))
 }
 
+/// Temp-folder libraries and disk snapshots, shared by the executor and trip tests.
 #[cfg(test)]
-mod tests {
+pub mod testing {
     use super::*;
-    use crate::groups;
     use crate::index;
-    use crate::planner::{self, Rules};
 
-    fn no_report(_: &str, _: usize, _: usize) {}
+    pub fn no_report(_: &str, _: usize, _: usize) {}
 
     /// Library in a temp folder with the given files, indexed into an in-memory database.
     /// File names carry their dates (IMG_YYYYMMDD_HHMMSS) since the bytes aren't real photos.
-    fn library(files: &[&str]) -> (tempfile::TempDir, Mutex<Connection>) {
+    pub fn library(files: &[&str]) -> (tempfile::TempDir, Mutex<Connection>) {
         let dir = tempfile::tempdir().unwrap();
         for (i, rel) in files.iter().enumerate() {
             let path = dir.path().join(rel);
@@ -563,20 +580,8 @@ mod tests {
         (dir, db)
     }
 
-    fn make_plan(db: &Mutex<Connection>, root: &Path) -> Plan {
-        let rows = index::load_rows(&db.lock().unwrap()).unwrap();
-        let (groups, orphans) = groups::build(rows);
-        planner::plan(
-            &Rules { root },
-            &groups,
-            orphans.len(),
-            &FormatTable::default(),
-            &|p| exists(p),
-        )
-    }
-
     /// Relative path, size and modified time of every file under `root`, sorted.
-    fn snapshot(root: &Path) -> Vec<(String, u64, i64)> {
+    pub fn snapshot(root: &Path) -> Vec<(String, u64, i64)> {
         let mut files: Vec<_> = walkdir::WalkDir::new(root)
             .into_iter()
             .filter_map(|e| e.ok())
@@ -594,6 +599,33 @@ mod tests {
             .collect();
         files.sort();
         files
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::testing::{library, no_report, snapshot};
+    use super::*;
+    use crate::groups;
+    use crate::index;
+    use crate::planner::{self, Rules};
+
+    const TEST_BATCH: NewBatch = NewBatch {
+        kind: "organise",
+        label: "test",
+        on_begin: None,
+    };
+
+    fn make_plan(db: &Mutex<Connection>, root: &Path) -> Plan {
+        let rows = index::load_rows(&db.lock().unwrap()).unwrap();
+        let (groups, orphans) = groups::build(rows);
+        planner::plan(
+            &Rules { root, trips: &[] },
+            &groups,
+            orphans.len(),
+            &FormatTable::default(),
+            &|p| exists(p),
+        )
     }
 
     fn statuses(db: &Mutex<Connection>, batch_id: i64) -> Vec<String> {
@@ -657,7 +689,7 @@ mod tests {
 
         let plan = make_plan(&db, root);
         assert_eq!((plan.file_count(), plan.in_place), (3, 1));
-        let summary = apply(&env, "organise", "test", &plan).unwrap();
+        let summary = apply(&env, &TEST_BATCH, &plan).unwrap();
         assert_eq!(
             (summary.moved, summary.failed, summary.cancelled),
             (3, 0, false)
@@ -717,7 +749,7 @@ mod tests {
         fs::create_dir_all(squatter.parent().unwrap()).unwrap();
         fs::write(&squatter, "someone else's file").unwrap();
 
-        let summary = apply(&env, "organise", "test", &plan).unwrap();
+        let summary = apply(&env, &TEST_BATCH, &plan).unwrap();
         assert_eq!((summary.moved, summary.failed), (1, 2));
         assert_eq!(batch_status(&db, summary.batch_id), "partial");
         // The photo went back so it stays with its sidecar, and the other file is untouched.
@@ -746,8 +778,7 @@ mod tests {
         let root = dir.path();
         let table = FormatTable::default();
         let plan = make_plan(&db, root);
-        let (batch_id, _) =
-            begin(&mut db.lock().unwrap(), "organise", "test", &plan.groups).unwrap();
+        let (batch_id, _) = begin(&mut db.lock().unwrap(), &TEST_BATCH, &plan.groups).unwrap();
         let mv = |i: usize| plan.groups[i].moves[0].clone();
         fs::create_dir_all(mv(0).to.parent().unwrap()).unwrap();
         // First file: renamed, then the app died before the journal said so.
@@ -801,7 +832,7 @@ mod tests {
             report: &no_report,
         };
         let before = snapshot(root);
-        let summary = apply(&env, "organise", "test", &make_plan(&db, root)).unwrap();
+        let summary = apply(&env, &TEST_BATCH, &make_plan(&db, root)).unwrap();
         assert!(summary.cancelled);
         assert_eq!(statuses(&db, summary.batch_id), ["skipped"]);
         assert_eq!(batch_status(&db, summary.batch_id), "cancelled");
@@ -821,7 +852,7 @@ mod tests {
             cancel: &cancel,
             report: &no_report,
         };
-        let summary = apply(&env, "organise", "test", &make_plan(&db, root)).unwrap();
+        let summary = apply(&env, &TEST_BATCH, &make_plan(&db, root)).unwrap();
         fs::remove_file(root.join("2025\\2025-04\\IMG_20250412_101500.jpg")).unwrap();
 
         let undone = undo(&env, summary.batch_id).unwrap();

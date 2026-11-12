@@ -109,7 +109,7 @@ function BatchRow({
         </div>
         {confirming ? (
           <div className="flex items-center gap-2">
-            <span className="text-[13px]">Put {count(batch.done, "file", "files")} back?</span>
+            <span className="text-[13px]">{confirmText(batch)}</span>
             <Button variant="primary" onClick={onUndo} disabled={busy}>
               Put back
             </Button>
@@ -119,9 +119,11 @@ function BatchRow({
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={onToggle} aria-expanded={expanded}>
-              {expanded ? "Hide files" : "Show files"}
-            </Button>
+            {batch.total > 0 && (
+              <Button variant="ghost" onClick={onToggle} aria-expanded={expanded}>
+                {expanded ? "Hide files" : "Show files"}
+              </Button>
+            )}
             {batch.canUndo && (
               <Button onClick={onAskUndo} disabled={busy}>
                 <Icon name="undo" size={16} />
@@ -137,6 +139,17 @@ function BatchRow({
 }
 
 /**
+ * The question before undoing. A trip change also puts the trip back as it was.
+ * @param batch - the batch
+ * @returns the question
+ */
+function confirmText(batch: BatchInfo): string {
+  const files = count(batch.done, "file", "files");
+  if (batch.kind !== "trip") return `Put ${files} back?`;
+  return batch.done > 0 ? `Undo this and put ${files} back?` : "Undo this trip change?";
+}
+
+/**
  * One line on what a batch did and where it stands now.
  * @param batch - the batch
  * @returns the sentence
@@ -148,7 +161,7 @@ function statusText(batch: BatchInfo): string {
     case "undoing":
       return "In progress";
     case "done":
-      return `${moved} moved`;
+      return batch.total === 0 ? "No files needed to move" : `${moved} moved`;
     case "partial":
       return `${moved} moved, ${count(batch.failed, "file", "files")} couldn't be`;
     case "failed":
