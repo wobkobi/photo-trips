@@ -1,0 +1,43 @@
+import { useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { Button } from "../components/ui";
+import { Icon } from "../components/Icon";
+import { errorText } from "../lib/api";
+import { useSettings } from "../lib/useSettings";
+
+/** First run: choose the folder that becomes the library. */
+export function SetupPage() {
+  const { save } = useSettings();
+  const [error, setError] = useState<string | null>(null);
+
+  async function chooseFolder() {
+    setError(null);
+    const picked = await open({ directory: true, title: "Choose your photo library folder" });
+    if (typeof picked !== "string") return;
+    try {
+      await save("library_root", picked);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
+
+  return (
+    <div className="flex h-full items-center justify-center px-8">
+      <div className="max-w-lg">
+        <h1 className="font-display text-[52px] leading-[0.95] font-semibold tracking-tight">
+          Where do your photos live?
+        </h1>
+        <p className="mt-5 text-[15px] leading-relaxed text-muted">
+          Pick the folder you want Photo Trips to keep tidy. Photos inside it get sorted into year
+          and month folders, and trips get folders of their own. Nothing moves until you review the
+          plan and say so.
+        </p>
+        <Button variant="primary" className="mt-8 px-5 py-2.5 text-[14px]" onClick={chooseFolder}>
+          <Icon name="folder" />
+          Choose library folder
+        </Button>
+        {error && <p className="mt-4 text-danger">{error}</p>}
+      </div>
+    </div>
+  );
+}

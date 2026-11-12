@@ -7,20 +7,46 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "predev": "node scripts/fetch-exiftool.mjs",
+    "prebuild": "node scripts/fetch-exiftool.mjs",
+    "fetch-exiftool": "node scripts/fetch-exiftool.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint . && npm run lint:rust",
+    "lint:fix": "eslint . --fix && npm run lint:rust",
+    "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
+    "format": "prettier --write . && cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "test": "vitest run --passWithNoTests && cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "dependencies": {
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "@tanstack/react-virtual": "^3.14.26",
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2"
+    "@tauri-apps/plugin-autostart": "^2.7.0",
+    "@tauri-apps/plugin-dialog": "^2.8.4",
+    "@tauri-apps/plugin-notification": "^2.8.1",
+    "@tauri-apps/plugin-opener": "^2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.3.5",
+    "@tauri-apps/cli": "^2",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
+    "eslint": "^10.14.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "tailwindcss": "^4.3.5",
     "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.2",
     "vite": "^8.0.16",
-    "@tauri-apps/cli": "^2"
-  }
+    "vitest": "^5.1.0"
+  },
+  "description": "Windows app that sorts photos into year, month and trip folders"
 }

@@ -1,0 +1,79 @@
+@import "@fontsource/barlow-condensed/500.css";
+@import "@fontsource/barlow-condensed/600.css";
+@import "tailwindcss";
+
+/* Graphite surround so photos carry the colour. Colour in the chrome is reserved for trips:
+   each trip owns one of the tag hues below and keeps it everywhere it appears. */
+@theme {
+  --color-ground: #1c2127;
+  --color-surface: #242a32;
+  --color-raised: #2d353f;
+  --color-line: #38424e;
+  --color-paper: #ebe6dc;
+  --color-muted: #9aa4af;
+  --color-faint: #6b7682;
+  --color-warn: #e0a84f;
+  --color-danger: #e07a6a;
+
+  --color-tag-1: #4fb0a5;
+  --color-tag-2: #d4a23c;
+  --color-tag-3: #d07a8c;
+  --color-tag-4: #6e9fd8;
+  --color-tag-5: #9db05a;
+  --color-tag-6: #a88bd6;
+
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Barlow Condensed", "Segoe UI Variable Display", "Segoe UI", sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ground);
+  color: var(--color-paper);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* Text the user may want to copy (paths, file names) opts back in. */
+.selectable {
+  user-select: text;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-paper);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 5px;
+  border: 2px solid var(--color-ground);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

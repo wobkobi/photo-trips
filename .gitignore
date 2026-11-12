@@ -1,24 +1,28 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
+# Dependencies and build output
 node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Secrets and local data: never commit
+.env*
+*.db
+*.db-shm
+*.db-wal
+
+# Real photos used for manual testing stay on this machine
+sample-photos/
+
+# Downloaded by scripts/fetch-exiftool.mjs
+src-tauri/resources/exiftool/
+
+# Editor
 .vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
