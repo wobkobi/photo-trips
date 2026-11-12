@@ -15,9 +15,16 @@ import { useSettings } from "../lib/useSettings";
  * The whole library as a month-by-month timeline, with a viewer for single photos.
  * Ctrl-click, Shift-click or right-click selects photos to make a trip from.
  * @param props.onCreateTrip - start a new trip covering the given days
+ * @param props.onImport - open the Import page
  * @returns the page
  */
-export function LibraryPage({ onCreateTrip }: { onCreateTrip: (range: TripRange) => void }) {
+export function LibraryPage({
+  onCreateTrip,
+  onImport,
+}: {
+  onCreateTrip: (range: TripRange) => void;
+  onImport: () => void;
+}) {
   const { settings, save } = useSettings();
   const { running } = useJobs();
   const [tiles, setTiles] = useState<Tile[] | null>(null);
@@ -44,7 +51,7 @@ export function LibraryPage({ onCreateTrip }: { onCreateTrip: (range: TripRange)
     if (done.ok) setSummary(done.result as IndexSummary);
     load();
   });
-  useJobDone(["apply", "undo", "remove"], load);
+  useJobDone(["apply", "undo", "remove", "import"], load);
 
   const onThumbError = useCallback(
     (tile: Tile) => setFailedThumbs((prev) => (prev.length >= 50 ? prev : [...prev, tile])),
@@ -156,9 +163,14 @@ export function LibraryPage({ onCreateTrip }: { onCreateTrip: (range: TripRange)
       {tiles !== null && count === 0 && !indexing && (
         <EmptyState title="No photos here yet">
           <p>
-            Photo Trips didn&apos;t find any photos or videos in your library folder. Add some, or
-            choose a different folder in Settings.
+            Photo Trips didn&apos;t find any photos or videos in your library folder. Bring some in
+            from a memory card, a phone or another folder, or choose a different library folder in
+            Settings.
           </p>
+          <Button variant="primary" onClick={onImport}>
+            <Icon name="import" size={16} />
+            Import photos
+          </Button>
         </EmptyState>
       )}
       {tiles !== null && count === 0 && indexing && (

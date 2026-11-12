@@ -8,9 +8,8 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use rayon::prelude::*;
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
@@ -159,29 +158,14 @@ pub fn hash_pending(db: &Mutex<Connection>, cancel: &AtomicBool, report: Report)
         })?;
         rows.collect::<rusqlite::Result<_>>()?
     };
-    let total = pending.len();
-    let done = AtomicUsize::new(0);
-    report("Comparing files", 0, total);
+    let paths: Vec<PathBuf> = pending.iter().map(|(_, path)| path.clone()).collect();
+    // A file gone or locked since the last refresh stays unchecked and is tried again. A cancel
+    // still saves the hashes already read.
+    let found = hash::many(&paths, "Comparing files", cancel, report);
     let hashes: Vec<(i64, String)> = pending
-        .par_iter()
-        .filter_map(|(id, path)| {
-            if cancel.load(Ordering::Relaxed) {
-                return None;
-            }
-            let found = hash::file(path);
-            let n = done.fetch_add(1, Ordering::Relaxed) + 1;
-            if n.is_multiple_of(20) || n == total {
-                report("Comparing files", n, total);
-            }
-            match found {
-                Ok(hash) => Some((*id, hash)),
-                // Gone or locked since the last refresh: it stays unchecked and is tried again.
-                Err(err) => {
-                    log::warn!("Couldn't read {}: {err}", path.display());
-                    None
-                }
-            }
-        })
+        .iter()
+        .zip(found)
+        .filter_map(|((id, _), hash)| Some((*id, hash?)))
         .collect();
 
     let mut conn = lock(db)?;

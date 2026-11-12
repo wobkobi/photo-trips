@@ -26,3 +26,6 @@ src-tauri/resources/exiftool/
 !.vscode/extensions.json
 .idea
 .DS_Store
+
+# Git Bash crash dumps
+*.stackdump

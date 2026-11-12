@@ -92,6 +92,19 @@ const MIGRATIONS: &[&str] = &[
     -- index along with the file.
     ALTER TABLE journal ADD COLUMN media_row TEXT;
 "#,
+    r#"
+    -- Hashes of phone files already copied off once. A phone can only be read by copying each
+    -- file over, so a file seen before (same path, size and modified time) is matched against
+    -- the library by this hash instead of being copied again.
+    CREATE TABLE device_files (
+        device   TEXT NOT NULL,
+        path     TEXT NOT NULL,
+        size     INTEGER NOT NULL,
+        modified INTEGER NOT NULL,
+        hash     TEXT NOT NULL,
+        PRIMARY KEY (device, path)
+    );
+"#,
 ];
 
 /// Open (or create) the database and bring it up to the latest schema.

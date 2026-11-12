@@ -43,7 +43,8 @@ pub struct BatchInfo {
 #[serde(rename_all = "camelCase")]
 pub struct EntryInfo {
     pub seq: i64,
-    /// `move`, or `trash` for a file sent to the Recycle Bin (`to` is then empty).
+    /// `move`; `trash` for a file sent to the Recycle Bin (`to` is then empty); `copy` for a
+    /// file copied in from a card, phone or folder; `import` for a file moved in from a folder.
     pub op: String,
     /// Paths relative to the library folder when inside it.
     pub from: String,

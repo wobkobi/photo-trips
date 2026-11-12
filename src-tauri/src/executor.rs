@@ -2,8 +2,14 @@
 // is touched, a move never replaces an existing file, and a whole batch can be undone.
 // Entries a crash left pending are settled at the next start by looking at the disk.
 //
-// Journal operations: `move` (src to dst) and `trash` (src to the Recycle Bin, dst empty; the
-// file's media row is kept in `media_row` so undo can put it back in the index).
+// Journal operations:
+// - `move`: src to dst, both in the library.
+// - `trash`: src to the Recycle Bin, dst empty. The file's media row is kept in `media_row` so
+//   undo can put it back in the index.
+// - `copy`: an import that leaves the original where it is (card, phone or folder). `media_row`
+//   holds the row the copy gets at dst; undo sends the copy to the Recycle Bin.
+// - `import`: an import that moves the file in from a folder on this PC. `media_row` as for
+//   `copy`; undo moves the file back out of the library.
 // Entry states: pending (about to run), done (file is at dst or in the bin), failed (file is
 // at src), skipped (cancelled before it ran), undoing (about to go back), undone (back at src).
 
@@ -28,6 +34,10 @@ use crate::scan;
 
 /// Journal op for a file sent to the Recycle Bin.
 pub const TRASH: &str = "trash";
+/// Journal op for a file copied into the library, the original staying where it was.
+pub const COPY: &str = "copy";
+/// Journal op for a file moved into the library from a folder on this PC.
+pub const IMPORT: &str = "import";
 
 #[derive(Debug, Default, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,12 +77,61 @@ struct Entry {
     media_id: Option<i64>,
     /// Size from the stashed media row of a binned file, to find the right item in the bin.
     size: Option<u64>,
+    /// Hash from the stashed media row: the contents an imported copy must still have.
+    hash: Option<String>,
 }
 
 impl Entry {
     fn is_trash(&self) -> bool {
         self.op == TRASH
     }
+
+    fn is_import(&self) -> bool {
+        self.op == COPY || self.op == IMPORT
+    }
+}
+
+/// How an incoming file reaches the library.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Transfer {
+    /// A verified copy; the original stays. Journal op `copy`.
+    Copy,
+    /// Moved in from a folder on this PC. Journal op `import`.
+    Move,
+    /// Renamed in from the staging folder a phone's photos were copied to. Journal op `copy`,
+    /// since the original is still on the phone.
+    Staged,
+}
+
+impl Transfer {
+    fn op(self) -> &'static str {
+        match self {
+            Transfer::Move => IMPORT,
+            Transfer::Copy | Transfer::Staged => COPY,
+        }
+    }
+}
+
+/// One file to bring into the library.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Incoming {
+    /// Where the file is read from: the card, the folder, or a phone file's staging copy.
+    pub from: PathBuf,
+    /// Where it came from, for History: the same as `from`, except the phone's own path for a
+    /// staged file.
+    pub origin: PathBuf,
+    pub to: PathBuf,
+    /// The `media` row the file gets at `to`, in the shape `restore_media_row` reads, with
+    /// `hash` null when the preview didn't read the file.
+    pub row: serde_json::Value,
+}
+
+/// Incoming files that go in together or not at all, like a group's moves.
+#[derive(Debug, Clone, PartialEq)]
+pub struct IncomingGroup {
+    pub files: Vec<Incoming>,
+    /// A ` (n)` was added to the names because the library already used them.
+    pub renamed: bool,
 }
 
 /// One file to send to the Recycle Bin.
@@ -176,6 +235,43 @@ fn begin_removals(
                 seq += 1;
             }
             ids.push(removal_ids);
+        }
+    }
+    tx.commit()?;
+    Ok((batch_id, ids))
+}
+
+/// [`begin`] for imports: each entry carries the media row its file gets once it lands.
+fn begin_imports(
+    conn: &mut Connection,
+    batch: &NewBatch,
+    groups: &[IncomingGroup],
+    transfer: Transfer,
+) -> Result<(i64, Vec<Vec<i64>>)> {
+    let tx = conn.transaction()?;
+    let batch_id = insert_batch(&tx, batch)?;
+    let mut ids = Vec::with_capacity(groups.len());
+    {
+        let mut insert = tx.prepare(
+            "INSERT INTO journal (batch_id, seq, op, src, dst, status, media_row)
+             VALUES (?1, ?2, ?3, ?4, ?5, 'pending', ?6)",
+        )?;
+        let mut seq = 0_i64;
+        for group in groups {
+            let mut group_ids = Vec::with_capacity(group.files.len());
+            for file in &group.files {
+                insert.execute(params![
+                    batch_id,
+                    seq,
+                    transfer.op(),
+                    file.origin.to_string_lossy(),
+                    file.to.to_string_lossy(),
+                    file.row.to_string(),
+                ])?;
+                group_ids.push(tx.last_insert_rowid());
+                seq += 1;
+            }
+            ids.push(group_ids);
         }
     }
     tx.commit()?;
@@ -309,6 +405,161 @@ pub fn remove(env: &Env, batch: &NewBatch, removals: &[Removal]) -> Result<Apply
     Ok(summary)
 }
 
+/// Bring files into the library as one undoable batch. In the summary, `moved` counts files
+/// that came in. Each group comes in whole or not at all, so a photo never arrives without its
+/// Live Photo video or sidecar. Nothing at a source is ever changed by [`Transfer::Copy`] or
+/// [`Transfer::Staged`].
+pub fn import(
+    env: &Env,
+    batch: &NewBatch,
+    groups: &[IncomingGroup],
+    transfer: Transfer,
+) -> Result<ApplySummary> {
+    let stage = match transfer {
+        Transfer::Move => "Moving files into the library",
+        Transfer::Copy | Transfer::Staged => "Copying files into the library",
+    };
+    let total: usize = groups.iter().map(|g| g.files.len()).sum();
+    let (batch_id, ids) = begin_imports(&mut *lock(env.db)?, batch, groups, transfer)?;
+    let mut summary = ApplySummary {
+        batch_id,
+        ..ApplySummary::default()
+    };
+    (env.report)(stage, 0, total);
+    for (group, group_ids) in groups.iter().zip(&ids) {
+        if env.cancel.load(Ordering::Relaxed) {
+            summary.cancelled = true;
+            break;
+        }
+        if import_group(env, group, group_ids, transfer)? {
+            summary.moved += group.files.len();
+        } else {
+            summary.failed += group.files.len();
+        }
+        (env.report)(stage, summary.moved + summary.failed, total);
+    }
+    finish_batch(env, &summary)?;
+    Ok(summary)
+}
+
+/// Bring in every file of one group, or none: when one fails, those already in are taken back
+/// out. Returns whether the group came in. Errors only on database failure.
+fn import_group(env: &Env, group: &IncomingGroup, ids: &[i64], transfer: Transfer) -> Result<bool> {
+    for (i, (file, &id)) in group.files.iter().zip(ids).enumerate() {
+        match bring_in(file, transfer) {
+            Ok(hash) => {
+                let conn = lock(env.db)?;
+                add_media_row(&conn, id, hash.as_deref())?;
+                set_entry(&conn, id, "done", None)?;
+            }
+            Err(err) => {
+                set_entry(&*lock(env.db)?, id, "failed", Some(&err.to_string()))?;
+                take_back(env, &group.files[..i], &ids[..i], transfer, &file.from)?;
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// Put one file at its place in the library. Returns its hash when the transfer read it.
+fn bring_in(file: &Incoming, transfer: Transfer) -> Result<Option<String>> {
+    match transfer {
+        Transfer::Move | Transfer::Staged => move_file(&file.from, &file.to).map(|()| None),
+        Transfer::Copy => {
+            let expected = file.row.get("hash").and_then(|h| h.as_str());
+            copy_in(&file.from, &file.to, expected).map(Some)
+        }
+    }
+}
+
+/// Copy a file into the library without touching the original. The copy is written under a
+/// temporary name and only takes its real name once it reads back identical, and identical to
+/// `expected` when the preview hashed the original, so a file changed since the preview is
+/// refused. Returns the hash.
+fn copy_in(from: &Path, to: &Path, expected: Option<&str>) -> Result<String> {
+    if exists(to) {
+        return Err(Error::msg(format!("{} already exists", to.display())));
+    }
+    if let Some(dir) = to.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let part = part_path(to);
+    // Only a crash leaves a part file behind, and it is never anything but a stale copy.
+    let _ = fs::remove_file(&part);
+    let checked = hash::copy(from, &part).and_then(|hash| {
+        if hash::file(&part)? != hash {
+            return Err(Error::msg(format!(
+                "The copy of {} didn't match the original",
+                file_name(from)
+            )));
+        }
+        if expected.is_some_and(|e| e != hash) {
+            return Err(Error::msg(format!(
+                "{} changed since the check, so it wasn't copied. Check again to bring it in.",
+                file_name(from)
+            )));
+        }
+        rename_no_replace(&part, to)?;
+        Ok(hash)
+    });
+    if checked.is_err() {
+        let _ = fs::remove_file(&part);
+    }
+    checked
+}
+
+/// Take back out the files of a group that came in when `blocked` couldn't follow them. A
+/// copy is removed outright: it was made moments ago and the original is still at its source.
+fn take_back(
+    env: &Env,
+    landed: &[Incoming],
+    ids: &[i64],
+    transfer: Transfer,
+    blocked: &Path,
+) -> Result<()> {
+    let reason = format!("Not brought in because {} couldn't be", file_name(blocked));
+    for (file, &id) in landed.iter().zip(ids).rev() {
+        set_entry(&*lock(env.db)?, id, "undoing", None)?;
+        let outcome = match transfer {
+            Transfer::Copy => fs::remove_file(&file.to).map_err(Error::from),
+            Transfer::Move | Transfer::Staged => move_file(&file.to, &file.from),
+        };
+        let conn = lock(env.db)?;
+        match outcome {
+            Ok(()) => {
+                conn.execute("DELETE FROM media WHERE path = ?1", [file.to.to_string_lossy()])?;
+                set_entry(&conn, id, "failed", Some(&reason))?;
+            }
+            // Stuck in the library: the journal says so, and undo can still take it out.
+            Err(err) => set_entry(&conn, id, "done", Some(&err.to_string()))?,
+        }
+    }
+    if let Some(dir) = landed.first().and_then(|f| f.to.parent()) {
+        remove_empty_dirs(env.root, [dir.to_path_buf()]);
+    }
+    Ok(())
+}
+
+/// Index a file that just landed, from the row stashed in its journal entry, and point the
+/// entry at the new row. `hash` fills in a hash the preview didn't have.
+fn add_media_row(conn: &Connection, entry_id: i64, hash: Option<&str>) -> Result<()> {
+    if let Some(hash) = hash {
+        conn.execute(
+            "UPDATE journal SET media_row = json_set(media_row, '$.hash', ?1) WHERE id = ?2",
+            params![hash, entry_id],
+        )?;
+    }
+    restore_media_row(conn, entry_id)?;
+    conn.execute(
+        "UPDATE journal SET media_id =
+            (SELECT m.id FROM media m WHERE m.path = json_extract(journal.media_row, '$.path'))
+         WHERE id = ?1",
+        [entry_id],
+    )?;
+    Ok(())
+}
+
 /// Why a removal must not go ahead, if it mustn't: the copy or its keeper changed or went
 /// since the duplicate check. `keepers` remembers each keeper's result, since one keeper can
 /// stand for several copies.
@@ -412,10 +663,10 @@ pub fn undo(env: &Env, batch_id: i64) -> Result<UndoSummary> {
             Some(reason) => Err(Error::msg(reason)),
             None => {
                 set_entry(&*lock(env.db)?, entry.id, "undoing", None)?;
-                if entry.is_trash() {
-                    bin.restore(&entry.src, entry.size)
-                } else {
-                    move_file(&entry.dst, &entry.src)
+                match entry.op.as_str() {
+                    TRASH => bin.restore(&entry.src, entry.size),
+                    COPY => recycle::to_bin(&entry.dst),
+                    _ => move_file(&entry.dst, &entry.src),
                 }
             }
         };
@@ -424,6 +675,10 @@ pub fn undo(env: &Env, batch_id: i64) -> Result<UndoSummary> {
             Ok(()) => {
                 if entry.is_trash() {
                     restore_media_row(&conn, entry.id)?;
+                } else if entry.is_import() {
+                    // The file has left the library (an import's source is never inside it).
+                    drop_media_row(&conn, entry)?;
+                    emptied.extend(entry.dst.parent().map(Path::to_path_buf));
                 } else {
                     set_media_path(&conn, entry.media_id, &entry.src, env.table)?;
                     emptied.extend(entry.dst.parent().map(Path::to_path_buf));
@@ -471,6 +726,14 @@ fn undo_blocker(conn: &Connection, entry: &Entry) -> Option<String> {
     if !exists(&entry.dst) {
         return Some(format!("{} is no longer there", entry.dst.display()));
     }
+    if entry.op == COPY {
+        // Only the exact copy that came in goes to the bin, never a file edited since.
+        let changed = entry
+            .hash
+            .as_ref()
+            .is_some_and(|h| hash::file(&entry.dst).ok().as_ref() != Some(h));
+        return changed.then(|| "It has changed since it was copied in, so it stayed".into());
+    }
     if exists(&entry.src) {
         return Some(format!(
             "Another file is now called {}",
@@ -506,6 +769,10 @@ pub fn recover(conn: &Connection, table: &FormatTable) -> Result<usize> {
     for entry in &entries {
         if entry.is_trash() {
             settle_removal(conn, entry)?;
+            continue;
+        }
+        if entry.is_import() {
+            settle_import(conn, entry)?;
             continue;
         }
         // A temporary copy only ever exists mid-copy; the original is still in place.
@@ -573,6 +840,70 @@ fn settle_removal(conn: &Connection, entry: &Entry) -> Result<()> {
             set_entry(conn, entry.id, "done", Some(note))?;
         }
     }
+    Ok(())
+}
+
+/// Settle an import entry a crash interrupted. A copy only ever takes its real name once it
+/// is verified, so a file at dst is the finished copy when its contents match; anything else
+/// there is left alone and the entry is skipped.
+fn settle_import(conn: &Connection, entry: &Entry) -> Result<()> {
+    let _ = fs::remove_file(part_path(&entry.dst));
+    if entry.status == "pending" {
+        let (landed, hash) = if entry.op == COPY {
+            landed_copy(entry)
+        } else {
+            (settle(&entry.src, &entry.dst), None)
+        };
+        if landed {
+            add_media_row(conn, entry.id, hash.as_deref())?;
+            set_entry(conn, entry.id, "done", None)?;
+        } else {
+            let note = "Photo Trips closed before this file came in";
+            set_entry(conn, entry.id, "skipped", Some(note))?;
+        }
+        return Ok(());
+    }
+    let out = if entry.op == COPY {
+        // Undo sends the copy to the Recycle Bin, so gone means binned.
+        !exists(&entry.dst)
+    } else {
+        settle(&entry.dst, &entry.src)
+    };
+    if out {
+        drop_media_row(conn, entry)?;
+        set_entry(conn, entry.id, "undone", None)?;
+    } else {
+        let note = "Photo Trips closed before this file was taken back out";
+        set_entry(conn, entry.id, "done", Some(note))?;
+    }
+    Ok(())
+}
+
+/// Whether an interrupted copy finished: the file at dst matches the hash the preview read,
+/// or, without one, the original. Returns the hash found, to index the copy with.
+fn landed_copy(entry: &Entry) -> (bool, Option<String>) {
+    if !exists(&entry.dst) {
+        return (false, None);
+    }
+    let Ok(copy) = hash::file(&entry.dst) else {
+        return (false, None);
+    };
+    let matches = match &entry.hash {
+        Some(expected) => &copy == expected,
+        None => hash::file(&entry.src).is_ok_and(|original| original == copy),
+    };
+    (matches, Some(copy))
+}
+
+/// Remove an imported file's row once the file has left the library.
+fn drop_media_row(conn: &Connection, entry: &Entry) -> Result<()> {
+    match entry.media_id {
+        Some(id) => conn.execute("DELETE FROM media WHERE id = ?1", [id])?,
+        None => conn.execute(
+            "DELETE FROM media WHERE path = ?1",
+            [entry.dst.to_string_lossy()],
+        )?,
+    };
     Ok(())
 }
 
@@ -753,7 +1084,8 @@ fn load_entries(
     args: impl rusqlite::Params,
 ) -> Result<Vec<Entry>> {
     let mut stmt = conn.prepare(&format!(
-        "SELECT id, op, src, dst, status, media_id, json_extract(media_row, '$.size')
+        "SELECT id, op, src, dst, status, media_id, json_extract(media_row, '$.size'),
+                json_extract(media_row, '$.hash')
          FROM journal {filter}"
     ))?;
     let rows = stmt.query_map(args, |row| {
@@ -765,6 +1097,7 @@ fn load_entries(
             status: row.get(4)?,
             media_id: row.get(5)?,
             size: row.get::<_, Option<i64>>(6)?.map(|s| s as u64),
+            hash: row.get(7)?,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -1052,6 +1385,60 @@ mod tests {
         assert_eq!(undone.restored, 2);
         assert!(mv(0).from.exists() && mv(1).from.exists());
         assert!(!root.join("2025").exists());
+    }
+
+    #[test]
+    fn a_crash_mid_import_is_settled_at_the_next_start() {
+        use crate::import::testing::{plan_folder, write};
+
+        let (dir, db) = library(&[]);
+        let root = dir.path();
+        let card = tempfile::tempdir().unwrap();
+        write(&card.path().join("IMG_20250312_101500.jpg"), "one");
+        write(&card.path().join("IMG_20250313_101500.jpg"), "two");
+        write(&card.path().join("IMG_20250314_101500.jpg"), "three");
+        let (plan, _) = plan_folder(&db, root, card.path(), &[]);
+        let batch = NewBatch {
+            kind: "import",
+            ..TEST_BATCH
+        };
+        let (batch_id, _) =
+            begin_imports(&mut db.lock().unwrap(), &batch, &plan.groups, Transfer::Copy).unwrap();
+        let file = |i: usize| plan.groups[i].files[0].clone();
+        fs::create_dir_all(file(0).to.parent().unwrap()).unwrap();
+        // First: the verified copy took its name, then the app died before the journal said so.
+        fs::copy(file(0).from, file(0).to).unwrap();
+        // Second: something that isn't the photo is at its place.
+        fs::write(file(1).to, "not the photo").unwrap();
+        // Third: died part-way through copying.
+        fs::write(part_path(&file(2).to), "thr").unwrap();
+
+        let table = FormatTable::default();
+        let settled = recover(&db.lock().unwrap(), &table).unwrap();
+        assert_eq!(settled, 3);
+        assert_eq!(statuses(&db, batch_id), ["done", "skipped", "skipped"]);
+        assert_eq!(batch_status(&db, batch_id), "interrupted");
+        assert_eq!(fs::read_to_string(file(1).to).unwrap(), "not the photo");
+        assert!(!part_path(&file(2).to).exists() && !file(2).to.exists());
+        assert_eq!(
+            media_paths(&db, root),
+            ["2025\\2025-03\\IMG_20250312_101500.jpg"]
+        );
+        assert!(file(0).from.exists() && file(1).from.exists() && file(2).from.exists());
+
+        // Undo sends the copy that landed to the Recycle Bin.
+        let cancel = AtomicBool::new(false);
+        let env = Env {
+            db: &db,
+            root,
+            table: &table,
+            cancel: &cancel,
+            report: &no_report,
+        };
+        let undone = undo(&env, batch_id).unwrap();
+        assert_eq!((undone.restored, undone.failed), (1, 0));
+        assert!(!file(0).to.exists() && recycle::fake::holds(&file(0).to));
+        assert!(media_paths(&db, root).is_empty());
     }
 
     #[test]

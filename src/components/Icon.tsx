@@ -22,6 +22,8 @@ const PATHS = {
   layers: "M10 3l7 4-7 4-7-4zM3 11l7 4 7-4",
   pin: "M10 18s-5-5.2-5-9a5 5 0 0 1 10 0c0 3.8-5 9-5 9zM10 7.5v2",
   sort: "M3 5h14M3 10h10M3 15h6M15 12v6M12.5 15.5L15 18l2.5-2.5",
+  card: "M6 2.5h6.5L15 5v12.5H6zM8.5 5v2.5M10.5 5v2.5M12.5 5.5v2",
+  phone: "M6.5 2.5h7v15h-7zM9.25 15h1.5",
 } as const;
 
 export type IconName = keyof typeof PATHS;

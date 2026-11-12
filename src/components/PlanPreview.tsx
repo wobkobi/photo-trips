@@ -1,21 +1,34 @@
-// Review screen pieces shared by every change that moves files (Sort, Trips): the summary,
-// destination folders, the list of moves, progress while moving, and the result with Undo.
+// Review screen pieces shared by every change that moves files (Sort, Trips, Import): the
+// summary, destination folders, the list of moves, progress while moving, and the result with
+// Undo.
 
 import { useRef, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import {
-  thumbUrl,
-  type ApplySummary,
-  type JobProgress,
-  type Preview,
-  type PreviewItem,
-} from "../lib/api";
+import { thumbUrl, type ApplySummary, type JobProgress, type Preview } from "../lib/api";
 import { count, monthLabel, splitPath } from "../lib/format";
 import { JOB_NAMES } from "../lib/useJobs";
 import { Icon } from "./Icon";
 import { Button, Progress } from "./ui";
 
 const ROW_HEIGHT = 60;
+
+/** One row of a move list: a photo (plus companions) and where it goes. */
+export interface MoveRowData {
+  key: string | number;
+  /** Thumbnail URL. */
+  thumb: string;
+  /** Where it is now and where it goes, relative to their folders. */
+  from: string;
+  to: string;
+  extra: number;
+  renamed: boolean;
+}
+
+/** Sentence-start, "-ing" and plain forms for the result banner. */
+const VERBS = {
+  moved: ["Moved", "moving", "moved"],
+  copied: ["Copied", "copying", "copied"],
+} as const;
 
 /**
  * Everything a previewed change will do: a headline count, notes, the folders receiving files
@@ -60,7 +73,14 @@ export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode
       {preview.files > 0 && (
         <div className="flex min-h-0 flex-1 gap-6 border-t border-line">
           <FolderList folders={preview.folders} />
-          <MoveList items={preview.items} />
+          <MoveList
+            label="Files that will move"
+            rows={preview.items.map((item) => ({
+              ...item,
+              key: item.id,
+              thumb: thumbUrl(item.id, item.version),
+            }))}
+          />
         </div>
       )}
     </div>
@@ -107,6 +127,7 @@ export function MovingProgress({ job }: { job: JobProgress }) {
  * @param props.intro - sentence before the move count, e.g. "Saved the trip Japan."
  * @param props.destination - where the files went, when that isn't a folder, e.g. "the
  *   Recycle Bin"
+ * @param props.verb - what happened to the files (default moved)
  * @param props.undoable - offer Undo even when no file moved (a trip change still can be)
  * @param props.busy - another job is running, so Undo waits
  * @param props.onUndo - undo the whole change
@@ -117,6 +138,7 @@ export function ResultBanner({
   result,
   intro,
   destination,
+  verb = "moved",
   undoable = false,
   busy,
   onUndo,
@@ -125,16 +147,18 @@ export function ResultBanner({
   result: ApplySummary;
   intro?: string;
   destination?: string;
+  verb?: keyof typeof VERBS;
   undoable?: boolean;
   busy: boolean;
   onUndo: () => void;
   onHistory: () => void;
 }) {
+  const [past, ing, plain] = VERBS[verb];
   const moved = count(result.moved, "file", "files") + (destination ? ` to ${destination}` : "");
   const movedText = result.cancelled
-    ? `Stopped after moving ${moved}.`
+    ? `Stopped after ${ing} ${moved}.`
     : result.moved > 0 || !intro
-      ? `Moved ${moved}.`
+      ? `${past} ${moved}.`
       : "";
   const problem = result.failed > 0;
   return (
@@ -148,7 +172,7 @@ export function ResultBanner({
       <p className="min-w-0 flex-1">
         {[intro, movedText].filter(Boolean).join(" ")}
         {problem &&
-          ` ${count(result.failed, "file", "files")} couldn't be moved and stayed where ${
+          ` ${count(result.failed, "file", "files")} couldn't be ${plain} and stayed where ${
             result.failed === 1 ? "it was" : "they were"
           }. History says why.`}
       </p>
@@ -166,7 +190,12 @@ export function ResultBanner({
   );
 }
 
-function FolderList({ folders }: { folders: Preview["folders"] }) {
+/**
+ * The folders receiving files, with how many each gets.
+ * @param props.folders - folders relative to the library, with file counts
+ * @returns the side list (hidden on narrow windows)
+ */
+export function FolderList({ folders }: { folders: Preview["folders"] }) {
   return (
     <aside
       aria-label="Folders receiving files"
@@ -192,13 +221,28 @@ function FolderList({ folders }: { folders: Preview["folders"] }) {
   );
 }
 
-function MoveList({ items }: { items: PreviewItem[] }) {
+/**
+ * Every photo that will move, as a virtual list.
+ * @param props.rows - the moves
+ * @param props.label - accessible name for the list
+ * @param props.origin - what an empty `from` folder is called (default "Library folder")
+ * @returns the list, filling the remaining space
+ */
+export function MoveList({
+  rows,
+  label,
+  origin = "Library folder",
+}: {
+  rows: MoveRowData[];
+  label: string;
+  origin?: string;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // TanStack Virtual returns fresh functions each render, which the React Compiler can't
   // memoise; it skips this component, which is the documented, intended outcome.
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
-    count: items.length,
+    count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 8,
@@ -208,19 +252,24 @@ function MoveList({ items }: { items: PreviewItem[] }) {
     <div
       ref={scrollRef}
       role="list"
-      aria-label="Files that will move"
+      aria-label={label}
       className="min-w-0 flex-1 overflow-y-auto"
     >
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() + 16 }}>
         {virtualizer.getVirtualItems().map((row) => (
-          <MoveRow key={items[row.index].id} item={items[row.index]} top={row.start} />
+          <MoveRow
+            key={rows[row.index].key}
+            item={rows[row.index]}
+            origin={origin}
+            top={row.start}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function MoveRow({ item, top }: { item: PreviewItem; top: number }) {
+function MoveRow({ item, origin, top }: { item: MoveRowData; origin: string; top: number }) {
   const [failed, setFailed] = useState(false);
   const from = splitPath(item.from);
   const to = splitPath(item.to);
@@ -237,7 +286,7 @@ function MoveRow({ item, top }: { item: PreviewItem; top: number }) {
           `.${ext.toLowerCase()}`
         ) : (
           <img
-            src={thumbUrl(item.id, item.version)}
+            src={item.thumb}
             alt=""
             loading="lazy"
             decoding="async"
@@ -263,7 +312,7 @@ function MoveRow({ item, top }: { item: PreviewItem; top: number }) {
           )}
         </span>
         <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted">
-          <span className="selectable truncate">{from.folder || "Library folder"}</span>
+          <span className="selectable truncate">{from.folder || origin}</span>
           <Icon name="chevron" size={12} className="shrink-0 text-faint" />
           <span className="selectable shrink-0 text-paper">{to.folder}</span>
         </span>

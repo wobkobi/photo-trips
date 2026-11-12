@@ -32,34 +32,51 @@ pub struct PendingBatch {
 }
 
 /// Managed state: the latest preview. Applying names its id, so what runs is exactly what the
-/// user reviewed, and a stale preview can't be applied by mistake.
-#[derive(Default)]
-pub struct Previews {
+/// user reviewed, and a stale preview can't be applied by mistake. Sorting and trip changes
+/// share one slot; imports have their own (`Previews<PendingImport>`).
+pub struct Previews<T = PendingBatch> {
     next_id: AtomicU64,
-    latest: Mutex<Option<(u64, Arc<PendingBatch>)>>,
+    latest: Mutex<Option<(u64, Arc<T>)>>,
 }
 
-impl Previews {
-    /// Keep `pending` as the latest preview, replacing any older one. Returns its id.
-    pub fn store(&self, pending: PendingBatch) -> u64 {
-        let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
-        if let Ok(mut latest) = self.latest.lock() {
-            *latest = Some((id, Arc::new(pending)));
+impl<T> Default for Previews<T> {
+    fn default() -> Self {
+        Previews {
+            next_id: AtomicU64::new(0),
+            latest: Mutex::new(None),
         }
-        id
+    }
+}
+
+impl<T> Previews<T> {
+    /// Keep `pending` as the latest preview, replacing any older one. Returns its id.
+    pub fn store(&self, pending: T) -> u64 {
+        self.store_with(|_| pending).0
     }
 
-    fn get(&self, id: u64) -> Result<Arc<PendingBatch>> {
-        self.latest
-            .lock()
-            .ok()
-            .and_then(|latest| latest.clone())
+    /// [`Previews::store`] for a preview that needs its own id (to name its thumbnails, say).
+    pub fn store_with(&self, make: impl FnOnce(u64) -> T) -> (u64, Arc<T>) {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
+        let pending = Arc::new(make(id));
+        if let Ok(mut latest) = self.latest.lock() {
+            *latest = Some((id, pending.clone()));
+        }
+        (id, pending)
+    }
+
+    /// The preview with this id, if it is still the latest.
+    pub fn get(&self, id: u64) -> Result<Arc<T>> {
+        self.latest()
             .filter(|(latest_id, _)| *latest_id == id)
             .map(|(_, pending)| pending)
             .ok_or_else(|| Error::msg("This preview is out of date. Check the changes again."))
     }
 
-    fn clear(&self, id: u64) {
+    pub fn latest(&self) -> Option<(u64, Arc<T>)> {
+        self.latest.lock().ok().and_then(|latest| latest.clone())
+    }
+
+    pub fn clear(&self, id: u64) {
         if let Ok(mut latest) = self.latest.lock()
             && latest
                 .as_ref()
@@ -88,7 +105,7 @@ pub struct Preview {
     pub items: Vec<PreviewItem>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FolderCount {
     pub folder: String,

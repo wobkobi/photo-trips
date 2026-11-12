@@ -23,6 +23,8 @@ export const JOB_NAMES: Record<string, string> = {
   undo: "Putting files back",
   duplicates: "Checking for duplicates",
   remove: "Moving copies to the Recycle Bin",
+  "import-scan": "Checking for new photos",
+  import: "Bringing photos in",
 };
 
 /** Background job state. Must be used under JobsProvider. */

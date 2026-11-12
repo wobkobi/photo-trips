@@ -1,0 +1,1013 @@
+// Bring photos in from outside the library: a folder on this PC, a memory card, or a phone or
+// camera over USB. Each file goes straight to its trip or year and month folder. Files whose
+// contents are already in the library, under any name, are left out. Nothing at the source
+// changes, unless the user chose to move a folder's files in.
+//
+// Copies are found in two steps, so a big card isn't read twice: only files the same size as a
+// library file (or another incoming file) are hashed, then compared by hash.
+
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use rusqlite::{Connection, params};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use tauri::{AppHandle, Manager, State};
+
+use crate::AppState;
+use crate::commands::{format_table, library_root, lock_db};
+use crate::dates;
+use crate::db;
+use crate::error::{Error, Result};
+use crate::executor::{self, Env, Incoming, IncomingGroup, NewBatch, Transfer};
+use crate::exiftool;
+use crate::formats::{FormatTable, Kind};
+use crate::groups::{self, MediaRow};
+use crate::index::{self, NewRow, Report};
+use crate::jobs;
+use crate::mtp;
+use crate::organise::{FolderCount, Previews, relative};
+use crate::planner::{self, Rules, is_inside};
+use crate::scan::{self, ScannedFile};
+use crate::trips::{self, Trip};
+
+/// Items listed in a preview. The counts above the list always cover every file.
+const ITEM_LIMIT: usize = 3000;
+
+/// Where to import from, as the Import page asks for it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+pub enum SourceSpec {
+    /// A folder on this PC. With `move_files`, the files are moved in instead of copied.
+    Folder { path: PathBuf, move_files: bool },
+    /// A memory card or other removable drive, read from its root.
+    Drive { path: PathBuf, name: String },
+    /// A phone or camera over USB.
+    Phone { id: String, name: String },
+}
+
+/// What an import will do, for the review screen.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportPreview {
+    pub id: u64,
+    /// "EOS_DIGITAL (E:)", a phone's name, or a folder's name.
+    pub source: String,
+    /// What was looked through, so the page can check it again.
+    pub spec: SourceSpec,
+    /// Files are moved in from a folder rather than copied.
+    pub moving: bool,
+    /// Files that will come in, and their total size.
+    pub files: usize,
+    pub bytes: u64,
+    /// Files already in the library (or found twice at the source).
+    pub already: usize,
+    pub already_bytes: u64,
+    /// Sidecar files whose photo isn't there, never brought in.
+    pub left_alone: usize,
+    /// Files at the source that aren't photos or videos.
+    pub other_files: u64,
+    /// Groups that get a ` (n)` added to their names.
+    pub renamed: usize,
+    /// Destination folders, relative to the library, with how many files each receives.
+    pub folders: Vec<FolderCount>,
+    pub items: Vec<ImportItem>,
+}
+
+/// One incoming group, shown by its leader.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportItem {
+    /// Thumbnail id, `i<preview id>-<item index>`.
+    pub thumb: String,
+    pub version: i64,
+    /// Where it is now, relative to the source.
+    pub from: String,
+    /// Where it goes, relative to the library.
+    pub to: String,
+    /// Companion files coming with it.
+    pub extra: usize,
+    pub renamed: bool,
+}
+
+/// A previewed import waiting for the user to start it.
+pub struct PendingImport {
+    /// Batch kind: `import` for copies, `import_move` for files moved in.
+    kind: &'static str,
+    label: String,
+    root: PathBuf,
+    transfer: Transfer,
+    groups: Vec<IncomingGroup>,
+    /// Each item's file (path, size, modified time), for its thumbnail.
+    thumbs: Vec<(PathBuf, u64, i64)>,
+    /// Staging folder holding a phone's files, emptied once the import has run.
+    staging: Option<PathBuf>,
+    preview: ImportPreview,
+}
+
+/// Everything an import scan works with.
+pub struct Ctx<'a> {
+    pub db: &'a Mutex<Connection>,
+    /// The library folder.
+    pub root: &'a Path,
+    pub table: &'a FormatTable,
+    pub trips: &'a [Trip],
+    pub exiftool: Option<&'a Path>,
+    pub cancel: &'a AtomicBool,
+    pub report: Report<'a>,
+}
+
+/// One file found at a source.
+#[derive(Debug, Clone)]
+pub struct Found {
+    /// `file.path` is where it can be read: on the card, in the folder, or a phone file's
+    /// staging copy.
+    pub file: ScannedFile,
+    /// Where it came from, for History.
+    pub origin: PathBuf,
+    /// Already known (a phone file's hash is taken while it is copied off).
+    pub hash: Option<String>,
+}
+
+/// What an import will do.
+#[derive(Debug, Default)]
+pub struct ImportPlan {
+    pub groups: Vec<IncomingGroup>,
+    pub already: usize,
+    pub already_bytes: u64,
+    pub left_alone: usize,
+}
+
+impl ImportPlan {
+    pub fn file_count(&self) -> usize {
+        self.groups.iter().map(|g| g.files.len()).sum()
+    }
+}
+
+/// Library files of the sizes asked about, hashed where they weren't yet.
+struct LibraryHashes {
+    sizes: HashSet<u64>,
+    hashes: HashSet<String>,
+}
+
+/// Work out which found files are new and where each goes. `exists` says whether a library
+/// path is taken on disk. Only files sharing a size with a library file or another incoming
+/// file are hashed, and library files hashed here keep their hash for the duplicate check.
+pub fn plan(ctx: &Ctx, mut found: Vec<Found>, exists: &dyn Fn(&Path) -> bool) -> Result<ImportPlan> {
+    let mut out = ImportPlan::default();
+    found.sort_by(|a, b| a.file.path.cmp(&b.file.path));
+    let comparable = |f: &Found| f.file.kind != Kind::Companion && f.file.size > 0;
+
+    // Step 1, sizes: a file can only be a copy of something the same size.
+    let mut incoming_sizes: HashMap<u64, usize> = HashMap::new();
+    for f in found.iter().filter(|f| comparable(f)) {
+        *incoming_sizes.entry(f.file.size).or_default() += 1;
+    }
+    let library = library_hashes(ctx, &incoming_sizes.keys().copied().collect())?;
+    let to_hash: Vec<usize> = (0..found.len())
+        .filter(|&i| {
+            let f = &found[i];
+            comparable(f)
+                && f.hash.is_none()
+                && (library.sizes.contains(&f.file.size) || incoming_sizes[&f.file.size] > 1)
+        })
+        .collect();
+    let paths: Vec<PathBuf> = to_hash.iter().map(|&i| found[i].file.path.clone()).collect();
+    let hashes = crate::hash::many(&paths, "Comparing with your library", ctx.cancel, ctx.report);
+    if ctx.cancel.load(Ordering::Relaxed) {
+        return Err(Error::msg("Cancelled"));
+    }
+    for (&i, hash) in to_hash.iter().zip(hashes) {
+        found[i].hash = hash;
+    }
+
+    // Step 2, contents: a copy of a library file, or of a file earlier in this import.
+    let mut seen = HashSet::new();
+    let duplicate: Vec<bool> = found
+        .iter()
+        .map(|f| match &f.hash {
+            Some(h) if comparable(f) => library.hashes.contains(h) || !seen.insert(h.clone()),
+            _ => false,
+        })
+        .collect();
+
+    // Whole same-name sets that are already in, sidecars included, aren't read any further.
+    let keys: Vec<String> = found
+        .iter()
+        .map(|f| scan::group_key(&f.file.path, f.file.kind, ctx.table))
+        .collect();
+    let mut buckets: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    for (i, key) in keys.iter().enumerate() {
+        buckets.entry(key).or_default().push(i);
+    }
+    let mut to_read = Vec::new();
+    for members in buckets.values() {
+        let media: Vec<usize> = members
+            .iter()
+            .copied()
+            .filter(|&i| found[i].file.kind != Kind::Companion)
+            .collect();
+        if media.is_empty() {
+            out.left_alone += members.len();
+        } else if media.iter().all(|&i| duplicate[i]) {
+            count_already(&mut out, members.iter().map(|&i| &found[i]));
+        } else {
+            to_read.extend(members.iter().copied());
+        }
+    }
+    to_read.sort_unstable();
+
+    let files: Vec<&ScannedFile> = to_read.iter().map(|&i| &found[i].file).collect();
+    let new_rows = index::read_files(&files, ctx.exiftool, ctx.cancel, ctx.report)?;
+    let read: HashMap<usize, &NewRow> = to_read.iter().copied().zip(&new_rows).collect();
+    let rows: Vec<MediaRow> = read
+        .iter()
+        .map(|(&i, row)| MediaRow {
+            id: i as i64,
+            path: row.path.clone(),
+            group_key: keys[i].clone(),
+            kind: row.kind,
+            size: row.size,
+            mtime: row.mtime,
+            taken_at: row.meta.taken_at,
+            date_source: row.meta.source,
+            lat: row.meta.lat,
+            lon: row.meta.lon,
+            hash: found[i].hash.clone(),
+        })
+        .collect();
+    let (groups, orphans) = groups::build(rows);
+    out.left_alone += orphans.len();
+
+    let rules = Rules {
+        root: ctx.root,
+        trips: ctx.trips,
+    };
+    let mut claimed = HashSet::new();
+    let now = db::now();
+    for group in &groups {
+        let index_of = |m: &MediaRow| m.id as usize;
+        // A set split by date can still be wholly made of copies.
+        let all_copies = group
+            .members
+            .iter()
+            .filter(|m| m.kind != Kind::Companion)
+            .all(|m| duplicate[index_of(m)]);
+        if all_copies {
+            count_already(&mut out, group.members.iter().map(|m| &found[index_of(m)]));
+            continue;
+        }
+        let dir = rules.target_dir(group);
+        let placed = planner::place(group, &dir, ctx.table, &mut claimed, exists);
+        let files = placed
+            .moves
+            .iter()
+            .map(|mv| {
+                let i = mv.media_id as usize;
+                Incoming {
+                    from: found[i].file.path.clone(),
+                    origin: found[i].origin.clone(),
+                    to: mv.to.clone(),
+                    row: row_json(&mv.to, read[&i], found[i].hash.as_deref(), ctx.table, now),
+                }
+            })
+            .collect();
+        out.groups.push(IncomingGroup {
+            files,
+            renamed: placed.renamed,
+        });
+    }
+    Ok(out)
+}
+
+fn count_already<'a>(plan: &mut ImportPlan, files: impl Iterator<Item = &'a Found>) {
+    for f in files {
+        plan.already += 1;
+        plan.already_bytes += f.file.size;
+    }
+}
+
+/// The `media` row a file gets once it lands at `to`, as journal JSON.
+fn row_json(to: &Path, row: &NewRow, hash: Option<&str>, table: &FormatTable, now: i64) -> serde_json::Value {
+    json!({
+        "id": null,
+        "path": to.to_string_lossy(),
+        "group_key": scan::group_key(to, row.kind, table),
+        "kind": row.kind.as_str(),
+        "size": row.size,
+        "mtime": row.mtime,
+        "taken_at": dates::format(&row.meta.taken_at),
+        "tz_offset_min": row.meta.offset_min,
+        "date_source": row.meta.source.as_str(),
+        "lat": row.meta.lat,
+        "lon": row.meta.lon,
+        "hash": hash,
+        "indexed_at": now,
+    })
+}
+
+/// Hashes of the library's photos and videos with these sizes, hashing (and saving) any that
+/// weren't yet. A file that can't be read is skipped and stays unhashed.
+fn library_hashes(ctx: &Ctx, sizes: &HashSet<u64>) -> Result<LibraryHashes> {
+    let rows: Vec<(i64, PathBuf, u64, Option<String>)> = {
+        let conn = lock(ctx.db)?;
+        let mut stmt = conn.prepare(
+            "SELECT id, path, size, hash FROM media WHERE kind != 'companion' AND size > 0",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get(0)?,
+                PathBuf::from(r.get::<_, String>(1)?),
+                r.get::<_, i64>(2)? as u64,
+                r.get(3)?,
+            ))
+        })?;
+        rows.filter_map(|r| r.ok())
+            .filter(|(_, _, size, _)| sizes.contains(size))
+            .collect()
+    };
+    let unhashed: Vec<(i64, PathBuf)> = rows
+        .iter()
+        .filter(|(_, _, _, hash)| hash.is_none())
+        .map(|(id, path, _, _)| (*id, path.clone()))
+        .collect();
+    let paths: Vec<PathBuf> = unhashed.iter().map(|(_, p)| p.clone()).collect();
+    let fresh = crate::hash::many(&paths, "Reading library files of the same size", ctx.cancel, ctx.report);
+    if ctx.cancel.load(Ordering::Relaxed) {
+        return Err(Error::msg("Cancelled"));
+    }
+    {
+        let mut conn = lock(ctx.db)?;
+        let tx = conn.transaction()?;
+        {
+            let mut update = tx.prepare("UPDATE media SET hash = ?1 WHERE id = ?2")?;
+            for ((id, _), hash) in unhashed.iter().zip(&fresh) {
+                if let Some(hash) = hash {
+                    update.execute(params![hash, id])?;
+                }
+            }
+        }
+        tx.commit()?;
+    }
+    let sizes = rows.iter().map(|(_, _, size, _)| *size).collect();
+    let mut hashes: HashSet<String> = rows.into_iter().filter_map(|(_, _, _, h)| h).collect();
+    hashes.extend(fresh.into_iter().flatten());
+    Ok(LibraryHashes { sizes, hashes })
+}
+
+/// Every photo, video and sidecar under `dir`, leaving out the library if it is inside.
+pub fn scan_folder(ctx: &Ctx, dir: &Path) -> Result<(Vec<Found>, u64)> {
+    (ctx.report)("Looking for photos and videos", 0, 0);
+    let scanned = scan::scan_excluding(dir, Some(ctx.root), ctx.table, ctx.cancel)?;
+    let found = scanned
+        .files
+        .into_iter()
+        .map(|file| Found {
+            origin: file.path.clone(),
+            file,
+            hash: None,
+        })
+        .collect();
+    Ok((found, scanned.other_files))
+}
+
+/// Copy a phone's new photos into `staging` and list them. A file seen on this phone before
+/// (same path, size and modified time) whose contents are already in the library isn't copied
+/// again; those are counted in the returned (files, bytes).
+pub fn fetch_phone(ctx: &Ctx, id: &str, name: &str, staging: &Path) -> Result<(Vec<Found>, usize, u64)> {
+    let provider = mtp::provider()?;
+    let phone = mtp::open(&provider, id, name)?;
+    (ctx.report)(&format!("Looking for photos on {name}"), 0, 0);
+    let files = phone.list(ctx.table, ctx.cancel, ctx.report)?;
+
+    let memo = load_memo(ctx.db, id)?;
+    let sizes: HashSet<u64> = files.iter().map(|f| f.size).filter(|&s| s > 0).collect();
+    let library = library_hashes(ctx, &sizes)?;
+    let known_copy = |f: &mtp::PhoneFile| {
+        memo.get(&key_of(&f.path)).is_some_and(|(size, modified, hash)| {
+            *size == f.size && *modified == secs(f.modified) && library.hashes.contains(hash)
+        })
+    };
+
+    // Same-name sets (a photo and its Live Photo video) are skipped only as a whole.
+    let mut buckets: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+    for (i, f) in files.iter().enumerate() {
+        let kind = ctx.table.kind_of(&f.path).unwrap_or(Kind::Companion);
+        buckets.entry(scan::group_key(&f.path, kind, ctx.table)).or_default().push(i);
+    }
+    let (mut already, mut already_bytes) = (0, 0);
+    let mut wanted = Vec::new();
+    for members in buckets.values() {
+        let media: Vec<usize> = members
+            .iter()
+            .copied()
+            .filter(|&i| ctx.table.kind_of(&files[i].path) != Some(Kind::Companion))
+            .collect();
+        if !media.is_empty() && media.iter().all(|&i| known_copy(&files[i])) {
+            already += members.len();
+            already_bytes += members.iter().map(|&i| files[i].size).sum::<u64>();
+        } else {
+            wanted.extend(members.iter().copied());
+        }
+    }
+    wanted.sort_unstable();
+
+    let stage = format!("Copying from {name}");
+    let mut found = Vec::with_capacity(wanted.len());
+    for (n, &i) in wanted.iter().enumerate() {
+        if ctx.cancel.load(Ordering::Relaxed) {
+            return Err(Error::msg("Cancelled"));
+        }
+        (ctx.report)(&stage, n, wanted.len());
+        let file = &files[i];
+        let to = staging.join(&file.path);
+        if let Some(dir) = to.parent() {
+            fs::create_dir_all(dir)?;
+        }
+        let _ = fs::remove_file(&to);
+        let hash = phone.download(file, &to)?;
+        let modified = secs(file.modified);
+        save_memo(ctx.db, id, &file.path, file.size, modified, &hash)?;
+        let kind = ctx.table.kind_of(&file.path).unwrap_or(Kind::Companion);
+        let size = fs::metadata(&to).map_or(file.size, |m| m.len());
+        found.push(Found {
+            file: ScannedFile {
+                path: to,
+                kind,
+                size,
+                mtime: modified,
+            },
+            origin: Path::new(name).join(&file.path),
+            hash: Some(hash),
+        });
+    }
+    (ctx.report)(&stage, wanted.len(), wanted.len());
+    Ok((found, already, already_bytes))
+}
+
+/// Phone files hashed before: path key > (size, modified, hash).
+fn load_memo(db: &Mutex<Connection>, device: &str) -> Result<HashMap<String, (u64, i64, String)>> {
+    let conn = lock(db)?;
+    let mut stmt = conn.prepare("SELECT path, size, modified, hash FROM device_files WHERE device = ?1")?;
+    let rows = stmt.query_map([device], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            (r.get::<_, i64>(1)? as u64, r.get(2)?, r.get(3)?),
+        ))
+    })?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+fn save_memo(db: &Mutex<Connection>, device: &str, path: &Path, size: u64, modified: i64, hash: &str) -> Result<()> {
+    lock(db)?.execute(
+        "INSERT INTO device_files (device, path, size, modified, hash) VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(device, path) DO UPDATE SET
+            size = excluded.size, modified = excluded.modified, hash = excluded.hash",
+        params![device, key_of(path), size as i64, modified, hash],
+    )?;
+    Ok(())
+}
+
+fn key_of(path: &Path) -> String {
+    index::path_key(path)
+}
+
+/// Unix seconds, 0 when unknown.
+fn secs(time: Option<std::time::SystemTime>) -> i64 {
+    time.and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_secs() as i64)
+}
+
+/// Where a phone's files wait between being copied off and coming into the library. Inside
+/// the library's hidden `.photolib` folder, so the final step is a rename on the same drive.
+pub fn staging_dir(root: &Path) -> PathBuf {
+    root.join(".photolib").join("staging")
+}
+
+/// Empty the staging folder. Everything in it is a copy of a file still on a phone.
+pub fn clear_staging(root: &Path) {
+    let dir = staging_dir(root);
+    if dir.exists()
+        && let Err(err) = fs::remove_dir_all(&dir)
+    {
+        log::warn!("Couldn't empty {}: {err}", dir.display());
+    }
+}
+
+/// Check a source and start looking through it in the background. The job's result is an
+/// [`ImportPreview`].
+#[tauri::command]
+pub fn scan_import(app: AppHandle, source: SourceSpec) -> Result<()> {
+    start_scan(&app, source)
+}
+
+/// [`scan_import`], also started from the tray's "Import from <card>" item.
+pub fn start_scan(app: &AppHandle, source: SourceSpec) -> Result<()> {
+    let state = app.state::<AppState>();
+    let (root, table, trips) = {
+        let conn = lock_db(&state)?;
+        (library_root(&conn)?, format_table(&conn)?, trips::load(&conn)?)
+    };
+    if let SourceSpec::Folder { path, .. } | SourceSpec::Drive { path, .. } = &source {
+        if !path.is_dir() {
+            return Err(Error::msg(format!("{} can't be found", path.display())));
+        }
+        if is_inside(path, &root) {
+            return Err(Error::msg(
+                "That folder is already part of your library. Use Sort to put its photos in order.",
+            ));
+        }
+    }
+    let exiftool = app
+        .path()
+        .resource_dir()
+        .ok()
+        .and_then(|dir| exiftool::locate(&dir));
+    let handle = app.clone();
+    jobs::start(app, "import-scan", move |job| {
+        let state = handle.state::<AppState>();
+        let ctx = Ctx {
+            db: &state.db,
+            root: &root,
+            table: &table,
+            trips: &trips,
+            exiftool: exiftool.as_deref(),
+            cancel: job.cancel_flag(),
+            report: &|stage, done, total| job.report(stage, done, total),
+        };
+        let previews = handle.state::<Previews<PendingImport>>();
+        let phone = matches!(source, SourceSpec::Phone { .. });
+        // A phone check refills the staging folder, so an older phone preview can't be used.
+        if phone && let Some((id, _)) = previews.latest().filter(|(_, p)| p.staging.is_some()) {
+            previews.clear(id);
+        }
+        let looked = look_through(&ctx, source)?;
+        let replaced = previews.latest();
+        let (_, pending) = previews.store_with(|id| looked.into_pending(id, &root));
+        // Only one preview is kept, so a replaced phone preview's copies are no longer needed.
+        if !phone && replaced.is_some_and(|(_, p)| p.staging.is_some()) {
+            clear_staging(&root);
+        }
+        Ok(pending.preview.clone())
+    })
+}
+
+/// A source looked through and planned, before it becomes a preview.
+struct Looked {
+    spec: SourceSpec,
+    /// What History and the preview call the source.
+    name: String,
+    /// Item paths are shown relative to this.
+    source_root: PathBuf,
+    transfer: Transfer,
+    staging: Option<PathBuf>,
+    plan: ImportPlan,
+    other_files: u64,
+}
+
+/// Find a source's files, copying a phone's off first, and plan the import.
+fn look_through(ctx: &Ctx, source: SourceSpec) -> Result<Looked> {
+    let exists = |p: &Path| fs::symlink_metadata(p).is_ok();
+    let spec = source.clone();
+    let (name, source_root, transfer, staging, found, other_files) = match source {
+        SourceSpec::Folder { path, move_files } => {
+            let (found, other) = scan_folder(ctx, &path)?;
+            let transfer = if move_files { Transfer::Move } else { Transfer::Copy };
+            // The folder's own name reads better in a headline; a drive root has none.
+            let name = path
+                .file_name()
+                .map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned());
+            (name, path, transfer, None, found, other)
+        }
+        SourceSpec::Drive { path, name } => {
+            let (found, other) = scan_folder(ctx, &path)?;
+            (name, path, Transfer::Copy, None, found, other)
+        }
+        SourceSpec::Phone { id, name } => {
+            let staging = staging_dir(ctx.root);
+            clear_staging(ctx.root);
+            fs::create_dir_all(&staging)?;
+            let (found, already, bytes) = fetch_phone(ctx, &id, &name, &staging)?;
+            let mut plan = plan(ctx, found, &exists)?;
+            plan.already += already;
+            plan.already_bytes += bytes;
+            // Items show where each file is on the phone.
+            return Ok(Looked {
+                spec,
+                source_root: PathBuf::from(&name),
+                name,
+                transfer: Transfer::Staged,
+                staging: Some(staging),
+                plan,
+                other_files: 0,
+            });
+        }
+    };
+    Ok(Looked {
+        spec,
+        name,
+        source_root,
+        transfer,
+        staging,
+        plan: plan(ctx, found, &exists)?,
+        other_files,
+    })
+}
+
+impl Looked {
+    fn into_pending(self, id: u64, root: &Path) -> PendingImport {
+        let moving = self.transfer == Transfer::Move;
+        let files = self.plan.file_count();
+        let files = format!("{files} {}", if files == 1 { "file" } else { "files" });
+        // History names a folder in full, since its name alone may not say which one it was.
+        let from = match &self.spec {
+            SourceSpec::Folder { path, .. } => path.display().to_string(),
+            _ => self.name.clone(),
+        };
+        let label = if moving {
+            format!("Moved {files} in from {from}")
+        } else {
+            format!("Copied {files} from {from}")
+        };
+        let (preview, thumbs) = describe(id, &self, root);
+        PendingImport {
+            kind: if moving { "import_move" } else { "import" },
+            label,
+            root: root.to_path_buf(),
+            transfer: self.transfer,
+            groups: self.plan.groups,
+            thumbs,
+            staging: self.staging,
+            preview,
+        }
+    }
+}
+
+/// Summarise a planned import for the review screen, plus each item's thumbnail source.
+fn describe(id: u64, looked: &Looked, root: &Path) -> (ImportPreview, Vec<(PathBuf, u64, i64)>) {
+    let plan = &looked.plan;
+    let mut folders: BTreeMap<String, usize> = BTreeMap::new();
+    let mut bytes = 0;
+    for group in &plan.groups {
+        for file in &group.files {
+            bytes += file.row["size"].as_u64().unwrap_or(0);
+            let folder = relative(root, file.to.parent().unwrap_or(root));
+            *folders.entry(folder).or_default() += 1;
+        }
+    }
+    let mut thumbs = Vec::new();
+    let items = plan
+        .groups
+        .iter()
+        .take(ITEM_LIMIT)
+        .filter_map(|group| {
+            let leader = group.files.first()?;
+            let mtime = leader.row["mtime"].as_i64().unwrap_or(0);
+            let size = leader.row["size"].as_u64().unwrap_or(0);
+            thumbs.push((leader.from.clone(), size, mtime));
+            Some(ImportItem {
+                thumb: format!("i{id}-{}", thumbs.len() - 1),
+                version: mtime,
+                from: relative(&looked.source_root, &leader.origin),
+                to: relative(root, &leader.to),
+                extra: group.files.len() - 1,
+                renamed: group.renamed,
+            })
+        })
+        .collect();
+    let preview = ImportPreview {
+        id,
+        source: looked.name.clone(),
+        spec: looked.spec.clone(),
+        moving: looked.transfer == Transfer::Move,
+        files: plan.file_count(),
+        bytes,
+        already: plan.already,
+        already_bytes: plan.already_bytes,
+        left_alone: plan.left_alone,
+        other_files: looked.other_files,
+        renamed: plan.groups.iter().filter(|g| g.renamed).count(),
+        folders: folders
+            .into_iter()
+            .map(|(folder, files)| FolderCount { folder, files })
+            .collect(),
+        items,
+    };
+    (preview, thumbs)
+}
+
+/// The latest import preview, so the page can show it again after switching away.
+#[tauri::command]
+pub fn import_preview(previews: State<Previews<PendingImport>>) -> Option<ImportPreview> {
+    previews.latest().map(|(_, pending)| pending.preview.clone())
+}
+
+/// Drop a preview the user turned away from, with any phone files copied off for it.
+#[tauri::command]
+pub fn discard_import(previews: State<Previews<PendingImport>>, id: u64) {
+    if let Ok(pending) = previews.get(id) {
+        previews.clear(id);
+        if pending.staging.is_some() {
+            clear_staging(&pending.root);
+        }
+    }
+}
+
+/// Run a previewed import in the background as one undoable batch.
+#[tauri::command]
+pub fn apply_import(app: AppHandle, previews: State<Previews<PendingImport>>, id: u64) -> Result<()> {
+    let pending = previews.get(id)?;
+    let handle = app.clone();
+    jobs::start(&app, "import", move |job| {
+        let state = handle.state::<AppState>();
+        let table = format_table(&*lock_db(&state)?)?;
+        let env = Env {
+            db: &state.db,
+            root: &pending.root,
+            table: &table,
+            cancel: job.cancel_flag(),
+            report: &|stage, done, total| job.report(stage, done, total),
+        };
+        let batch = NewBatch {
+            kind: pending.kind,
+            label: &pending.label,
+            on_begin: None,
+        };
+        let summary = executor::import(&env, &batch, &pending.groups, pending.transfer);
+        if pending.staging.is_some() {
+            clear_staging(&pending.root);
+        }
+        summary
+    })?;
+    previews.clear(id);
+    Ok(())
+}
+
+/// File, size and modified time behind an import thumbnail id (`<preview id>-<item index>`,
+/// without the leading `i`), while that preview is the latest.
+pub fn thumb_source(app: &AppHandle<impl tauri::Runtime>, id: &str) -> Option<(PathBuf, u64, i64)> {
+    let (preview, item) = id.split_once('-')?;
+    let (latest, pending) = app.state::<Previews<PendingImport>>().latest()?;
+    if preview.parse::<u64>().ok()? != latest {
+        return None;
+    }
+    pending.thumbs.get(item.parse::<usize>().ok()?).cloned()
+}
+
+fn lock(db: &Mutex<Connection>) -> Result<std::sync::MutexGuard<'_, Connection>> {
+    db.lock().map_err(|_| Error::msg("Database lock poisoned"))
+}
+
+/// Folder imports planned the way the Import page plans them, shared by the import and
+/// executor tests.
+#[cfg(test)]
+pub mod testing {
+    use super::*;
+    use crate::executor::testing::no_report;
+
+    /// Plan bringing `source` into the library at `root`. Returns the plan and the count of
+    /// files that aren't photos or videos.
+    pub fn plan_folder(db: &Mutex<Connection>, root: &Path, source: &Path, trips: &[Trip]) -> (ImportPlan, u64) {
+        let table = FormatTable::default();
+        let cancel = AtomicBool::new(false);
+        let ctx = Ctx {
+            db,
+            root,
+            table: &table,
+            trips,
+            exiftool: None,
+            cancel: &cancel,
+            report: &no_report,
+        };
+        let (found, other) = scan_folder(&ctx, source).unwrap();
+        let plan = plan(&ctx, found, &|p| fs::symlink_metadata(p).is_ok()).unwrap();
+        (plan, other)
+    }
+
+    /// Write `contents` to `path`, making its folder.
+    pub fn write(path: &Path, contents: &str) {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, contents).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::testing::{plan_folder, write};
+    use super::*;
+    use crate::executor::testing::{library, no_report, snapshot};
+    use crate::recycle::fake;
+
+    const LIBRARY_PHOTO: &str = "2025\\2025-03\\IMG_20250301_090000.jpg";
+
+    fn japan() -> Trip {
+        Trip {
+            id: 1,
+            name: "Japan".into(),
+            start_at: dates::parse("2025-05-01T00:00:00").unwrap(),
+            end_at: dates::parse("2025-05-03T23:59:59").unwrap(),
+            folder: "2025-05-01 Japan".into(),
+            created_at: 0,
+        }
+    }
+
+    /// Every planned destination, relative to the library, sorted.
+    fn destinations(plan: &ImportPlan, root: &Path) -> Vec<String> {
+        let mut out: Vec<String> = plan
+            .groups
+            .iter()
+            .flat_map(|g| &g.files)
+            .map(|f| relative(root, &f.to))
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// A card-like folder: a renamed copy of the library photo, a photo with its sidecar, the
+    /// same photo saved twice, a trip photo, a new photo whose name is taken, a sidecar on its
+    /// own, and a text file.
+    fn card(library_root: &Path) -> tempfile::TempDir {
+        let card = tempfile::tempdir().unwrap();
+        let dcim = card.path().join("DCIM");
+        let library_bytes = fs::read_to_string(library_root.join(LIBRARY_PHOTO)).unwrap();
+        write(&dcim.join("100\\renamed copy.jpg"), &library_bytes);
+        write(&dcim.join("100\\IMG_20250312_101500.jpg"), "march photo");
+        write(&dcim.join("100\\IMG_20250312_101500.aae"), "march edits");
+        write(&dcim.join("100\\IMG_20250401_080000.jpg"), "april");
+        write(&dcim.join("101\\IMG_20250401_080000.jpg"), "april");
+        write(&dcim.join("100\\IMG_20250502_120000.jpg"), "in japan");
+        write(&dcim.join("100\\IMG_20250301_090000.jpg"), "a different photo");
+        write(&dcim.join("100\\IMG_20250601_000000.xmp"), "lonely sidecar");
+        write(&card.path().join("notes.txt"), "not a photo");
+        card
+    }
+
+    fn env<'a>(db: &'a Mutex<Connection>, root: &'a Path, table: &'a FormatTable, cancel: &'a AtomicBool) -> Env<'a> {
+        Env {
+            db,
+            root,
+            table,
+            cancel,
+            report: &no_report,
+        }
+    }
+
+    const IMPORT_BATCH: NewBatch = NewBatch {
+        kind: "import",
+        label: "test",
+        on_begin: None,
+    };
+
+    #[test]
+    fn plan_skips_copies_and_places_new_files_by_date_and_trip() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let card = card(root);
+        let (plan, other) = plan_folder(&db, root, card.path(), &[japan()]);
+
+        assert_eq!(
+            destinations(&plan, root),
+            [
+                "2025\\2025-03\\IMG_20250301_090000 (1).jpg",
+                "2025\\2025-03\\IMG_20250312_101500.aae",
+                "2025\\2025-03\\IMG_20250312_101500.jpg",
+                "2025\\2025-04\\IMG_20250401_080000.jpg",
+                "Trips\\2025-05-01 Japan\\IMG_20250502_120000.jpg",
+            ]
+        );
+        // The renamed copy and the second April photo are already in; the lone sidecar and
+        // the text file stay behind.
+        let copy_size = fs::metadata(root.join(LIBRARY_PHOTO)).unwrap().len();
+        assert_eq!((plan.already, plan.already_bytes), (2, copy_size + 5));
+        assert_eq!((plan.left_alone, other), (1, 1));
+        assert_eq!(plan.groups.iter().filter(|g| g.renamed).count(), 1);
+        // The April photo that comes in is the first one found.
+        let april = plan
+            .groups
+            .iter()
+            .flat_map(|g| &g.files)
+            .find(|f| f.to.ends_with("IMG_20250401_080000.jpg"))
+            .unwrap();
+        assert!(april.from.ends_with("100\\IMG_20250401_080000.jpg"));
+    }
+
+    #[test]
+    fn copying_leaves_the_card_alone_and_a_second_import_finds_nothing_new() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let card = card(root);
+        let card_before = snapshot(card.path());
+        let table = FormatTable::default();
+        let cancel = AtomicBool::new(false);
+
+        let (plan, _) = plan_folder(&db, root, card.path(), &[japan()]);
+        let summary = executor::import(&env(&db, root, &table, &cancel), &IMPORT_BATCH, &plan.groups, Transfer::Copy).unwrap();
+        assert_eq!((summary.moved, summary.failed), (5, 0));
+        assert_eq!(snapshot(card.path()), card_before);
+        assert_eq!(
+            fs::read_to_string(root.join("Trips\\2025-05-01 Japan\\IMG_20250502_120000.jpg")).unwrap(),
+            "in japan"
+        );
+        // Every copy is indexed with its hash.
+        let rows = index::load_rows(&db.lock().unwrap()).unwrap();
+        assert_eq!(rows.len(), 6);
+        assert!(rows.iter().filter(|r| r.kind != Kind::Companion).all(|r| r.hash.is_some()));
+
+        let (again, _) = plan_folder(&db, root, card.path(), &[japan()]);
+        assert_eq!(again.file_count(), 0);
+        assert_eq!((again.already, again.left_alone), (7, 1));
+    }
+
+    #[test]
+    fn undoing_a_copy_sends_the_copies_to_the_bin() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let card = card(root);
+        let library_before = snapshot(root);
+        let table = FormatTable::default();
+        let cancel = AtomicBool::new(false);
+        let env = env(&db, root, &table, &cancel);
+
+        let (plan, _) = plan_folder(&db, root, card.path(), &[]);
+        let summary = executor::import(&env, &IMPORT_BATCH, &plan.groups, Transfer::Copy).unwrap();
+        let landed = root.join("2025\\2025-03\\IMG_20250312_101500.jpg");
+        assert!(landed.exists());
+
+        let undone = executor::undo(&env, summary.batch_id).unwrap();
+        assert_eq!((undone.restored, undone.failed), (5, 0));
+        assert!(!landed.exists() && fake::holds(&landed));
+        assert_eq!(snapshot(root), library_before);
+        assert_eq!(index::load_rows(&db.lock().unwrap()).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_copy_changed_since_the_check_is_refused() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let card = tempfile::tempdir().unwrap();
+        let photo = card.path().join("IMG_20250312_101500.jpg");
+        // Same size as another incoming photo, so the check hashes it.
+        write(&photo, "aaaa");
+        write(&card.path().join("IMG_20250313_101500.jpg"), "bbbb");
+        let (plan, _) = plan_folder(&db, root, card.path(), &[]);
+        write(&photo, "cccc");
+
+        let table = FormatTable::default();
+        let cancel = AtomicBool::new(false);
+        let summary = executor::import(&env(&db, root, &table, &cancel), &IMPORT_BATCH, &plan.groups, Transfer::Copy).unwrap();
+        assert_eq!((summary.moved, summary.failed), (1, 1));
+        assert!(!root.join("2025\\2025-03\\IMG_20250312_101500.jpg").exists());
+        assert!(root.join("2025\\2025-03\\IMG_20250313_101500.jpg").exists());
+    }
+
+    #[test]
+    fn moving_a_folder_in_and_undoing_puts_every_file_back() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let card = card(root);
+        let card_before = snapshot(card.path());
+        let library_before = snapshot(root);
+        let table = FormatTable::default();
+        let cancel = AtomicBool::new(false);
+        let env = env(&db, root, &table, &cancel);
+        let batch = NewBatch {
+            kind: "import_move",
+            ..IMPORT_BATCH
+        };
+
+        let (plan, _) = plan_folder(&db, root, card.path(), &[japan()]);
+        let summary = executor::import(&env, &batch, &plan.groups, Transfer::Move).unwrap();
+        assert_eq!(summary.moved, 5);
+        // Copies of library files and the lone sidecar stay where they were.
+        let left: Vec<String> = snapshot(card.path()).into_iter().map(|(p, _, _)| p).collect();
+        assert_eq!(
+            left,
+            [
+                "DCIM\\100\\IMG_20250601_000000.xmp",
+                "DCIM\\100\\renamed copy.jpg",
+                "DCIM\\101\\IMG_20250401_080000.jpg",
+                "notes.txt",
+            ]
+        );
+
+        let undone = executor::undo(&env, summary.batch_id).unwrap();
+        assert_eq!((undone.restored, undone.failed), (5, 0));
+        assert_eq!(snapshot(card.path()), card_before);
+        assert_eq!(snapshot(root), library_before);
+        assert_eq!(index::load_rows(&db.lock().unwrap()).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_library_inside_the_source_folder_is_left_out() {
+        let outer = tempfile::tempdir().unwrap();
+        let root = outer.path().join("Library");
+        write(&root.join(LIBRARY_PHOTO), "inside the library");
+        write(&outer.path().join("IMG_20250312_101500.jpg"), "new");
+        let db = Mutex::new(db::open_in_memory().unwrap());
+        let (plan, _) = plan_folder(&db, &root, outer.path(), &[]);
+        assert_eq!(destinations(&plan, &root), ["2025\\2025-03\\IMG_20250312_101500.jpg"]);
+    }
+}

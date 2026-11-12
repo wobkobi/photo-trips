@@ -1,6 +1,7 @@
 mod commands;
 mod dates;
 mod db;
+mod devices;
 mod duplicates;
 mod error;
 mod executor;
@@ -9,10 +10,12 @@ mod formats;
 mod groups;
 mod hash;
 mod history;
+mod import;
 mod index;
 mod jobs;
 mod library;
 mod metadata;
+mod mtp;
 mod organise;
 mod planner;
 mod recycle;
@@ -66,10 +69,14 @@ pub fn run() {
             let library_root = db::get_setting(&conn, "library_root")?;
             if let Some(root) = &library_root {
                 commands::allow_library(app.handle(), root);
+                // Phone files left from an import that never finished; recovery is done with them.
+                import::clear_staging(std::path::Path::new(root));
             }
             app.manage(thumbs::Pool::new(4, &data_dir));
             app.manage(jobs::Jobs::default());
-            app.manage(organise::Previews::default());
+            app.manage(organise::Previews::<organise::PendingBatch>::default());
+            app.manage(organise::Previews::<import::PendingImport>::default());
+            app.manage(devices::Devices::default());
             app.manage(AppState {
                 db: Mutex::new(conn),
                 data_dir,
@@ -82,6 +89,7 @@ pub fn run() {
                 log::warn!("Startup index skipped: {err}");
             }
             tray::set_watch_state(app.handle(), None);
+            devices::start(app.handle());
 
             // The window starts hidden (see tauri.conf.json) to avoid a flash on a tray-only start.
             if !std::env::args().any(|arg| arg == HIDDEN_FLAG) {
@@ -126,6 +134,11 @@ pub fn run() {
             duplicates::find_duplicates,
             duplicates::list_duplicates,
             duplicates::remove_duplicates,
+            import::scan_import,
+            import::import_preview,
+            import::apply_import,
+            import::discard_import,
+            devices::import_sources,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Photo Trips");

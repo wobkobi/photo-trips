@@ -27,7 +27,7 @@ export function HistoryPage() {
   }, []);
 
   useEffect(load, [load]);
-  useJobDone(["apply", "undo", "remove"], load);
+  useJobDone(["apply", "undo", "remove", "import"], load);
 
   async function undo(batchId: number) {
     setConfirming(null);
@@ -139,16 +139,33 @@ function BatchRow({
 }
 
 /**
- * The question before undoing. A trip change also puts the trip back as it was.
+ * The question before undoing. A trip change also puts the trip back as it was; undoing a
+ * copied-in import sends the copies to the Recycle Bin, since the originals are still there.
  * @param batch - the batch
  * @returns the question
  */
 function confirmText(batch: BatchInfo): string {
   const files = count(batch.done, "file", "files");
-  if (batch.kind === "duplicates") return `Take ${files} out of the Recycle Bin?`;
-  if (batch.kind !== "trip") return `Put ${files} back?`;
-  return batch.done > 0 ? `Undo this and put ${files} back?` : "Undo this trip change?";
+  switch (batch.kind) {
+    case "duplicates":
+      return `Take ${files} out of the Recycle Bin?`;
+    case "import":
+      return `Move the ${files} copied in to the Recycle Bin? The originals stay where they are.`;
+    case "import_move":
+      return `Put ${files} back where they came from?`;
+    case "trip":
+      return batch.done > 0 ? `Undo this and put ${files} back?` : "Undo this trip change?";
+    default:
+      return `Put ${files} back?`;
+  }
 }
+
+/** What a batch did to its files, by batch kind. */
+const DID_TEXT: Record<string, string> = {
+  duplicates: "sent to the Recycle Bin",
+  import: "copied in",
+  import_move: "moved in",
+};
 
 /**
  * One line on what a batch did and where it stands now.
@@ -156,7 +173,7 @@ function confirmText(batch: BatchInfo): string {
  * @returns the sentence
  */
 function statusText(batch: BatchInfo): string {
-  const did = batch.kind === "duplicates" ? "sent to the Recycle Bin" : "moved";
+  const did = DID_TEXT[batch.kind] ?? "moved";
   const moved = `${count(batch.done, "file", "files")} ${did}`;
   switch (batch.status) {
     case "running":
@@ -167,7 +184,8 @@ function statusText(batch: BatchInfo): string {
     case "partial":
       return `${moved}, ${count(batch.failed, "file", "files")} couldn't be`;
     case "failed":
-      return batch.kind === "duplicates" ? "Every copy was kept" : "Nothing could be moved";
+      if (batch.kind === "duplicates") return "Every copy was kept";
+      return batch.kind.startsWith("import") ? "Nothing could be brought in" : "Nothing could be moved";
     case "cancelled":
       return `Stopped part-way, ${moved}`;
     case "interrupted":
@@ -196,6 +214,23 @@ const TRASH_TEXT: Record<EntryStatus, string> = {
   skipped: "Kept",
 };
 
+/** The same states for a file copied in; undoing one sends the copy to the Recycle Bin. */
+const COPY_TEXT: Record<EntryStatus, string> = {
+  ...ENTRY_TEXT,
+  done: "Copied in",
+  failed: "Not copied",
+  skipped: "Not copied",
+  undoing: "Removing",
+  undone: "In the bin",
+};
+
+const OP_TEXT: Record<BatchEntry["op"], Record<EntryStatus, string>> = {
+  move: ENTRY_TEXT,
+  import: ENTRY_TEXT,
+  trash: TRASH_TEXT,
+  copy: COPY_TEXT,
+};
+
 function Entries({ batch }: { batch: BatchInfo }) {
   const [entries, setEntries] = useState<BatchEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -216,7 +251,7 @@ function Entries({ batch }: { batch: BatchInfo }) {
               className={`w-24 shrink-0 ${entry.error ? "text-warn" : "text-muted"}`}
               title={entry.error ?? undefined}
             >
-              {(entry.op === "trash" ? TRASH_TEXT : ENTRY_TEXT)[entry.status]}
+              {OP_TEXT[entry.op][entry.status]}
             </span>
             <span className="min-w-0 flex-1">
               <span className="selectable flex min-w-0 items-center gap-1.5">

@@ -7,6 +7,7 @@ import { SettingsProvider } from "./lib/settings";
 import { useSettings } from "./lib/useSettings";
 import { DuplicatesPage } from "./pages/DuplicatesPage";
 import { HistoryPage } from "./pages/HistoryPage";
+import { ImportPage } from "./pages/ImportPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { SetupPage } from "./pages/SetupPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -125,11 +126,13 @@ function CurrentPage({
 }) {
   switch (page) {
     case "library":
-      return <LibraryPage onCreateTrip={onCreateTrip} />;
+      return <LibraryPage onCreateTrip={onCreateTrip} onImport={() => onNavigate("import")} />;
     case "sort":
       return <SortPage onNavigate={onNavigate} />;
     case "trips":
       return <TripsPage draft={tripDraft} onDraftUsed={onTripDraftUsed} onNavigate={onNavigate} />;
+    case "import":
+      return <ImportPage onNavigate={onNavigate} />;
     case "duplicates":
       return <DuplicatesPage onNavigate={onNavigate} />;
     case "history":

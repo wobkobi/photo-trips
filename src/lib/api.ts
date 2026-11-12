@@ -151,8 +151,11 @@ export type EntryStatus = "pending" | "done" | "failed" | "skipped" | "undoing" 
 
 export interface BatchEntry {
   seq: number;
-  /** "move", or "trash" for a file sent to the Recycle Bin (`to` is then empty). */
-  op: "move" | "trash";
+  /**
+   * "move"; "trash" for a file sent to the Recycle Bin (`to` is then empty); "copy" for a file
+   * copied in from a card, phone or folder; "import" for a file moved in from a folder.
+   */
+  op: "move" | "trash" | "copy" | "import";
   from: string;
   to: string;
   status: EntryStatus;
@@ -235,6 +238,62 @@ export interface DupChoice {
   remove: number[];
 }
 
+/** A memory card or phone that is plugged in. Mirrors Device in devices.rs. */
+export interface ImportDevice {
+  /** "drive": a removable drive with a DCIM folder; "phone": a phone or camera over USB. */
+  kind: "drive" | "phone";
+  /** The drive's root folder, or the phone's Windows device id. */
+  id: string;
+  name: string;
+}
+
+/** Where to import from. Mirrors SourceSpec in import.rs. */
+export type ImportSource =
+  | { kind: "folder"; path: string; moveFiles: boolean }
+  | { kind: "drive"; path: string; name: string }
+  | { kind: "phone"; id: string; name: string };
+
+/** What an import will do. Mirrors ImportPreview in import.rs. */
+export interface ImportPreview {
+  id: number;
+  /** "EOS_DIGITAL (E:)", a phone's name, or a folder path. */
+  source: string;
+  /** What was looked through, so it can be checked again. */
+  spec: ImportSource;
+  /** Files are moved in from a folder rather than copied. */
+  moving: boolean;
+  /** Files that will come in, and their total size. */
+  files: number;
+  bytes: number;
+  /** Files already in the library (or found twice at the source). */
+  already: number;
+  alreadyBytes: number;
+  /** Sidecar files whose photo isn't there, never brought in. */
+  leftAlone: number;
+  /** Files at the source that aren't photos or videos. */
+  otherFiles: number;
+  /** Groups that get a number added to their names because the name is taken. */
+  renamed: number;
+  folders: { folder: string; files: number }[];
+  items: ImportItem[];
+}
+
+/** One incoming photo plus its companions. */
+export interface ImportItem {
+  /** Thumbnail id, "i<preview id>-<n>". */
+  thumb: string;
+  version: number;
+  /** Relative to the source. */
+  from: string;
+  /** Relative to the library folder. */
+  to: string;
+  extra: number;
+  renamed: boolean;
+}
+
+/** Sent with the full device list whenever a card or phone comes or goes. */
+export const DEVICES_CHANGED = "devices://changed";
+
 /** Free Microsoft Store codec extensions the app can point to. */
 export type StoreProduct = "heif" | "hevc" | "raw" | "av1";
 
@@ -264,16 +323,25 @@ export const api = {
   listDuplicates: () => invoke<DupReport>("list_duplicates"),
   /** Send copies to the Recycle Bin in the background (job kind "remove"). */
   removeDuplicates: (choices: DupChoice[]) => invoke<void>("remove_duplicates", { choices }),
+  importSources: () => invoke<ImportDevice[]>("import_sources"),
+  /** Look through a source in the background (job kind "import-scan", result ImportPreview). */
+  scanImport: (source: ImportSource) => invoke<void>("scan_import", { source }),
+  /** The latest import preview, if it hasn't been used. */
+  importPreview: () => invoke<ImportPreview | null>("import_preview"),
+  /** Bring a previewed import in (job kind "import", result ApplySummary). */
+  applyImport: (id: number) => invoke<void>("apply_import", { id }),
+  /** Drop an import preview (and any phone files copied off for it). */
+  discardImport: (id: number) => invoke<void>("discard_import", { id }),
 };
 
 /**
  * Image URL for a media id on the thumb:// scheme.
- * @param id - media id (the group leader for tiles)
+ * @param id - media id (the group leader for tiles), or an import preview's thumbnail id
  * @param version - file version, so a changed file never shows a stale cached image
  * @param full - the full-size preview instead of the grid thumbnail
  * @returns the URL
  */
-export function thumbUrl(id: number, version: number, full = false): string {
+export function thumbUrl(id: number | string, version: number, full = false): string {
   return `${convertFileSrc(String(id), "thumb")}?v=${version}${full ? "&full" : ""}`;
 }
 

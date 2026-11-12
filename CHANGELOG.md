@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-11-13
+
+### Added
+
+- Import page that brings in photos and videos from a memory card, a phone or a folder on this PC. A check lists what's new first, with every incoming file and the folder it goes to, and nothing comes in until you choose to.
+- Anything already in your library stays out, even under a different name. Checking the same card again finds nothing new.
+- New photos go straight into their trip's folder, or the folder for the month they were taken, with their companion files. Name clashes get a number added, so no file in the library is ever replaced.
+- Cards and phones are copied from and never changed. A folder on this PC can be copied or moved in; when moving, copies of photos you already have stay behind.
+- Memory cards (a removable drive with a DCIM folder) and phones or cameras connected by cable show up on the Import page by themselves. Plugging one in shows a notification, and the tray menu offers "Import from <name>...", which opens the Import page and starts the check.
+- Phone photos are read onto this PC to compare them, and what was read is remembered, so later checks of the same phone are quicker.
+- The Library's empty state offers Import photos, and the first-run screen mentions bringing in photos kept elsewhere.
+- Undoing an import from History sends the copies to the Recycle Bin (the originals stay where they were), or puts moved files back where they came from. An import interrupted by a crash is settled the next time Photo Trips starts.
+
 ## [0.5.0] - 2026-11-13
 
 ### Added
