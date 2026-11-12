@@ -5,16 +5,19 @@ import { JobStatus } from "./components/JobStatus";
 import { JobsProvider } from "./lib/jobs";
 import { SettingsProvider } from "./lib/settings";
 import { useSettings } from "./lib/useSettings";
+import { HistoryPage } from "./pages/HistoryPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { SetupPage } from "./pages/SetupPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { SortPage } from "./pages/SortPage";
 
 export type PageId =
-  "library" | "trips" | "suggestions" | "import" | "duplicates" | "history" | "settings";
+  "library" | "sort" | "trips" | "suggestions" | "import" | "duplicates" | "history" | "settings";
 
 const NAV: { id: PageId; label: string; icon: IconName }[] = [
   { id: "library", label: "Library", icon: "library" },
+  { id: "sort", label: "Sort", icon: "sort" },
   { id: "trips", label: "Trips", icon: "trips" },
   { id: "suggestions", label: "Suggestions", icon: "suggest" },
   { id: "import", label: "Import", icon: "import" },
@@ -85,16 +88,20 @@ function Shell() {
         </div>
       </nav>
       <main className="min-w-0 flex-1 overflow-y-auto">
-        <CurrentPage page={page} />
+        <CurrentPage page={page} onNavigate={setPage} />
       </main>
     </div>
   );
 }
 
-function CurrentPage({ page }: { page: PageId }) {
+function CurrentPage({ page, onNavigate }: { page: PageId; onNavigate: (page: PageId) => void }) {
   switch (page) {
     case "library":
       return <LibraryPage />;
+    case "sort":
+      return <SortPage onNavigate={onNavigate} />;
+    case "history":
+      return <HistoryPage />;
     case "settings":
       return <SettingsPage />;
     default:

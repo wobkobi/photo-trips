@@ -1,0 +1,218 @@
+import { useCallback, useEffect, useState } from "react";
+import { Icon } from "../components/Icon";
+import { Button, EmptyState, PageHeader } from "../components/ui";
+import { api, errorText, type BatchEntry, type BatchInfo, type EntryStatus } from "../lib/api";
+import { count, formatWhen } from "../lib/format";
+import { useJobDone, useJobs } from "../lib/useJobs";
+
+/** Files listed per batch by the backend (history.rs ENTRY_LIMIT). */
+const ENTRY_LIMIT = 2000;
+
+/** Every change Photo Trips made to the library, newest first, each with undo. */
+export function HistoryPage() {
+  const { running } = useJobs();
+  const [batches, setBatches] = useState<BatchInfo[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [confirming, setConfirming] = useState<number | null>(null);
+
+  const load = useCallback(() => {
+    api.listBatches().then(
+      (loaded) => {
+        setBatches(loaded);
+        setError(null);
+      },
+      (err) => setError(errorText(err)),
+    );
+  }, []);
+
+  useEffect(load, [load]);
+  useJobDone(["apply", "undo"], load);
+
+  async function undo(batchId: number) {
+    setConfirming(null);
+    setError(null);
+    try {
+      await api.undoBatch(batchId);
+      load();
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
+
+  return (
+    <>
+      <PageHeader
+        title="History"
+        detail="Every change Photo Trips makes to your files. Undo puts them back where they were."
+      />
+      {error && (
+        <p role="alert" className="mx-8 mt-4 text-danger">
+          {error}
+        </p>
+      )}
+      {batches !== null && batches.length === 0 && (
+        <EmptyState title="No changes yet">
+          <p>When Photo Trips moves files, each change is listed here so you can undo it.</p>
+        </EmptyState>
+      )}
+      {batches !== null && batches.length > 0 && (
+        <ol className="flex max-w-3xl flex-col gap-3 px-8 py-6">
+          {batches.map((batch) => (
+            <BatchRow
+              key={batch.id}
+              batch={batch}
+              busy={running !== null}
+              expanded={expanded === batch.id}
+              confirming={confirming === batch.id}
+              onToggle={() => setExpanded(expanded === batch.id ? null : batch.id)}
+              onAskUndo={() => setConfirming(batch.id)}
+              onCancelUndo={() => setConfirming(null)}
+              onUndo={() => undo(batch.id)}
+            />
+          ))}
+        </ol>
+      )}
+    </>
+  );
+}
+
+function BatchRow({
+  batch,
+  busy,
+  expanded,
+  confirming,
+  onToggle,
+  onAskUndo,
+  onCancelUndo,
+  onUndo,
+}: {
+  batch: BatchInfo;
+  busy: boolean;
+  expanded: boolean;
+  confirming: boolean;
+  onToggle: () => void;
+  onAskUndo: () => void;
+  onCancelUndo: () => void;
+  onUndo: () => void;
+}) {
+  const trouble = batch.failed > 0 || batch.status === "interrupted";
+  return (
+    <li className="rounded-md border border-line bg-surface">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">{batch.label}</p>
+          <p className="mt-1 flex flex-wrap gap-x-3 text-[13px] text-muted">
+            <span>{formatWhen(batch.createdAt)}</span>
+            <span className={trouble ? "text-warn" : undefined}>{statusText(batch)}</span>
+          </p>
+        </div>
+        {confirming ? (
+          <div className="flex items-center gap-2">
+            <span className="text-[13px]">Put {count(batch.done, "file", "files")} back?</span>
+            <Button variant="primary" onClick={onUndo} disabled={busy}>
+              Put back
+            </Button>
+            <Button variant="ghost" onClick={onCancelUndo}>
+              Keep
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={onToggle} aria-expanded={expanded}>
+              {expanded ? "Hide files" : "Show files"}
+            </Button>
+            {batch.canUndo && (
+              <Button onClick={onAskUndo} disabled={busy}>
+                <Icon name="undo" size={16} />
+                Undo
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+      {expanded && <Entries batch={batch} />}
+    </li>
+  );
+}
+
+/**
+ * One line on what a batch did and where it stands now.
+ * @param batch - the batch
+ * @returns the sentence
+ */
+function statusText(batch: BatchInfo): string {
+  const moved = count(batch.done, "file", "files");
+  switch (batch.status) {
+    case "running":
+    case "undoing":
+      return "In progress";
+    case "done":
+      return `${moved} moved`;
+    case "partial":
+      return `${moved} moved, ${count(batch.failed, "file", "files")} couldn't be`;
+    case "failed":
+      return "Nothing could be moved";
+    case "cancelled":
+      return `Stopped part-way, ${moved} moved`;
+    case "interrupted":
+      return `Stopped when Photo Trips closed, ${moved} moved`;
+    case "undone":
+      return batch.undoneAt ? `Undone ${formatWhen(batch.undoneAt)}` : "Undone";
+    case "partly_undone":
+      return `${count(batch.undone, "file", "files")} put back, ${moved} couldn't be`;
+  }
+}
+
+const ENTRY_TEXT: Record<EntryStatus, string> = {
+  pending: "Waiting",
+  done: "Moved",
+  failed: "Not moved",
+  skipped: "Not moved",
+  undoing: "Putting back",
+  undone: "Put back",
+};
+
+function Entries({ batch }: { batch: BatchInfo }) {
+  const [entries, setEntries] = useState<BatchEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.batchEntries(batch.id).then(setEntries, (err) => setError(errorText(err)));
+  }, [batch.id, batch.status, batch.done]);
+
+  if (error) return <p className="border-t border-line px-4 py-3 text-danger">{error}</p>;
+  if (!entries) return <p className="border-t border-line px-4 py-3 text-muted">Loading files</p>;
+
+  return (
+    <div className="border-t border-line">
+      <ul className="max-h-96 overflow-y-auto px-4 py-2">
+        {entries.map((entry) => (
+          <li key={entry.seq} className="flex gap-3 py-1.5 text-[13px]">
+            <span
+              className={`w-24 shrink-0 ${entry.error ? "text-warn" : "text-muted"}`}
+              title={entry.error ?? undefined}
+            >
+              {ENTRY_TEXT[entry.status]}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="selectable flex min-w-0 items-center gap-1.5">
+                <span className="truncate text-muted">{entry.from}</span>
+                <Icon name="chevron" size={12} className="shrink-0 text-faint" />
+                <span className="truncate">{entry.to}</span>
+              </span>
+              {entry.error && (
+                <span className="selectable block text-[12px] text-warn">{entry.error}</span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {batch.total > ENTRY_LIMIT && (
+        <p className="border-t border-line px-4 py-2 text-[12px] text-faint">
+          Showing the first {ENTRY_LIMIT.toLocaleString()} of {batch.total.toLocaleString()} files.
+        </p>
+      )}
+    </div>
+  );
+}

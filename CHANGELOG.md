@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-11-13
+
+### Added
+
+- Sort page that moves every photo and video into a folder for the month it was taken (`2025\2025-03`), with a full preview of every move before anything happens.
+- Companion files (Live Photo videos, RAW twins, sidecars) always move with their photo; if one can't move, the rest of its group goes back.
+- Name clashes get a number added (`IMG_1 (1).jpg`) across the whole group, so no file is ever replaced.
+- History page listing every change, with the files each one moved and why any couldn't be, and undo for each change.
+- Moves are logged before they run, so a change interrupted by a crash or power cut is settled the next time Photo Trips starts.
+- Moves to another drive copy the file, check the copy matches, then remove the original.
+- Folders left empty by a move are removed (inside the library folder only).
+
 ## [0.2.0] - 2026-11-13
 
 ### Added

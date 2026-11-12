@@ -2,13 +2,18 @@ mod commands;
 mod dates;
 mod db;
 mod error;
+mod executor;
 mod exiftool;
 mod formats;
 mod groups;
+mod hash;
+mod history;
 mod index;
 mod jobs;
 mod library;
 mod metadata;
+mod organise;
+mod planner;
 mod scan;
 mod thumbs;
 mod tray;
@@ -51,12 +56,17 @@ pub fn run() {
             let data_dir = app.path().app_local_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
             let conn = db::open(&data_dir.join("library.db"))?;
+            // Settle any file moves a crash or power cut interrupted before anything else runs.
+            if let Err(err) = commands::format_table(&conn).and_then(|t| executor::recover(&conn, &t)) {
+                log::error!("Couldn't settle unfinished file moves: {err}");
+            }
             let library_root = db::get_setting(&conn, "library_root")?;
             if let Some(root) = &library_root {
                 commands::allow_library(app.handle(), root);
             }
             app.manage(thumbs::Pool::new(4, &data_dir));
             app.manage(jobs::Jobs::default());
+            app.manage(organise::Previews::default());
             app.manage(AppState {
                 db: Mutex::new(conn),
                 data_dir,
@@ -102,6 +112,11 @@ pub fn run() {
             library::open_media,
             library::reveal_media,
             library::open_store_page,
+            organise::plan_organise,
+            organise::apply_plan,
+            history::list_batches,
+            history::batch_entries,
+            history::undo_batch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Photo Trips");

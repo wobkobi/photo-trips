@@ -24,14 +24,19 @@ export function useJobs(): JobsContextValue {
 }
 
 /**
- * Run `effect` each time a job of `kind` finishes after the calling component mounted.
- * @param kind - job kind, e.g. "index"
+ * Run `effect` each time a job of one of `kinds` finishes after the calling component mounted.
+ * @param kinds - job kind or kinds, e.g. "index" or ["apply", "undo"]
  * @param effect - called with the job's outcome
  */
-export function useJobDone(kind: string, effect: (done: JobDone) => void): void {
+export function useJobDone(
+  kinds: string | readonly string[],
+  effect: (done: JobDone) => void,
+): void {
   const { lastDone } = useJobs();
   const effectRef = useRef(effect);
   const seenRef = useRef(lastDone?.seq ?? 0);
+  // Joined so a fresh array literal each render doesn't re-run the effect below.
+  const kindList = typeof kinds === "string" ? kinds : kinds.join(",");
 
   useEffect(() => {
     effectRef.current = effect;
@@ -40,6 +45,6 @@ export function useJobDone(kind: string, effect: (done: JobDone) => void): void 
   useEffect(() => {
     if (!lastDone || lastDone.seq <= seenRef.current) return;
     seenRef.current = lastDone.seq;
-    if (lastDone.done.kind === kind) effectRef.current(lastDone.done);
-  }, [lastDone, kind]);
+    if (kindList.split(",").includes(lastDone.done.kind)) effectRef.current(lastDone.done);
+  }, [lastDone, kindList]);
 }

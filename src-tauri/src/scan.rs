@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::error::{Error, Result};
-use crate::formats::{FormatTable, Kind, ext_of};
+use crate::formats::{FormatTable, Kind};
 
 #[derive(Debug, Clone)]
 pub struct ScannedFile {
@@ -49,7 +49,11 @@ pub fn scan(root: &Path, table: &FormatTable, cancel: &AtomicBool) -> Result<Sca
         }
         let name = entry.file_name().to_string_lossy();
         // macOS resource-fork junk ("._IMG_0001.JPG") looks like a photo but isn't one.
-        let kind = if name.starts_with("._") { None } else { table.kind_of(entry.path()) };
+        let kind = if name.starts_with("._") {
+            None
+        } else {
+            table.kind_of(entry.path())
+        };
         let Some(kind) = kind else {
             result.other_files += 1;
             continue;
@@ -73,31 +77,43 @@ pub fn mtime_secs(meta: &std::fs::Metadata) -> i64 {
         .map_or(0, |d| d.as_secs() as i64)
 }
 
-/// Key shared by a file and its companions: lowercase folder + lowercase base name.
-///
-/// Sidecars name their partner in a few different ways, all folded to the partner's stem:
-/// `IMG_1.HEIC` + `IMG_1.AAE`, darktable-style `IMG_1.CR2.xmp`, and Sony's `C0001.MP4` +
-/// `C0001M01.XML`.
+/// Key shared by a file and its companions: lowercase folder + lowercase base name
+/// (see [`split_name`]).
 pub fn group_key(path: &Path, kind: Kind, table: &FormatTable) -> String {
     let parent = path
         .parent()
         .map(|p| p.to_string_lossy().to_lowercase())
         .unwrap_or_default();
-    let mut stem = path
-        .file_stem()
-        .map(|s| s.to_string_lossy().to_lowercase())
+    let name = path
+        .file_name()
+        .map(|s| s.to_string_lossy())
         .unwrap_or_default();
+    let (base, _) = split_name(&name, kind, table);
+    format!("{parent}|{}", base.to_lowercase())
+}
+
+/// Split a file name into the base it shares with its partner files and the rest.
+///
+/// Sidecars name their partner in a few different ways, all folded to the partner's base:
+/// `IMG_1.HEIC` + `IMG_1.AAE`, darktable-style `IMG_1.CR2.xmp` (rest `.CR2.xmp`), and Sony's
+/// `C0001.MP4` + `C0001M01.XML` (rest `M01.XML`). A suffix inserted between the two halves
+/// keeps the whole group matching after a rename.
+pub fn split_name<'a>(name: &'a str, kind: Kind, table: &FormatTable) -> (&'a str, &'a str) {
+    let dot = name.rfind('.');
+    let mut base_end = dot.unwrap_or(name.len());
     if kind == Kind::Companion {
-        if let Some((inner, inner_ext)) = stem.rsplit_once('.')
-            && table.is_media_ext(inner_ext)
+        if let Some(inner) = name[..base_end].rfind('.')
+            && table.is_media_ext(&name[inner + 1..base_end])
         {
-            stem = inner.to_string();
+            base_end = inner;
         }
-        if ext_of(path) == "xml" && stem.len() > 3 && stem.ends_with("m01") {
-            stem.truncate(stem.len() - 3);
+        let is_xml = dot.is_some_and(|d| name[d + 1..].eq_ignore_ascii_case("xml"));
+        // "m01" is ASCII, so cutting 3 bytes off the end stays on a character boundary.
+        if is_xml && base_end > 3 && name[..base_end].to_ascii_lowercase().ends_with("m01") {
+            base_end -= 3;
         }
     }
-    format!("{parent}|{stem}")
+    name.split_at(base_end)
 }
 
 #[cfg(test)]
@@ -157,5 +173,48 @@ mod tests {
         assert_ne!(key("IMG_1.HEIC"), key("IMG_2.HEIC"));
         // A photo whose own name ends in M01 is not a Sony sidecar.
         assert_ne!(key("ROOM01.JPG"), key("ROO.JPG"));
+    }
+
+    #[test]
+    fn split_name_finds_the_shared_base() {
+        let t = FormatTable::default();
+        assert_eq!(split_name("IMG_1.JPG", Kind::Photo, &t), ("IMG_1", ".JPG"));
+        assert_eq!(
+            split_name("DSC_5.NEF.xmp", Kind::Companion, &t),
+            ("DSC_5", ".NEF.xmp")
+        );
+        assert_eq!(
+            split_name("C0001M01.XML", Kind::Companion, &t),
+            ("C0001", "M01.XML")
+        );
+        assert_eq!(
+            split_name("notes.v2.xmp", Kind::Companion, &t),
+            ("notes.v2", ".xmp")
+        );
+        assert_eq!(split_name("README", Kind::Photo, &t), ("README", ""));
+    }
+
+    #[test]
+    fn numbered_companions_still_share_a_group_key() {
+        let t = FormatTable::default();
+        let dir = Path::new(r"C:\Photos\2025\2025-03");
+        let renamed_key = |name: &str| {
+            let kind = t.kind_of(Path::new(name)).unwrap();
+            let (base, rest) = split_name(name, kind, &t);
+            let path = dir.join(format!("{base} (2){rest}"));
+            group_key(&path, kind, &t)
+        };
+        for (lead, partner) in [
+            ("IMG_1.HEIC", "IMG_1.AAE"),
+            ("IMG_1.HEIC", "IMG_1.MOV"),
+            ("DSC_5.NEF", "DSC_5.NEF.xmp"),
+            ("C0001.MP4", "C0001M01.XML"),
+        ] {
+            assert_eq!(
+                renamed_key(lead),
+                renamed_key(partner),
+                "{lead} + {partner}"
+            );
+        }
     }
 }

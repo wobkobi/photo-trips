@@ -1,7 +1,7 @@
 // Tauri commands for settings and background jobs. Library browsing lives in library.rs.
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
 use tauri::{AppHandle, Manager, State};
@@ -84,7 +84,17 @@ pub fn format_table(conn: &Connection) -> Result<FormatTable> {
             .map(str::to_owned)
             .collect())
     };
-    Ok(FormatTable::new(&list("extra_photo_exts")?, &list("extra_video_exts")?))
+    Ok(FormatTable::new(
+        &list("extra_photo_exts")?,
+        &list("extra_video_exts")?,
+    ))
+}
+
+/// The library folder from Settings.
+pub fn library_root(conn: &Connection) -> Result<PathBuf> {
+    db::get_setting(conn, "library_root")?
+        .map(PathBuf::from)
+        .ok_or_else(|| Error::msg("Choose a library folder first"))
 }
 
 /// Refresh the index in the background. Read-only on disk.
@@ -92,14 +102,13 @@ pub fn start_index(app: &AppHandle) -> Result<()> {
     let (root, table) = {
         let state = app.state::<AppState>();
         let conn = lock_db(&state)?;
-        let root = db::get_setting(&conn, "library_root")?
-            .ok_or_else(|| Error::msg("Choose a library folder first"))?;
-        (root, format_table(&conn)?)
+        (library_root(&conn)?, format_table(&conn)?)
     };
     // A missing folder would look like an empty library and wipe the index, so refuse instead.
-    if !Path::new(&root).is_dir() {
+    if !root.is_dir() {
         return Err(Error::msg(format!(
-            "The library folder {root} can't be found. If it is on an external drive, connect it and try again."
+            "The library folder {} can't be found. If it is on an external drive, connect it and try again.",
+            root.display()
         )));
     }
     let exiftool = app
@@ -112,7 +121,7 @@ pub fn start_index(app: &AppHandle) -> Result<()> {
         let state = handle.state::<AppState>();
         index::run(
             &state.db,
-            Path::new(&root),
+            &root,
             &table,
             exiftool.as_deref(),
             ctx.cancel_flag(),
@@ -137,7 +146,7 @@ pub fn cancel_job(jobs: State<Jobs>) {
     jobs.cancel();
 }
 
-fn lock_db<'a>(state: &'a AppState) -> Result<std::sync::MutexGuard<'a, Connection>> {
+pub fn lock_db<'a>(state: &'a AppState) -> Result<std::sync::MutexGuard<'a, Connection>> {
     state
         .db
         .lock()

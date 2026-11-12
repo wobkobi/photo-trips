@@ -70,6 +70,83 @@ export interface IndexSummary {
   otherFiles: number;
 }
 
+/** A previewed set of moves, waiting to be applied. Mirrors Preview in organise.rs. */
+export interface Preview {
+  id: number;
+  /** Files that will move. */
+  files: number;
+  /** Groups that get a number added to their names because the name is taken. */
+  renamed: number;
+  /** Groups already in the right folder. */
+  inPlace: number;
+  /** Files never moved: sidecars without their photo, files outside the library. */
+  leftAlone: number;
+  folders: { folder: string; files: number }[];
+  items: PreviewItem[];
+}
+
+/** One photo (plus companions) that will move. Paths are relative to the library folder. */
+export interface PreviewItem {
+  id: number;
+  version: number;
+  from: string;
+  to: string;
+  extra: number;
+  renamed: boolean;
+}
+
+export interface ApplySummary {
+  batchId: number;
+  moved: number;
+  failed: number;
+  cancelled: boolean;
+}
+
+export interface UndoSummary {
+  batchId: number;
+  restored: number;
+  failed: number;
+  cancelled: boolean;
+}
+
+export type BatchStatus =
+  | "running"
+  | "done"
+  | "partial"
+  | "failed"
+  | "cancelled"
+  | "interrupted"
+  | "undoing"
+  | "undone"
+  | "partly_undone";
+
+/** One undoable change in History. Mirrors BatchInfo in history.rs. */
+export interface BatchInfo {
+  id: number;
+  kind: string;
+  label: string;
+  status: BatchStatus;
+  /** Unix seconds. */
+  createdAt: number;
+  undoneAt: number | null;
+  total: number;
+  done: number;
+  failed: number;
+  skipped: number;
+  undone: number;
+  canUndo: boolean;
+}
+
+export type EntryStatus = "pending" | "done" | "failed" | "skipped" | "undoing" | "undone";
+
+export interface BatchEntry {
+  seq: number;
+  from: string;
+  to: string;
+  status: EntryStatus;
+  error: string | null;
+}
+
 /** Free Microsoft Store codec extensions the app can point to. */
 export type StoreProduct = "heif" | "hevc" | "raw" | "av1";
 
@@ -84,6 +161,11 @@ export const api = {
   openMedia: (id: number) => invoke<void>("open_media", { id }),
   revealMedia: (id: number) => invoke<void>("reveal_media", { id }),
   openStorePage: (product: StoreProduct) => invoke<void>("open_store_page", { product }),
+  planOrganise: () => invoke<Preview>("plan_organise"),
+  applyPlan: (id: number) => invoke<void>("apply_plan", { id }),
+  listBatches: () => invoke<BatchInfo[]>("list_batches"),
+  batchEntries: (batchId: number) => invoke<BatchEntry[]>("batch_entries", { batchId }),
+  undoBatch: (batchId: number) => invoke<void>("undo_batch", { batchId }),
 };
 
 /**

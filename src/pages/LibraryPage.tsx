@@ -33,6 +33,7 @@ export function LibraryPage() {
     if (done.ok) setSummary(done.result as IndexSummary);
     load();
   });
+  useJobDone(["apply", "undo"], load);
 
   const onThumbError = useCallback(
     (tile: Tile) => setFailedThumbs((prev) => (prev.length >= 50 ? prev : [...prev, tile])),
