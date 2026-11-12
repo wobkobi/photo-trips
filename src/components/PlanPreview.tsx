@@ -11,6 +11,7 @@ import {
   type PreviewItem,
 } from "../lib/api";
 import { count, monthLabel, splitPath } from "../lib/format";
+import { JOB_NAMES } from "../lib/useJobs";
 import { Icon } from "./Icon";
 import { Button, Progress } from "./ui";
 
@@ -82,15 +83,15 @@ export function LeftAlone({ files }: { files: number }) {
 }
 
 /**
- * Progress while files move or go back.
- * @param props.job - the running apply or undo job
+ * Progress while files move, go to the Recycle Bin or go back.
+ * @param props.job - the running job
  * @returns the progress block
  */
 export function MovingProgress({ job }: { job: JobProgress }) {
   return (
     <div className="max-w-xl px-8 py-8">
       <p className="mb-4 font-display text-[26px] leading-none font-semibold">
-        {job.kind === "apply" ? "Moving files" : "Putting files back"}
+        {JOB_NAMES[job.kind] ?? "Working"}
       </p>
       <Progress done={job.done} total={job.total} label={job.stage} />
       <p className="mt-4 text-[13px] text-muted">
@@ -104,6 +105,8 @@ export function MovingProgress({ job }: { job: JobProgress }) {
  * Outcome of an applied change, with Undo and a link to History.
  * @param props.result - what the apply job reported
  * @param props.intro - sentence before the move count, e.g. "Saved the trip Japan."
+ * @param props.destination - where the files went, when that isn't a folder, e.g. "the
+ *   Recycle Bin"
  * @param props.undoable - offer Undo even when no file moved (a trip change still can be)
  * @param props.busy - another job is running, so Undo waits
  * @param props.onUndo - undo the whole change
@@ -113,6 +116,7 @@ export function MovingProgress({ job }: { job: JobProgress }) {
 export function ResultBanner({
   result,
   intro,
+  destination,
   undoable = false,
   busy,
   onUndo,
@@ -120,12 +124,13 @@ export function ResultBanner({
 }: {
   result: ApplySummary;
   intro?: string;
+  destination?: string;
   undoable?: boolean;
   busy: boolean;
   onUndo: () => void;
   onHistory: () => void;
 }) {
-  const moved = count(result.moved, "file", "files");
+  const moved = count(result.moved, "file", "files") + (destination ? ` to ${destination}` : "");
   const movedText = result.cancelled
     ? `Stopped after moving ${moved}.`
     : result.moved > 0 || !intro

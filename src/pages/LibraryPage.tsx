@@ -44,7 +44,7 @@ export function LibraryPage({ onCreateTrip }: { onCreateTrip: (range: TripRange)
     if (done.ok) setSummary(done.result as IndexSummary);
     load();
   });
-  useJobDone(["apply", "undo"], load);
+  useJobDone(["apply", "undo", "remove"], load);
 
   const onThumbError = useCallback(
     (tile: Tile) => setFailedThumbs((prev) => (prev.length >= 50 ? prev : [...prev, tile])),

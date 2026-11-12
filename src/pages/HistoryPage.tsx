@@ -27,7 +27,7 @@ export function HistoryPage() {
   }, []);
 
   useEffect(load, [load]);
-  useJobDone(["apply", "undo"], load);
+  useJobDone(["apply", "undo", "remove"], load);
 
   async function undo(batchId: number) {
     setConfirming(null);
@@ -145,6 +145,7 @@ function BatchRow({
  */
 function confirmText(batch: BatchInfo): string {
   const files = count(batch.done, "file", "files");
+  if (batch.kind === "duplicates") return `Take ${files} out of the Recycle Bin?`;
   if (batch.kind !== "trip") return `Put ${files} back?`;
   return batch.done > 0 ? `Undo this and put ${files} back?` : "Undo this trip change?";
 }
@@ -155,25 +156,26 @@ function confirmText(batch: BatchInfo): string {
  * @returns the sentence
  */
 function statusText(batch: BatchInfo): string {
-  const moved = count(batch.done, "file", "files");
+  const did = batch.kind === "duplicates" ? "sent to the Recycle Bin" : "moved";
+  const moved = `${count(batch.done, "file", "files")} ${did}`;
   switch (batch.status) {
     case "running":
     case "undoing":
       return "In progress";
     case "done":
-      return batch.total === 0 ? "No files needed to move" : `${moved} moved`;
+      return batch.total === 0 ? "No files needed to move" : moved;
     case "partial":
-      return `${moved} moved, ${count(batch.failed, "file", "files")} couldn't be`;
+      return `${moved}, ${count(batch.failed, "file", "files")} couldn't be`;
     case "failed":
-      return "Nothing could be moved";
+      return batch.kind === "duplicates" ? "Every copy was kept" : "Nothing could be moved";
     case "cancelled":
-      return `Stopped part-way, ${moved} moved`;
+      return `Stopped part-way, ${moved}`;
     case "interrupted":
-      return `Stopped when Photo Trips closed, ${moved} moved`;
+      return `Stopped when Photo Trips closed, ${moved}`;
     case "undone":
       return batch.undoneAt ? `Undone ${formatWhen(batch.undoneAt)}` : "Undone";
     case "partly_undone":
-      return `${count(batch.undone, "file", "files")} put back, ${moved} couldn't be`;
+      return `${count(batch.undone, "file", "files")} put back, ${count(batch.done, "file", "files")} couldn't be`;
   }
 }
 
@@ -184,6 +186,14 @@ const ENTRY_TEXT: Record<EntryStatus, string> = {
   skipped: "Not moved",
   undoing: "Putting back",
   undone: "Put back",
+};
+
+/** The same states for a file sent to the Recycle Bin. */
+const TRASH_TEXT: Record<EntryStatus, string> = {
+  ...ENTRY_TEXT,
+  done: "In the bin",
+  failed: "Kept",
+  skipped: "Kept",
 };
 
 function Entries({ batch }: { batch: BatchInfo }) {
@@ -206,13 +216,13 @@ function Entries({ batch }: { batch: BatchInfo }) {
               className={`w-24 shrink-0 ${entry.error ? "text-warn" : "text-muted"}`}
               title={entry.error ?? undefined}
             >
-              {ENTRY_TEXT[entry.status]}
+              {(entry.op === "trash" ? TRASH_TEXT : ENTRY_TEXT)[entry.status]}
             </span>
             <span className="min-w-0 flex-1">
               <span className="selectable flex min-w-0 items-center gap-1.5">
                 <span className="truncate text-muted">{entry.from}</span>
                 <Icon name="chevron" size={12} className="shrink-0 text-faint" />
-                <span className="truncate">{entry.to}</span>
+                <span className="truncate">{entry.op === "trash" ? "Recycle Bin" : entry.to}</span>
               </span>
               {entry.error && (
                 <span className="selectable block text-[12px] text-warn">{entry.error}</span>

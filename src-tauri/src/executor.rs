@@ -1,11 +1,13 @@
-// Carry out a plan on disk. Every move is written to the journal as pending before the file
+// Carry out a plan on disk. Every change is written to the journal as pending before the file
 // is touched, a move never replaces an existing file, and a whole batch can be undone.
 // Entries a crash left pending are settled at the next start by looking at the disk.
 //
-// Journal entry states: pending (about to move), done (file is at dst), failed (file is at
-// src), skipped (cancelled before it ran), undoing (about to move back), undone (back at src).
+// Journal operations: `move` (src to dst) and `trash` (src to the Recycle Bin, dst empty; the
+// file's media row is kept in `media_row` so undo can put it back in the index).
+// Entry states: pending (about to run), done (file is at dst or in the bin), failed (file is
+// at src), skipped (cancelled before it ran), undoing (about to go back), undone (back at src).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -21,7 +23,11 @@ use crate::formats::{FormatTable, Kind};
 use crate::hash;
 use crate::index::Report;
 use crate::planner::{GroupMove, Move, Plan, is_inside, same_path};
+use crate::recycle;
 use crate::scan;
+
+/// Journal op for a file sent to the Recycle Bin.
+pub const TRASH: &str = "trash";
 
 #[derive(Debug, Default, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,10 +60,37 @@ pub struct Env<'a> {
 #[derive(Debug, Clone)]
 struct Entry {
     id: i64,
+    op: String,
     src: PathBuf,
     dst: PathBuf,
     status: String,
     media_id: Option<i64>,
+    /// Size from the stashed media row of a binned file, to find the right item in the bin.
+    size: Option<u64>,
+}
+
+impl Entry {
+    fn is_trash(&self) -> bool {
+        self.op == TRASH
+    }
+}
+
+/// One file to send to the Recycle Bin.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BinFile {
+    pub media_id: i64,
+    pub path: PathBuf,
+}
+
+/// A duplicate copy to send to the Recycle Bin, with the sidecars that only belonged to it.
+/// Nothing goes unless the copy and the keeper both still hash to `hash` when it runs.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Removal {
+    /// The copy first, then its sidecars.
+    pub files: Vec<BinFile>,
+    /// The copy that stays.
+    pub keeper: PathBuf,
+    pub hash: String,
 }
 
 /// A database change that belongs to a batch (saving a trip, say), made in the same
@@ -82,16 +115,7 @@ pub fn begin(
     groups: &[GroupMove],
 ) -> Result<(i64, Vec<Vec<i64>>)> {
     let tx = conn.transaction()?;
-    let undo_data = match batch.on_begin {
-        Some(change) => change(&tx)?,
-        None => None,
-    };
-    tx.execute(
-        "INSERT INTO batches (kind, label, status, created_at, undo_data)
-         VALUES (?1, ?2, 'running', ?3, ?4)",
-        params![batch.kind, batch.label, db::now(), undo_data],
-    )?;
-    let batch_id = tx.last_insert_rowid();
+    let batch_id = insert_batch(&tx, batch)?;
     let mut ids = Vec::with_capacity(groups.len());
     {
         let mut insert = tx.prepare(
@@ -117,6 +141,83 @@ pub fn begin(
     }
     tx.commit()?;
     Ok((batch_id, ids))
+}
+
+/// [`begin`] for Recycle Bin removals: each file's media row is stashed in its entry.
+fn begin_removals(
+    conn: &mut Connection,
+    batch: &NewBatch,
+    removals: &[Removal],
+) -> Result<(i64, Vec<Vec<i64>>)> {
+    let tx = conn.transaction()?;
+    let batch_id = insert_batch(&tx, batch)?;
+    let mut ids = Vec::with_capacity(removals.len());
+    {
+        let mut insert = tx.prepare(
+            "INSERT INTO journal (batch_id, seq, op, src, dst, status, media_id, media_row)
+             VALUES (?1, ?2, 'trash', ?3, '', 'pending', ?4,
+                (SELECT json_object('id', id, 'path', path, 'group_key', group_key,
+                    'kind', kind, 'size', size, 'mtime', mtime, 'taken_at', taken_at,
+                    'tz_offset_min', tz_offset_min, 'date_source', date_source, 'lat', lat,
+                    'lon', lon, 'hash', hash, 'indexed_at', indexed_at)
+                 FROM media WHERE id = ?4))",
+        )?;
+        let mut seq = 0_i64;
+        for removal in removals {
+            let mut removal_ids = Vec::with_capacity(removal.files.len());
+            for file in &removal.files {
+                insert.execute(params![
+                    batch_id,
+                    seq,
+                    file.path.to_string_lossy(),
+                    file.media_id
+                ])?;
+                removal_ids.push(tx.last_insert_rowid());
+                seq += 1;
+            }
+            ids.push(removal_ids);
+        }
+    }
+    tx.commit()?;
+    Ok((batch_id, ids))
+}
+
+/// Run the batch's database change, if it has one, and record the batch as running.
+fn insert_batch(tx: &Connection, batch: &NewBatch) -> Result<i64> {
+    let undo_data = match batch.on_begin {
+        Some(change) => change(tx)?,
+        None => None,
+    };
+    tx.execute(
+        "INSERT INTO batches (kind, label, status, created_at, undo_data)
+         VALUES (?1, ?2, 'running', ?3, ?4)",
+        params![batch.kind, batch.label, db::now(), undo_data],
+    )?;
+    Ok(tx.last_insert_rowid())
+}
+
+/// Close a batch that ran: entries a cancel never reached become skipped, and the batch
+/// status follows from how many files went and how many didn't.
+fn finish_batch(env: &Env, summary: &ApplySummary) -> Result<()> {
+    let status = if summary.cancelled {
+        "cancelled"
+    } else if summary.failed == 0 {
+        "done"
+    } else if summary.moved > 0 {
+        "partial"
+    } else {
+        "failed"
+    };
+    let conn = lock(env.db)?;
+    conn.execute(
+        "UPDATE journal SET status = 'skipped' WHERE batch_id = ?1 AND status = 'pending'",
+        [summary.batch_id],
+    )?;
+    conn.execute(
+        "UPDATE batches SET status = ?1 WHERE id = ?2",
+        params![status, summary.batch_id],
+    )?;
+    Ok(())
 }
 
 /// Run a plan as one undoable batch. A file that can't be moved (in use, name taken since the
@@ -148,29 +249,88 @@ pub fn apply(env: &Env, batch: &NewBatch, plan: &Plan) -> Result<ApplySummary> {
         }
         (env.report)("Moving files", summary.moved + summary.failed, total);
     }
-
-    let status = if summary.cancelled {
-        "cancelled"
-    } else if summary.failed == 0 {
-        "done"
-    } else if summary.moved > 0 {
-        "partial"
-    } else {
-        "failed"
-    };
-    {
-        let conn = lock(env.db)?;
-        conn.execute(
-            "UPDATE journal SET status = 'skipped' WHERE batch_id = ?1 AND status = 'pending'",
-            [batch_id],
-        )?;
-        conn.execute(
-            "UPDATE batches SET status = ?1 WHERE id = ?2",
-            params![status, batch_id],
-        )?;
-    }
+    finish_batch(env, &summary)?;
     remove_empty_dirs(env.root, emptied);
     Ok(summary)
+}
+
+/// Send duplicate copies to the Recycle Bin as one undoable batch. In the summary, `moved`
+/// counts files that went to the bin. Each copy and its keeper are hashed again first, so a
+/// file that changed since the duplicate check is never removed.
+pub fn remove(env: &Env, batch: &NewBatch, removals: &[Removal]) -> Result<ApplySummary> {
+    const STAGE: &str = "Moving copies to the Recycle Bin";
+    let total: usize = removals.iter().map(|r| r.files.len()).sum();
+    let (batch_id, ids) = begin_removals(&mut *lock(env.db)?, batch, removals)?;
+    let mut summary = ApplySummary {
+        batch_id,
+        ..ApplySummary::default()
+    };
+    let mut emptied = BTreeSet::new();
+    let mut keepers = HashMap::new();
+    (env.report)(STAGE, 0, total);
+    for (removal, removal_ids) in removals.iter().zip(&ids) {
+        if env.cancel.load(Ordering::Relaxed) {
+            summary.cancelled = true;
+            break;
+        }
+        // The copy goes first; when it can't, its sidecars stay with it.
+        let mut kept = removal_blocker(removal, &mut keepers);
+        for (i, (file, &id)) in removal.files.iter().zip(removal_ids).enumerate() {
+            if let Some(reason) = &kept {
+                set_entry(&*lock(env.db)?, id, "failed", Some(reason))?;
+                summary.failed += 1;
+                continue;
+            }
+            let outcome = recycle::to_bin(&file.path);
+            let conn = lock(env.db)?;
+            match outcome {
+                Ok(()) => {
+                    conn.execute("DELETE FROM media WHERE id = ?1", [file.media_id])?;
+                    set_entry(&conn, id, "done", None)?;
+                    emptied.extend(file.path.parent().map(Path::to_path_buf));
+                    summary.moved += 1;
+                }
+                Err(err) => {
+                    set_entry(&conn, id, "failed", Some(&err.to_string()))?;
+                    summary.failed += 1;
+                    if i == 0 {
+                        kept = Some(format!(
+                            "Kept because {} couldn't go to the Recycle Bin",
+                            file_name(&file.path)
+                        ));
+                    }
+                }
+            }
+        }
+        (env.report)(STAGE, summary.moved + summary.failed, total);
+    }
+    finish_batch(env, &summary)?;
+    remove_empty_dirs(env.root, emptied);
+    Ok(summary)
+}
+
+/// Why a removal must not go ahead, if it mustn't: the copy or its keeper changed or went
+/// since the duplicate check. `keepers` remembers each keeper's result, since one keeper can
+/// stand for several copies.
+fn removal_blocker(removal: &Removal, keepers: &mut HashMap<PathBuf, bool>) -> Option<String> {
+    let copy = &removal.files.first()?.path;
+    if same_path(copy, &removal.keeper) {
+        return Some("It is the copy being kept".into());
+    }
+    let matches = |path: &Path| hash::file(path).is_ok_and(|h| h == removal.hash);
+    let keeper_ok = *keepers
+        .entry(removal.keeper.clone())
+        .or_insert_with(|| matches(&removal.keeper));
+    if !keeper_ok {
+        return Some(format!(
+            "Kept because the copy being kept ({}) changed or went since the check",
+            file_name(&removal.keeper)
+        ));
+    }
+    if !matches(copy) {
+        return Some("Kept because it changed or went since the check".into());
+    }
+    None
 }
 
 /// Move every file of one group, or none of them: when one fails, those already moved go back.
@@ -240,6 +400,7 @@ pub fn undo(env: &Env, batch_id: i64) -> Result<UndoSummary> {
         ..UndoSummary::default()
     };
     let mut emptied = BTreeSet::new();
+    let mut bin = recycle::Bin::default();
     (env.report)("Putting files back", 0, total);
     for entry in &entries {
         if env.cancel.load(Ordering::Relaxed) {
@@ -251,15 +412,23 @@ pub fn undo(env: &Env, batch_id: i64) -> Result<UndoSummary> {
             Some(reason) => Err(Error::msg(reason)),
             None => {
                 set_entry(&*lock(env.db)?, entry.id, "undoing", None)?;
-                move_file(&entry.dst, &entry.src)
+                if entry.is_trash() {
+                    bin.restore(&entry.src, entry.size)
+                } else {
+                    move_file(&entry.dst, &entry.src)
+                }
             }
         };
         let conn = lock(env.db)?;
         match outcome {
             Ok(()) => {
-                set_media_path(&conn, entry.media_id, &entry.src, env.table)?;
+                if entry.is_trash() {
+                    restore_media_row(&conn, entry.id)?;
+                } else {
+                    set_media_path(&conn, entry.media_id, &entry.src, env.table)?;
+                    emptied.extend(entry.dst.parent().map(Path::to_path_buf));
+                }
                 set_entry(&conn, entry.id, "undone", None)?;
-                emptied.extend(entry.dst.parent().map(Path::to_path_buf));
                 summary.restored += 1;
             }
             Err(err) => {
@@ -281,6 +450,14 @@ pub fn undo(env: &Env, batch_id: i64) -> Result<UndoSummary> {
 
 /// Why an entry can't be undone right now, if it can't.
 fn undo_blocker(conn: &Connection, entry: &Entry) -> Option<String> {
+    if entry.is_trash() {
+        return exists(&entry.src).then(|| {
+            format!(
+                "Another file is now called {}, so this one stayed in the Recycle Bin",
+                entry.src.display()
+            )
+        });
+    }
     if let Some(id) = entry.media_id
         && let Ok(Some(path)) = conn
             .query_row("SELECT path FROM media WHERE id = ?1", [id], |r| {
@@ -327,6 +504,10 @@ fn finish_undo(conn: &Connection, batch_id: i64) -> Result<()> {
 pub fn recover(conn: &Connection, table: &FormatTable) -> Result<usize> {
     let entries = load_entries(conn, "WHERE status IN ('pending', 'undoing')", [])?;
     for entry in &entries {
+        if entry.is_trash() {
+            settle_removal(conn, entry)?;
+            continue;
+        }
         // A temporary copy only ever exists mid-copy; the original is still in place.
         let _ = fs::remove_file(part_path(&entry.dst));
         let _ = fs::remove_file(part_path(&entry.src));
@@ -366,6 +547,58 @@ pub fn recover(conn: &Connection, table: &FormatTable) -> Result<usize> {
         );
     }
     Ok(entries.len())
+}
+
+/// Settle a Recycle Bin entry a crash interrupted. The bin itself isn't searched: a file gone
+/// from its place is taken to be in the bin, and an undo reports it if it isn't.
+fn settle_removal(conn: &Connection, entry: &Entry) -> Result<()> {
+    let present = exists(&entry.src);
+    match (entry.status.as_str(), present) {
+        ("pending", true) => {
+            let note = "Photo Trips closed before this copy went to the Recycle Bin";
+            set_entry(conn, entry.id, "skipped", Some(note))?;
+        }
+        ("pending", false) => {
+            if let Some(id) = entry.media_id {
+                conn.execute("DELETE FROM media WHERE id = ?1", [id])?;
+            }
+            set_entry(conn, entry.id, "done", None)?;
+        }
+        (_, true) => {
+            restore_media_row(conn, entry.id)?;
+            set_entry(conn, entry.id, "undone", None)?;
+        }
+        (_, false) => {
+            let note = "Photo Trips closed before this copy came back";
+            set_entry(conn, entry.id, "done", Some(note))?;
+        }
+    }
+    Ok(())
+}
+
+/// Put a restored file's media row back from its journal entry, under its old id unless
+/// something else has taken it. Any stale row for the same path goes first.
+fn restore_media_row(conn: &Connection, entry_id: i64) -> Result<()> {
+    conn.execute(
+        "DELETE FROM media WHERE path =
+            (SELECT json_extract(media_row, '$.path') FROM journal WHERE id = ?1)",
+        [entry_id],
+    )?;
+    conn.execute(
+        "INSERT INTO media (id, path, group_key, kind, size, mtime, taken_at, tz_offset_min,
+                            date_source, lat, lon, hash, indexed_at)
+         SELECT CASE WHEN EXISTS (SELECT 1 FROM media WHERE id = json_extract(r, '$.id'))
+                     THEN NULL ELSE json_extract(r, '$.id') END,
+                json_extract(r, '$.path'), json_extract(r, '$.group_key'),
+                json_extract(r, '$.kind'), json_extract(r, '$.size'), json_extract(r, '$.mtime'),
+                json_extract(r, '$.taken_at'), json_extract(r, '$.tz_offset_min'),
+                json_extract(r, '$.date_source'), json_extract(r, '$.lat'),
+                json_extract(r, '$.lon'), json_extract(r, '$.hash'),
+                json_extract(r, '$.indexed_at')
+         FROM (SELECT media_row AS r FROM journal WHERE id = ?1 AND media_row IS NOT NULL)",
+        [entry_id],
+    )?;
+    Ok(())
 }
 
 /// Where an interrupted move from `from` to `to` really got to: true when the file is at `to`.
@@ -520,15 +753,18 @@ fn load_entries(
     args: impl rusqlite::Params,
 ) -> Result<Vec<Entry>> {
     let mut stmt = conn.prepare(&format!(
-        "SELECT id, src, dst, status, media_id FROM journal {filter}"
+        "SELECT id, op, src, dst, status, media_id, json_extract(media_row, '$.size')
+         FROM journal {filter}"
     ))?;
     let rows = stmt.query_map(args, |row| {
         Ok(Entry {
             id: row.get(0)?,
-            src: PathBuf::from(row.get::<_, String>(1)?),
-            dst: PathBuf::from(row.get::<_, String>(2)?),
-            status: row.get(3)?,
-            media_id: row.get(4)?,
+            op: row.get(1)?,
+            src: PathBuf::from(row.get::<_, String>(2)?),
+            dst: PathBuf::from(row.get::<_, String>(3)?),
+            status: row.get(4)?,
+            media_id: row.get(5)?,
+            size: row.get::<_, Option<i64>>(6)?.map(|s| s as u64),
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -883,5 +1119,51 @@ mod tests {
         assert!(copy_verify_delete(&from, &to).is_err());
         assert_eq!(fs::read_to_string(&from).unwrap(), "another photo");
         assert_eq!(fs::read_to_string(&to).unwrap(), "photo bytes");
+    }
+
+    #[test]
+    fn a_crash_mid_removal_is_settled_at_the_next_start() {
+        let (dir, db) = library(&["in\\IMG_20250312_101500.jpg", "in\\IMG_20250313_101500.jpg"]);
+        let root = dir.path();
+        let table = FormatTable::default();
+        let rows = index::load_rows(&db.lock().unwrap()).unwrap();
+        let removal = |i: usize| Removal {
+            files: vec![BinFile {
+                media_id: rows[i].id,
+                path: rows[i].path.clone(),
+            }],
+            keeper: rows[1 - i].path.clone(),
+            hash: "not checked by begin".into(),
+        };
+        let removals = [removal(0), removal(1)];
+        let (batch_id, _) =
+            begin_removals(&mut db.lock().unwrap(), &TEST_BATCH, &removals).unwrap();
+        // The first file reached the bin, then the app died before the journal said so.
+        recycle::to_bin(&rows[0].path).unwrap();
+
+        let settled = recover(&db.lock().unwrap(), &table).unwrap();
+        assert_eq!(settled, 2);
+        assert_eq!(statuses(&db, batch_id), ["done", "skipped"]);
+        assert_eq!(batch_status(&db, batch_id), "interrupted");
+        let remaining: Vec<i64> = index::load_rows(&db.lock().unwrap())
+            .unwrap()
+            .iter()
+            .map(|r| r.id)
+            .collect();
+        assert_eq!(remaining, [rows[1].id]);
+
+        // Undo brings the file out of the bin and back into the index under its old id.
+        let cancel = AtomicBool::new(false);
+        let env = Env {
+            db: &db,
+            root,
+            table: &table,
+            cancel: &cancel,
+            report: &no_report,
+        };
+        let undone = undo(&env, batch_id).unwrap();
+        assert_eq!((undone.restored, undone.failed), (1, 0));
+        assert!(rows[0].path.exists());
+        assert_eq!(index::load_rows(&db.lock().unwrap()).unwrap(), rows);
     }
 }

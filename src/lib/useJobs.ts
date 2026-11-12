@@ -16,6 +16,15 @@ export interface JobsContextValue {
 
 export const JobsContext = createContext<JobsContextValue | null>(null);
 
+/** What each background job is doing, in a few words. */
+export const JOB_NAMES: Record<string, string> = {
+  index: "Updating the library",
+  apply: "Moving files",
+  undo: "Putting files back",
+  duplicates: "Checking for duplicates",
+  remove: "Moving copies to the Recycle Bin",
+};
+
 /** Background job state. Must be used under JobsProvider. */
 export function useJobs(): JobsContextValue {
   const ctx = useContext(JobsContext);
