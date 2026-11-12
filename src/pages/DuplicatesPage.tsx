@@ -52,7 +52,7 @@ export function DuplicatesPage({ onNavigate }: { onNavigate: (page: PageId) => v
 
   useEffect(load, [load]);
   // An import check hashes library files, which can turn up sets nobody compared yet.
-  useJobDone(["index", "duplicates", "import-scan", "import"], load);
+  useJobDone(["index", "duplicates", "import-scan", "import", "inbox"], load);
   useJobDone("remove", (done) => {
     if (done.ok) setResult(done.result as ApplySummary);
     else if (done.error) setError(done.error);

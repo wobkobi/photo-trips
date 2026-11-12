@@ -35,7 +35,7 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
   }, []);
 
   useEffect(load, [load]);
-  useJobDone(["index", "remove", "import"], load);
+  useJobDone(["index", "remove", "import", "inbox"], load);
   useJobDone("apply", (done) => {
     if (done.ok) setResult(done.result as ApplySummary);
     else if (done.error) setError(done.error);

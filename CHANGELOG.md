@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-11-13
+
+### Added
+
+- Inbox folders. New photos and videos put in a watched folder move into the library by themselves once they finish copying, each to its month or trip folder. Copies of photos already in the library stay where they are, and each batch can be undone from History.
+- A notification says how many files came in from an inbox while Photo Trips is in the tray or behind other windows.
+- Pause watching from the tray or from Settings. Anything put in an inbox while paused, or while Photo Trips wasn't running, moves in on resuming or at the next start.
+- An inbox folder on a drive that's unplugged shows as missing in Settings and is watched again within about 30 seconds of the drive coming back.
+- Settings for trip suggestions: how many photos and videos make a busy day, and where home is. Home is pasted from a map as latitude and longitude, and the nearest town is shown to confirm it.
+- Extra photo and video file types can be added in Settings.
+- An app icon and a Windows installer.
+- A log file in the app's data folder (`logs\Photo Trips.log`) records problems with background work like the inbox watcher.
+
 ## [0.7.0] - 2026-11-13
 
 ### Added

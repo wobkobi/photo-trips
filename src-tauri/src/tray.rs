@@ -8,6 +8,7 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 
 use crate::devices::Device;
 use crate::import;
+use crate::watch;
 
 const PAUSE_ID: &str = "pause";
 const IMPORT_ID: &str = "import";
@@ -43,9 +44,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => show_main(app),
             IMPORT_ID => open_import(app),
-            PAUSE_ID => {
-                let _ = app.emit("tray://toggle-pause", ());
-            }
+            PAUSE_ID => watch::toggle_pause(app),
             "quit" => app.exit(0),
             _ => {}
         })

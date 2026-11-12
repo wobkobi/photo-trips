@@ -24,7 +24,7 @@ pub struct ScanResult {
 }
 
 /// Folder names never descended into: app data, version control, Windows system folders.
-fn skip_dir(name: &str) -> bool {
+pub fn skip_dir(name: &str) -> bool {
     name.starts_with('.')
         || name.eq_ignore_ascii_case("$RECYCLE.BIN")
         || name.eq_ignore_ascii_case("System Volume Information")
@@ -59,14 +59,7 @@ pub fn scan_excluding(
         if !entry.file_type().is_file() {
             continue;
         }
-        let name = entry.file_name().to_string_lossy();
-        // macOS resource-fork junk ("._IMG_0001.JPG") looks like a photo but isn't one.
-        let kind = if name.starts_with("._") {
-            None
-        } else {
-            table.kind_of(entry.path())
-        };
-        let Some(kind) = kind else {
+        let Some(kind) = file_kind(entry.path(), table) else {
             result.other_files += 1;
             continue;
         };
@@ -80,6 +73,17 @@ pub fn scan_excluding(
     }
     Ok(result)
 }
+
+/// The kind of file at `path`, or `None` when it isn't a photo, video or companion.
+pub fn file_kind(path: &Path, table: &FormatTable) -> Option<Kind> {
+    let name = path.file_name()?.to_string_lossy();
+    // macOS resource-fork junk ("._IMG_0001.JPG") looks like a photo but isn't one.
+    if name.starts_with("._") {
+        return None;
+    }
+    table.kind_of(path)
+}
+
 
 /// Last-modified time of a file in Unix seconds (0 when the platform can't say).
 pub fn mtime_secs(meta: &std::fs::Metadata) -> i64 {
