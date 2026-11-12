@@ -133,6 +133,13 @@ pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
+/// Current time as Unix seconds, for the `*_at` bookkeeping columns.
+pub fn now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64)
+}
+
 /// Read a boolean setting stored as "true"/"false", falling back to `default`.
 pub fn get_bool(conn: &Connection, key: &str, default: bool) -> Result<bool> {
     Ok(get_setting(conn, key)?.map_or(default, |v| v == "true"))

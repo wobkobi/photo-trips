@@ -1,0 +1,161 @@
+// Walk a folder tree and list the photo, video and sidecar files in it.
+
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use crate::error::{Error, Result};
+use crate::formats::{FormatTable, Kind, ext_of};
+
+#[derive(Debug, Clone)]
+pub struct ScannedFile {
+    pub path: PathBuf,
+    pub kind: Kind,
+    pub size: u64,
+    /// Last-modified time, Unix seconds.
+    pub mtime: i64,
+}
+
+#[derive(Debug, Default)]
+pub struct ScanResult {
+    pub files: Vec<ScannedFile>,
+    /// Files with an unrecognised type. They are never moved, only counted so the UI can say so.
+    pub other_files: u64,
+}
+
+/// Folder names never descended into: app data, version control, Windows system folders.
+fn skip_dir(name: &str) -> bool {
+    name.starts_with('.')
+        || name.eq_ignore_ascii_case("$RECYCLE.BIN")
+        || name.eq_ignore_ascii_case("System Volume Information")
+}
+
+/// List every recognised file under `root`. Unreadable entries are skipped rather than failing
+/// the whole scan.
+pub fn scan(root: &Path, table: &FormatTable, cancel: &AtomicBool) -> Result<ScanResult> {
+    let mut result = ScanResult::default();
+    let walker = walkdir::WalkDir::new(root).follow_links(false).into_iter();
+    let walker = walker.filter_entry(|entry| {
+        entry.depth() == 0
+            || !entry.file_type().is_dir()
+            || !skip_dir(&entry.file_name().to_string_lossy())
+    });
+    for entry in walker {
+        if cancel.load(Ordering::Relaxed) {
+            return Err(Error::msg("Cancelled"));
+        }
+        let Ok(entry) = entry else { continue };
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy();
+        // macOS resource-fork junk ("._IMG_0001.JPG") looks like a photo but isn't one.
+        let kind = if name.starts_with("._") { None } else { table.kind_of(entry.path()) };
+        let Some(kind) = kind else {
+            result.other_files += 1;
+            continue;
+        };
+        let Ok(meta) = entry.metadata() else { continue };
+        result.files.push(ScannedFile {
+            path: entry.into_path(),
+            kind,
+            size: meta.len(),
+            mtime: mtime_secs(&meta),
+        });
+    }
+    Ok(result)
+}
+
+/// Last-modified time of a file in Unix seconds (0 when the platform can't say).
+pub fn mtime_secs(meta: &std::fs::Metadata) -> i64 {
+    meta.modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_secs() as i64)
+}
+
+/// Key shared by a file and its companions: lowercase folder + lowercase base name.
+///
+/// Sidecars name their partner in a few different ways, all folded to the partner's stem:
+/// `IMG_1.HEIC` + `IMG_1.AAE`, darktable-style `IMG_1.CR2.xmp`, and Sony's `C0001.MP4` +
+/// `C0001M01.XML`.
+pub fn group_key(path: &Path, kind: Kind, table: &FormatTable) -> String {
+    let parent = path
+        .parent()
+        .map(|p| p.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let mut stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    if kind == Kind::Companion {
+        if let Some((inner, inner_ext)) = stem.rsplit_once('.')
+            && table.is_media_ext(inner_ext)
+        {
+            stem = inner.to_string();
+        }
+        if ext_of(path) == "xml" && stem.len() > 3 && stem.ends_with("m01") {
+            stem.truncate(stem.len() - 3);
+        }
+    }
+    format!("{parent}|{stem}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn touch(path: &Path) {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, b"x").unwrap();
+    }
+
+    #[test]
+    fn scan_lists_media_counts_others_and_skips_hidden_folders() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        touch(&root.join("a/IMG_1.JPG"));
+        touch(&root.join("a/IMG_1.AAE"));
+        touch(&root.join("b/clip.MP4"));
+        touch(&root.join("b/notes.txt"));
+        touch(&root.join("b/._IMG_2.JPG"));
+        touch(&root.join(".photolib/staging/IMG_9.JPG"));
+        touch(&root.join("$RECYCLE.BIN/IMG_8.JPG"));
+
+        let result = scan(root, &FormatTable::default(), &AtomicBool::new(false)).unwrap();
+        let mut names: Vec<_> = result
+            .files
+            .iter()
+            .map(|f| f.path.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["IMG_1.AAE", "IMG_1.JPG", "clip.MP4"]);
+        assert_eq!(result.other_files, 2);
+    }
+
+    #[test]
+    fn scan_stops_when_cancelled() {
+        let dir = tempfile::tempdir().unwrap();
+        touch(&dir.path().join("IMG_1.JPG"));
+        assert!(scan(dir.path(), &FormatTable::default(), &AtomicBool::new(true)).is_err());
+    }
+
+    #[test]
+    fn companions_share_their_partners_group_key() {
+        let t = FormatTable::default();
+        let dir = Path::new("C:\\Photos\\Trip");
+        let key = |name: &str| {
+            let path = dir.join(name);
+            group_key(&path, t.kind_of(&path).unwrap(), &t)
+        };
+        assert_eq!(key("IMG_1.HEIC"), key("IMG_1.MOV"));
+        assert_eq!(key("IMG_1.HEIC"), key("img_1.aae"));
+        assert_eq!(key("DSC_5.NEF"), key("DSC_5.NEF.xmp"));
+        assert_eq!(key("DSC_5.NEF"), key("DSC_5.JPG"));
+        assert_eq!(key("C0001.MP4"), key("C0001M01.XML"));
+        assert_eq!(key("GX010001.MP4"), key("GX010001.THM"));
+        assert_ne!(key("IMG_1.HEIC"), key("IMG_2.HEIC"));
+        // A photo whose own name ends in M01 is not a Sony sidecar.
+        assert_ne!(key("ROOM01.JPG"), key("ROO.JPG"));
+    }
+}

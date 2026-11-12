@@ -1,7 +1,19 @@
 mod commands;
+mod dates;
 mod db;
 mod error;
+mod exiftool;
+mod formats;
+mod groups;
+mod index;
+mod jobs;
+mod library;
+mod metadata;
+mod scan;
+mod thumbs;
 mod tray;
+#[cfg(windows)]
+mod win;
 
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -34,18 +46,28 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .register_asynchronous_uri_scheme_protocol("thumb", thumbs::protocol)
         .setup(|app| {
             let data_dir = app.path().app_local_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
             let conn = db::open(&data_dir.join("library.db"))?;
-            if let Some(root) = db::get_setting(&conn, "library_root")? {
-                commands::allow_library(app.handle(), &root);
+            let library_root = db::get_setting(&conn, "library_root")?;
+            if let Some(root) = &library_root {
+                commands::allow_library(app.handle(), root);
             }
+            app.manage(thumbs::Pool::new(4, &data_dir));
+            app.manage(jobs::Jobs::default());
             app.manage(AppState {
                 db: Mutex::new(conn),
                 data_dir,
             });
             tray::build(app.handle())?;
+            // Catch up with anything that changed while the app was closed.
+            if library_root.is_some()
+                && let Err(err) = commands::start_index(app.handle())
+            {
+                log::warn!("Startup index skipped: {err}");
+            }
             tray::set_watch_state(app.handle(), None);
 
             // The window starts hidden (see tauri.conf.json) to avoid a flash on a tray-only start.
@@ -72,6 +94,14 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_settings,
             commands::set_setting,
+            commands::index_library,
+            commands::job_status,
+            commands::cancel_job,
+            library::library_tiles,
+            library::media_detail,
+            library::open_media,
+            library::reveal_media,
+            library::open_store_page,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Photo Trips");
