@@ -20,6 +20,7 @@ mod organise;
 mod planner;
 mod recycle;
 mod scan;
+mod suggest;
 mod thumbs;
 mod tray;
 mod trips;
@@ -139,6 +140,9 @@ pub fn run() {
             import::apply_import,
             import::discard_import,
             devices::import_sources,
+            suggest::suggest_trips,
+            suggest::dismiss_suggestion,
+            suggest::restore_dismissed,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Photo Trips");

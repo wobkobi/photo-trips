@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { PageId } from "../App";
+import { Field, INPUT } from "../components/Field";
 import { Icon } from "../components/Icon";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
+import { SampleStrip } from "../components/SampleStrip";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import {
   api,
   errorText,
-  thumbUrl,
   type ApplySummary,
   type Preview,
-  type SampleTile,
   type TripChange,
   type TripInfo,
   type TripMatches,
@@ -26,9 +26,7 @@ import {
   type TripRange,
 } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
-
-/** Wait this long after the last keystroke before counting matching photos. */
-const MATCH_DELAY_MS = 250;
+import { useTripMatches } from "../lib/useTripMatches";
 
 interface Editor {
   /** The trip being edited, or null for a new one. */
@@ -311,35 +309,6 @@ function TripRow({
   );
 }
 
-function SampleStrip({ sample }: { sample: SampleTile[] }) {
-  return (
-    <div className="flex gap-1 overflow-hidden">
-      {sample.map((tile) => (
-        <SampleThumb key={tile.id} tile={tile} />
-      ))}
-    </div>
-  );
-}
-
-function SampleThumb({ tile }: { tile: SampleTile }) {
-  const [failed, setFailed] = useState(false);
-  return (
-    <span className="h-16 w-16 shrink-0 overflow-hidden rounded-[3px] bg-raised">
-      {!failed && (
-        <img
-          src={thumbUrl(tile.id, tile.version)}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          draggable={false}
-          onError={() => setFailed(true)}
-          className="h-full w-full object-cover"
-        />
-      )}
-    </span>
-  );
-}
-
 function TripEditor({
   editor,
   busy,
@@ -354,7 +323,7 @@ function TripEditor({
   onCancel: () => void;
 }) {
   const { form, trip } = editor;
-  const matches = useMatches(form, trip?.id ?? null);
+  const matches = useTripMatches(form, trip?.id ?? null);
   const ready = form.name.trim() !== "" && hasValidRange(form) && !matches?.problem;
   const set = (field: keyof TripForm) => (value: string) => onChange({ ...form, [field]: value });
 
@@ -411,18 +380,6 @@ function TripEditor({
         </Button>
       </div>
     </form>
-  );
-}
-
-const INPUT =
-  "rounded-md border border-line bg-ground px-3 py-1.5 text-paper placeholder:text-faint focus:border-paper/60 focus:outline-none";
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-[13px] font-medium text-muted">{label}</span>
-      {children}
-    </label>
   );
 }
 
@@ -492,38 +449,4 @@ function MatchSummary({ form, matches }: { form: TripForm; matches: TripMatches 
       {matches.sample.length > 0 && <SampleStrip sample={matches.sample} />}
     </div>
   );
-}
-
-/**
- * Live count of the photos a form's dates take in, refreshed shortly after the dates change.
- * @param form - the trip form
- * @param editing - id of the trip being edited, so its own dates don't count as an overlap
- * @returns the matches, or null while counting or when the dates are incomplete
- */
-function useMatches(form: TripForm, editing: number | null): TripMatches | null {
-  const [matches, setMatches] = useState<{ key: string; value: TripMatches } | null>(null);
-  const valid = hasValidRange(form);
-  const { startAt, endAt } = toDraft(form);
-  const key = `${startAt}|${endAt}|${editing}`;
-
-  useEffect(() => {
-    if (!valid) return;
-    let live = true;
-    const timer = window.setTimeout(() => {
-      api.tripMatches(startAt, endAt, editing).then(
-        (value) => {
-          if (live) setMatches({ key, value });
-        },
-        (err) => {
-          if (live) setMatches({ key, value: { files: 0, sample: [], problem: errorText(err) } });
-        },
-      );
-    }, MATCH_DELAY_MS);
-    return () => {
-      live = false;
-      window.clearTimeout(timer);
-    };
-  }, [valid, startAt, endAt, editing, key]);
-
-  return matches?.key === key ? matches.value : null;
 }
