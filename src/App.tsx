@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { BrandMark } from "./components/BrandMark";
 import { Icon, type IconName } from "./components/Icon";
 import { JobStatus } from "./components/JobStatus";
 import { JobsProvider } from "./lib/jobs";
@@ -65,21 +66,29 @@ function Shell() {
 
   return (
     <div className="flex h-full">
-      <nav className="flex w-52 shrink-0 flex-col border-r border-line bg-surface px-3 py-5">
-        <div className="px-3 pb-6">
-          <span className="font-display text-[22px] leading-none font-semibold">Photo Trips</span>
+      <nav className="on-brand flex w-56 shrink-0 flex-col px-3 pb-5">
+        <div className="mb-4 flex items-center gap-3 border-b border-line px-2 pt-5 pb-4">
+          <BrandMark size={34} className="shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[19px] leading-none font-extrabold tracking-tight">Photo Trips</p>
+            <p className="mt-1.5 text-[12px] leading-none font-semibold text-accent">
+              To the Point Tech
+            </p>
+          </div>
         </div>
         <ul className="flex flex-col gap-0.5">
           {NAV.map((item) => (
             <li key={item.id}>
+              {/* The active page gets a moonstone rule on its left edge, as on the website's
+                  admin sidebar; it's a pseudo-element so the label doesn't shift. */}
               <button
                 type="button"
                 onClick={() => setPage(item.id)}
                 aria-current={page === item.id ? "page" : undefined}
-                className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors ${
+                className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[15px] font-semibold transition-colors ${
                   page === item.id
-                    ? "bg-raised text-paper"
-                    : "text-muted hover:bg-raised/60 hover:text-paper"
+                    ? "bg-raised text-ink before:absolute before:inset-y-2 before:left-0 before:w-0.75 before:rounded-r-sm before:bg-accent"
+                    : "text-muted hover:bg-raised hover:text-ink"
                 }`}
               >
                 <Icon name={item.icon} />

@@ -192,7 +192,10 @@ function Sources({
   return (
     <div className="flex max-w-3xl flex-col gap-10 px-8 py-7">
       <section aria-labelledby="import-devices">
-        <h2 id="import-devices" className="font-display text-[24px] leading-none font-semibold">
+        <h2
+          id="import-devices"
+          className="text-[24px] leading-none font-bold tracking-tight text-brand"
+        >
           Memory cards and phones
         </h2>
         {devices !== null && devices.length === 0 && (
@@ -226,7 +229,10 @@ function Sources({
       </section>
 
       <section aria-labelledby="import-folder">
-        <h2 id="import-folder" className="font-display text-[24px] leading-none font-semibold">
+        <h2
+          id="import-folder"
+          className="text-[24px] leading-none font-bold tracking-tight text-brand"
+        >
           A folder on this PC
         </h2>
         <p className="mt-3 text-muted">
@@ -277,8 +283,8 @@ function Choice({
 }) {
   return (
     <label
-      className={`flex cursor-pointer gap-3 rounded-md border p-3.5 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-paper ${
-        checked ? "border-paper bg-raised" : "border-line bg-surface hover:bg-raised/60"
+      className={`flex cursor-pointer gap-3 rounded-md border p-3.5 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent ${
+        checked ? "border-accent bg-accent/10" : "border-line bg-surface hover:bg-raised/60"
       }`}
     >
       <input
@@ -286,10 +292,10 @@ function Choice({
         name="folder-mode"
         checked={checked}
         onChange={onSelect}
-        className="mt-1 accent-paper"
+        className="mt-1 accent-accent"
       />
       <span>
-        <span className="block font-medium">{title}</span>
+        <span className="block font-semibold">{title}</span>
         <span className="mt-0.5 block text-[13px] text-muted">{detail}</span>
       </span>
     </label>
@@ -310,7 +316,7 @@ function IncomingView({ preview }: { preview: ImportPreview }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <section className="px-8 pt-6 pb-5">
-        <p className="font-display text-[30px] leading-none font-semibold">
+        <p className="text-[30px] leading-none font-extrabold tracking-tight text-brand">
           {count(preview.files, "new file", "new files")} from {preview.source}
         </p>
         {preview.spec.kind === "folder" && (

@@ -24,7 +24,7 @@ export function SetupPage() {
   return (
     <div className="flex h-full items-center justify-center px-8">
       <div className="max-w-lg">
-        <h1 className="font-display text-[52px] leading-[0.95] font-semibold tracking-tight">
+        <h1 className="text-[52px] leading-[1.05] font-extrabold tracking-tight text-brand">
           Where do your photos live?
         </h1>
         <p className="mt-5 text-[15px] leading-relaxed text-muted">

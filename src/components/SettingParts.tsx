@@ -24,7 +24,7 @@ export function Section({
 }) {
   return (
     <section className="mt-12 first:mt-0">
-      <h2 className="font-display text-[22px] font-semibold tracking-tight">{title}</h2>
+      <h2 className="text-[22px] font-bold tracking-tight text-brand">{title}</h2>
       {detail && <div className="mt-1.5 space-y-2 text-[13px] text-muted">{detail}</div>}
       {error && (
         <p role="alert" className="mt-3 text-[13px] text-danger">
@@ -55,7 +55,7 @@ export function Row({
   return (
     <div className="flex items-center justify-between gap-6 border-t border-line py-4">
       <div className="min-w-0">
-        <h3 className="font-medium">{title}</h3>
+        <h3 className="font-semibold">{title}</h3>
         {detail && <p className="mt-1 text-[13px] break-words text-muted">{detail}</p>}
       </div>
       <div className="shrink-0">{children}</div>
@@ -91,12 +91,12 @@ export function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`relative h-6 w-11 rounded-full border transition-colors disabled:opacity-40 ${
-        checked ? "border-paper bg-paper" : "border-line bg-raised"
+        checked ? "border-accent bg-accent" : "border-line-strong bg-raised"
       }`}
     >
       <span
         className={`absolute top-0.5 left-0.5 h-[18px] w-[18px] rounded-full transition-transform ${
-          checked ? "translate-x-5 bg-ground" : "bg-muted"
+          checked ? "translate-x-5 bg-white" : "bg-muted"
         }`}
       />
     </button>

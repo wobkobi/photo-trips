@@ -9,15 +9,15 @@ export function JobStatus() {
 
   if (running) {
     return (
-      <div className="rounded-md border border-line bg-ground/60 p-3">
+      <div className="rounded-md border border-line bg-surface/60 p-3">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-[13px] font-medium">
+          <span className="truncate text-[13px] font-semibold">
             {JOB_NAMES[running.kind] ?? "Working"}
           </span>
           <button
             type="button"
             onClick={() => api.cancelJob()}
-            className="shrink-0 text-[12px] text-muted hover:text-paper"
+            className="shrink-0 text-[12px] text-muted hover:text-ink"
           >
             Cancel
           </button>
@@ -34,12 +34,12 @@ export function JobStatus() {
   return (
     <div role="alert" className="flex gap-2 rounded-md border border-danger/40 bg-danger/10 p-3">
       <Icon name="warn" size={16} className="mt-0.5 shrink-0 text-danger" />
-      <p className="min-w-0 flex-1 text-[12px] break-words text-paper">{lastDone.done.error}</p>
+      <p className="min-w-0 flex-1 text-[12px] break-words text-ink">{lastDone.done.error}</p>
       <button
         type="button"
         onClick={clearLastDone}
         aria-label="Dismiss"
-        className="shrink-0 self-start text-muted hover:text-paper"
+        className="shrink-0 self-start text-muted hover:text-ink"
       >
         <Icon name="close" size={14} />
       </button>

@@ -101,7 +101,7 @@ function BatchRow({
     <li className="rounded-md border border-line bg-surface">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4">
         <div className="min-w-0 flex-1">
-          <p className="font-medium">{batch.label}</p>
+          <p className="font-semibold">{batch.label}</p>
           <p className="mt-1 flex flex-wrap gap-x-3 text-[13px] text-muted">
             <span>{formatWhen(batch.createdAt)}</span>
             <span className={trouble ? "text-warn" : undefined}>{statusText(batch)}</span>
@@ -185,7 +185,9 @@ function statusText(batch: BatchInfo): string {
       return `${moved}, ${count(batch.failed, "file", "files")} couldn't be`;
     case "failed":
       if (batch.kind === "duplicates") return "Every copy was kept";
-      return batch.kind.startsWith("import") ? "Nothing could be brought in" : "Nothing could be moved";
+      return batch.kind.startsWith("import")
+        ? "Nothing could be brought in"
+        : "Nothing could be moved";
     case "cancelled":
       return `Stopped part-way, ${moved}`;
     case "interrupted":

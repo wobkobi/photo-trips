@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-11-13
+
+### Changed
+
+- Photo Trips wears the To the Point Tech brand: Exo type, a russian-violet sidebar with the chip
+  mark, seasalt pages with white panels and violet headings, and moonstone for selection and focus.
+  Photos opened large still sit on a dark ground. Trip colours come from the brand palette, and the
+  app icon is redrawn in brand colours.
+
 ## [0.8.1] - 2026-11-13
 
 ### Fixed

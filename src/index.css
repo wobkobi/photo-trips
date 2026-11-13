@@ -1,33 +1,80 @@
-@import "@fontsource/barlow-condensed/500.css";
-@import "@fontsource/barlow-condensed/600.css";
+@import "@fontsource-variable/exo/wght.css";
 @import "tailwindcss";
 
-/* Graphite surround so photos carry the colour. Colour in the chrome is reserved for trips:
-   each trip owns one of the tag hues below and keeps it everywhere it appears. */
+/* To the Point Tech brand, the same as the website's admin pages: seasalt ground, white panels,
+   rich-black text, russian-violet for the sidebar, headings and main actions, and moonstone as
+   the accent. Every value is one of the brand's swatches (website globals.css). Utilities read
+   these as variables, so .on-dark and .on-brand below re-tint everything inside them. */
 @theme {
-  --color-ground: #1c2127;
-  --color-surface: #242a32;
-  --color-raised: #2d353f;
-  --color-line: #38424e;
-  --color-paper: #ebe6dc;
-  --color-muted: #9aa4af;
-  --color-faint: #6b7682;
-  --color-warn: #e0a84f;
-  --color-danger: #e07a6a;
+  --color-ground: #f6f7f8; /* seasalt */
+  --color-surface: #ffffff;
+  --color-raised: #e2e6e9; /* seasalt-100 */
+  --color-line: #c6ccd2; /* seasalt-200 */
+  --color-line-strong: #a9b3bc; /* seasalt-300, the website's input border */
+  --color-ink: #001514; /* rich-black */
+  --color-muted: #434c56; /* seasalt-700 */
+  /* seasalt-600: the lightest grey that still reads at 4.5:1 on seasalt, and faint is
+     mostly small text (paths, counts, hints). */
+  --color-faint: #5a6672;
+  --color-brand: #0c0a3e; /* russian-violet */
+  --color-brand-hover: #191584; /* russian-violet-700 */
+  --color-accent: #2b93a1; /* moonstone-600, 3:1 on seasalt for rings and fills */
+  --color-warn: #654c01; /* mustard-800: mustard itself can't be read on a pale ground */
+  --color-warn-soft: #fff9e6; /* mustard-50, behind a warning box */
+  --color-warn-line: #fed766; /* mustard, a warning box's border */
+  --color-danger: #912508; /* coquelicot-700, the website's error colour */
 
-  --color-tag-1: #4fb0a5;
-  --color-tag-2: #d4a23c;
-  --color-tag-3: #d07a8c;
-  --color-tag-4: #6e9fd8;
-  --color-tag-5: #9db05a;
-  --color-tag-6: #a88bd6;
+  /* Trip colours. Each trip keeps one everywhere it appears. Brand hues first, then lighter
+     or darker steps of them, so trips made one after another still look different. */
+  --color-tag-1: #43bccd; /* moonstone */
+  --color-tag-2: #fecb34; /* mustard-400 */
+  --color-tag-3: #f5653d; /* coquelicot-400 */
+  --color-tag-4: #5450e2; /* russian-violet-400 */
+  --color-tag-5: #206f79; /* moonstone-700 */
+  --color-tag-6: #aaa7f1; /* russian-violet-200 */
 
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  --font-display: "Barlow Condensed", "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  --font-sans: "Exo Variable", "Exo", "Segoe UI", system-ui, sans-serif;
+}
+
+/* Rich-black stage for photos shown large, and for badges drawn over thumbnails, so a photo's
+   colours aren't judged against a pale page. */
+.on-dark {
+  --color-ground: #001514; /* rich-black */
+  --color-surface: #16191d; /* seasalt-900 */
+  --color-raised: #2d3339; /* seasalt-800 */
+  --color-line: #434c56; /* seasalt-700 */
+  --color-line-strong: #5a6672; /* seasalt-600 */
+  --color-ink: #f6f7f8; /* seasalt */
+  --color-muted: #a9b3bc; /* seasalt-300 */
+  --color-faint: #8d99a5; /* seasalt-400 */
+  /* Lighter violet, so a main action's button still stands out from rich-black. */
+  --color-brand: #211daf; /* russian-violet-600 */
+  --color-brand-hover: #2a24db; /* russian-violet-500 */
+  --color-accent: #5ec6d4; /* moonstone-400 */
+  --color-warn: #fed766; /* mustard */
+  --color-danger: #f5653d; /* coquelicot-400 */
+  color: var(--color-ink);
+}
+
+/* Russian-violet sidebar. White at set strengths, as on the website's admin sidebar. */
+.on-brand {
+  --color-ground: #0c0a3e; /* russian-violet */
+  --color-surface: #110e58; /* russian-violet-800 */
+  --color-raised: rgb(255 255 255 / 0.1);
+  --color-line: rgb(255 255 255 / 0.12);
+  --color-line-strong: rgb(255 255 255 / 0.3);
+  --color-ink: #ffffff;
+  --color-muted: rgb(255 255 255 / 0.75);
+  --color-faint: rgb(255 255 255 / 0.6);
+  --color-accent: #5ec6d4; /* moonstone-400 */
+  --color-warn: #fed766; /* mustard */
+  --color-danger: #f78b6e; /* coquelicot-300 */
+  background: var(--color-ground);
+  color: var(--color-ink);
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -39,9 +86,10 @@ body,
 body {
   margin: 0;
   background: var(--color-ground);
-  color: var(--color-paper);
+  color: var(--color-ink);
   font-family: var(--font-sans);
   font-size: 14px;
+  font-weight: 500;
   -webkit-font-smoothing: antialiased;
   user-select: none;
 }
@@ -52,7 +100,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-paper);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 

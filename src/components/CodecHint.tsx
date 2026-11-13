@@ -49,7 +49,7 @@ export function CodecHint({ failed, onDismiss }: { failed: Tile[]; onDismiss: ()
   if (missing.length === 0) return null;
 
   return (
-    <div className="mx-8 mt-5 flex gap-3 rounded-md border border-warn/40 bg-warn/10 p-4">
+    <div className="mx-8 mt-5 flex gap-3 rounded-md border border-warn-line bg-warn-soft p-4">
       <Icon name="warn" className="mt-0.5 shrink-0 text-warn" />
       <div className="min-w-0 flex-1">
         <p>
@@ -73,7 +73,7 @@ export function CodecHint({ failed, onDismiss }: { failed: Tile[]; onDismiss: ()
         onClick={onDismiss}
         aria-label="Don't show this again"
         title="Don't show this again"
-        className="shrink-0 self-start text-muted hover:text-paper"
+        className="shrink-0 self-start text-muted hover:text-ink"
       >
         <Icon name="close" size={16} />
       </button>
