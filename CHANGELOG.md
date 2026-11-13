@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.1] - 2026-11-14
+
+### Fixed
+
+- The installer's exe showed the previous version in its file details after a version-only change.
+  The build now reruns when package.json changes.
+
 ## [0.9.0] - 2026-11-13
 
 ### Changed
