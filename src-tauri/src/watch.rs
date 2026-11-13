@@ -644,15 +644,25 @@ fn notify_sorted(app: &AppHandle, moved: usize) {
     if in_front {
         return;
     }
-    let files = if moved == 1 { "1 new file".to_owned() } else { format!("{moved} new files") };
-    let shown = app
-        .notification()
-        .builder()
-        .title(format!("Sorted {files} into your library"))
-        .body("They came from an inbox folder. History can undo it.")
-        .show();
+    let (title, body) = sorted_message(moved);
+    let shown = app.notification().builder().title(title).body(body).show();
     if let Err(err) = shown {
         log::warn!("Couldn't show the inbox notification: {err}");
+    }
+}
+
+/// Title and body for {@link notify_sorted}, worded for one file or several.
+fn sorted_message(moved: usize) -> (String, String) {
+    if moved == 1 {
+        (
+            "Sorted 1 new file into your library".to_owned(),
+            "It came from an inbox folder. History can undo it.".to_owned(),
+        )
+    } else {
+        (
+            format!("Sorted {moved} new files into your library"),
+            "They came from an inbox folder. History can undo it.".to_owned(),
+        )
     }
 }
 
@@ -662,6 +672,24 @@ mod tests {
     use crate::executor::testing::{library, no_report, snapshot};
     use crate::import::testing::write;
     use crate::index;
+
+    #[test]
+    fn the_notification_matches_the_number_of_files() {
+        assert_eq!(
+            sorted_message(1),
+            (
+                "Sorted 1 new file into your library".to_owned(),
+                "It came from an inbox folder. History can undo it.".to_owned()
+            )
+        );
+        assert_eq!(
+            sorted_message(6),
+            (
+                "Sorted 6 new files into your library".to_owned(),
+                "They came from an inbox folder. History can undo it.".to_owned()
+            )
+        );
+    }
 
     #[test]
     fn a_file_goes_in_once_it_has_held_still() {
