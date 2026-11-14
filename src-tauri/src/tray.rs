@@ -67,7 +67,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
 
 /// Show the Import page and, when a card or phone is on offer, start checking it for new
 /// photos. A job already running means the page lists the device for later instead.
-fn open_import(app: &AppHandle) {
+pub fn open_import(app: &AppHandle) {
     show_main(app);
     let _ = app.emit("navigate", "import");
     let device = app
@@ -99,6 +99,7 @@ pub fn set_import_device(app: &AppHandle, device: Option<&Device>) {
         None => "Import photos...".to_owned(),
     };
     let _ = import.item.set_text(text);
+    crate::menu::show_import_device(app, device.map(|d| d.name.as_str()));
     if let Ok(mut offered) = import.device.lock() {
         *offered = device.cloned();
     }

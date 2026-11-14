@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { api, type Settings } from "./api";
+import { listen } from "@tauri-apps/api/event";
+import { api, SETTING_CHANGED, type SettingChange, type Settings } from "./api";
 import { SettingsContext } from "./useSettings";
 
 /**
@@ -12,6 +13,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     api.getSettings().then(setSettings, () => setSettings({}));
+    // The menu bar saves some settings itself.
+    const unlisten = listen<SettingChange>(SETTING_CHANGED, ({ payload }) =>
+      setSettings((prev) => ({ ...prev, [payload.key]: payload.value })),
+    );
+    return () => {
+      unlisten.then((off) => off());
+    };
   }, []);
 
   const save = useCallback(async (key: string, value: string) => {

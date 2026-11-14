@@ -15,6 +15,7 @@ mod import;
 mod index;
 mod jobs;
 mod library;
+mod menu;
 mod metadata;
 mod mtp;
 mod organise;
@@ -96,6 +97,8 @@ pub fn run() {
                 data_dir,
             });
             tray::build(app.handle())?;
+            // Before the watcher starts, so its first status reaches the menu's pause item.
+            menu::build(app.handle())?;
             // Catch up with anything that changed while the app was closed.
             if library_root.is_some()
                 && let Err(err) = commands::start_index(app.handle())
@@ -160,6 +163,8 @@ pub fn run() {
             suggest::home_place,
             watch::watch_status,
             watch::set_watch_paused,
+            menu::menu_action,
+            menu::set_autostart,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Photo Trips");

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-11-14
+
+### Added
+
+- A menu bar on the window: File (import, refresh, open the library folder, close, quit), View
+  (every page, with Ctrl+1 to Ctrl+7), Options (settings, pause watching, keep running in the tray,
+  start with Windows) and Help (log folder, About). Settings has an About section with the version.
+
 ## [0.9.4] - 2026-11-14
 
 ### Fixed

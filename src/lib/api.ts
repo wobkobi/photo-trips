@@ -339,15 +339,29 @@ export interface WatchStatus {
 /** Sent with a WatchStatus whenever the folders, the pause or the waiting count change. */
 export const WATCH_CHANGED = "watch://changed";
 
-/** Free Microsoft Store codec extensions the app can point to. */
 /** Codecs Windows gets from Microsoft Store extensions. */
 export type Codec = "heif" | "hevc" | "raw" | "av1";
 /** Store pages: one per codec, plus the paid HEVC listing for PCs the free one isn't offered on. */
 export type StoreProduct = Codec | "hevc_paid";
 
+/** Sent with a {@link SettingChange} when the menu bar saves a setting. */
+export const SETTING_CHANGED = "settings://changed";
+
+export interface SettingChange {
+  key: string;
+  value: string;
+}
+
+/** Sent with the new on/off state whenever Start with Windows changes. */
+export const AUTOSTART_CHANGED = "autostart://changed";
+
 export const api = {
   getSettings: () => invoke<Settings>("get_settings"),
   setSetting: (key: string, value: string) => invoke<void>("set_setting", { key, value }),
+  /** Turn Start with Windows on or off; the menu bar's tick follows. */
+  setAutostart: (enabled: boolean) => invoke<void>("set_autostart", { enabled }),
+  /** Run a menu bar item by id, for its keyboard shortcut. */
+  menuAction: (id: string) => invoke<void>("menu_action", { id }),
   indexLibrary: () => invoke<void>("index_library"),
   jobStatus: () => invoke<JobProgress | null>("job_status"),
   cancelJob: () => invoke<void>("cancel_job"),

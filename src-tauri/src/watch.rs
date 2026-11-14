@@ -32,6 +32,7 @@ use crate::jobs::{self, Jobs};
 use crate::index::path_key;
 use crate::planner::is_inside;
 use crate::scan::{self, ScannedFile};
+use crate::menu;
 use crate::tray;
 use crate::trips;
 
@@ -339,7 +340,7 @@ pub fn toggle_pause(app: &AppHandle) {
     }
 }
 
-/// Send the status to the page and match the tray to it, when it has changed.
+/// Send the status to the page and match the tray and menu to it, when it has changed.
 fn send_status(app: &AppHandle) {
     let watch = app.state::<Watch>();
     let Ok(mut inner) = watch.lock() else { return };
@@ -351,6 +352,7 @@ fn send_status(app: &AppHandle) {
     inner.sent = Some(status.clone());
     drop(inner);
     tray::set_watch_state(app, watching.then_some(status.paused));
+    menu::show_watch_state(app, watching.then_some(status.paused));
     let _ = app.emit(CHANGED_EVENT, status);
 }
 
