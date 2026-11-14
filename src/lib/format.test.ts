@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { Tile } from "./api";
-import { formatBytes, formatTaken, monthLabel, parseTaken, timelineRows } from "./format";
+import {
+  count,
+  formatBytes,
+  formatTaken,
+  monthLabel,
+  parseTaken,
+  splitPath,
+  timelineRows,
+} from "./format";
 
 function tile(id: number, takenAt: string): Tile {
   return { id, takenAt, kind: "photo", ext: "jpg", uncertain: false, extra: 0, version: 0 };
@@ -49,5 +57,21 @@ describe("timelineRows", () => {
 
   it("returns nothing for an empty library", () => {
     expect(timelineRows([], 4)).toEqual([]);
+  });
+});
+
+describe("text helpers", () => {
+  it("pairs counts with the right noun", () => {
+    expect(count(1, "file", "files")).toBe("1 file");
+    expect(count(0, "file", "files")).toBe("0 files");
+    expect(count(1204, "file", "files")).toBe("1,204 files");
+  });
+
+  it("splits Windows paths into folder and name", () => {
+    expect(splitPath(String.raw`2025\2025-03\IMG_1.HEIC`)).toEqual({
+      folder: String.raw`2025\2025-03`,
+      name: "IMG_1.HEIC",
+    });
+    expect(splitPath("IMG_1.HEIC")).toEqual({ folder: "", name: "IMG_1.HEIC" });
   });
 });

@@ -8,7 +8,8 @@ use crate::error::Result;
 
 /// Ordered schema migrations. Index + 1 is the `user_version` each one brings the database to.
 /// Never edit a shipped migration; append a new one instead.
-const MIGRATIONS: &[&str] = &[r#"
+const MIGRATIONS: &[&str] = &[
+    r#"
     CREATE TABLE settings (
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -76,7 +77,13 @@ const MIGRATIONS: &[&str] = &[r#"
         end_day   TEXT NOT NULL,
         PRIMARY KEY (start_day, end_day)
     );
-"#];
+"#,
+    r#"
+    -- Why an entry failed or couldn't be undone, shown in History.
+    ALTER TABLE journal ADD COLUMN error TEXT;
+    CREATE INDEX journal_status ON journal(status);
+"#,
+];
 
 /// Open (or create) the database and bring it up to the latest schema.
 pub fn open(path: &Path) -> Result<Connection> {

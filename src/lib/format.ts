@@ -107,9 +107,50 @@ export function timelineRows(tiles: Tile[], columns: number): TimelineRow[] {
     while (end < tiles.length && monthKey(tiles[end].takenAt) === key) end += 1;
     rows.push({ type: "month", key, label: monthLabel(key), count: end - i });
     for (let start = i; start < end; start += columns) {
-      rows.push({ type: "tiles", key: `${key}:${start}`, start, end: Math.min(start + columns, end) });
+      rows.push({
+        type: "tiles",
+        key: `${key}:${start}`,
+        start,
+        end: Math.min(start + columns, end),
+      });
     }
     i = end;
   }
   return rows;
+}
+
+/**
+ * A number with the right noun after it.
+ * @param n - how many
+ * @param one - noun for exactly one
+ * @param many - noun for any other count
+ * @returns e.g. "1 file", "1,204 files"
+ */
+export function count(n: number, one: string, many: string): string {
+  return `${n.toLocaleString(LOCALE)} ${n === 1 ? one : many}`;
+}
+
+/**
+ * Date and time of an app event, for History.
+ * @param unixSecs - seconds since 1970
+ * @returns e.g. "13 Nov 2026, 9:30 am"
+ */
+export function formatWhen(unixSecs: number): string {
+  return new Date(unixSecs * 1000).toLocaleString(LOCALE, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Split a Windows path into its folder and file name.
+ * @param path - absolute or library-relative path
+ * @returns the folder ("" when there is none) and the name
+ */
+export function splitPath(path: string): { folder: string; name: string } {
+  const cut = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
+  return { folder: path.slice(0, Math.max(cut, 0)), name: path.slice(cut + 1) };
 }

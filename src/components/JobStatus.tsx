@@ -5,6 +5,8 @@ import { Progress } from "./ui";
 
 const JOB_NAMES: Record<string, string> = {
   index: "Updating the library",
+  apply: "Moving files",
+  undo: "Putting files back",
 };
 
 /** Sidebar footer: progress of the running job, or the error from the last one. */
