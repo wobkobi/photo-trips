@@ -688,6 +688,7 @@ mod tests {
             end_at: crate::dates::parse(end).unwrap(),
             folder: "f".into(),
             created_at: 0,
+            excluded: Default::default(),
         };
         assert!(is_clear(&run, &[], &[]));
         // Touching the run's last second counts; ending the evening before doesn't.

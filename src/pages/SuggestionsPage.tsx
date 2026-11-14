@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PageId } from "../App";
-import { Field, INPUT } from "../components/Field";
 import { Icon } from "../components/Icon";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
 import { SampleStrip } from "../components/SampleStrip";
@@ -15,15 +14,8 @@ import {
 } from "../lib/api";
 import { count } from "../lib/format";
 import { formFromSuggestion, howFound, reasonText, suggestionKey } from "../lib/suggestions";
-import { hasValidRange, rangeText, toDraft, type TripForm } from "../lib/trips";
+import { rangeText, toDraft, type TripForm, type TripStart } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
-import { useTripMatches } from "../lib/useTripMatches";
-
-/** A suggestion whose name or dates are being changed before it becomes a trip. */
-interface Editing {
-  key: string;
-  form: TripForm;
-}
 
 /** A new trip previewed and waiting for the user to confirm it. */
 interface Review {
@@ -37,12 +29,18 @@ interface Review {
  * Suggestions: stretches of busy days, or days away from home, that aren't a trip yet. Each
  * can become a trip, previewed as file moves first like any other, or be dismissed.
  * @param props.onNavigate - switch to another page
+ * @param props.onCreateTrip - open a suggestion in the trip editor, to change it or untick photos
  * @returns the page
  */
-export function SuggestionsPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+export function SuggestionsPage({
+  onNavigate,
+  onCreateTrip,
+}: {
+  onNavigate: (page: PageId) => void;
+  onCreateTrip: (start: TripStart) => void;
+}) {
   const { running } = useJobs();
   const [data, setData] = useState<Suggestions | null>(null);
-  const [editing, setEditing] = useState<Editing | null>(null);
   const [review, setReview] = useState<Review | null>(null);
   const [applying, setApplying] = useState<string | null>(null);
   const [result, setResult] = useState<{ summary: ApplySummary; done: string } | null>(null);
@@ -74,7 +72,6 @@ export function SuggestionsPage({ onNavigate }: { onNavigate: (page: PageId) => 
       else if (done.error) setError(done.error);
       setApplying(null);
       setReview(null);
-      setEditing(null);
     }
     load();
   });
@@ -140,7 +137,7 @@ export function SuggestionsPage({ onNavigate }: { onNavigate: (page: PageId) => 
             }
           : current,
       );
-      if (editing?.key === key) setEditing(null);
+
     } catch (err) {
       setError(errorText(err));
     }
@@ -224,25 +221,15 @@ export function SuggestionsPage({ onNavigate }: { onNavigate: (page: PageId) => 
           <ul className="mt-2 flex flex-col gap-3">
             {suggestions.map((suggestion) => {
               const key = suggestionKey(suggestion);
-              return editing?.key === key ? (
-                <SuggestionEditor
-                  key={key}
-                  form={editing.form}
-                  busy={busy}
-                  onChange={(form) => setEditing({ key, form })}
-                  onCreate={() => reviewCreate(editing.form)}
-                  onCancel={() => setEditing(null)}
-                />
-              ) : (
+              return (
                 <SuggestionCard
                   key={key}
                   suggestion={suggestion}
                   busy={busy}
                   onCreate={() => reviewCreate(formFromSuggestion(suggestion))}
-                  onChange={() => {
-                    setResult(null);
-                    setEditing({ key, form: formFromSuggestion(suggestion) });
-                  }}
+                  onChange={() =>
+                    onCreateTrip({ form: formFromSuggestion(suggestion), picked: null })
+                  }
                   onDismiss={() => dismiss(suggestion)}
                 />
               );
@@ -266,7 +253,8 @@ export function SuggestionsPage({ onNavigate }: { onNavigate: (page: PageId) => 
  * @param props.suggestion - the suggestion
  * @param props.busy - a job or check is running, so the buttons wait
  * @param props.onCreate - preview it as a trip as it is
- * @param props.onChange - open it for changing the name or dates first
+ * @param props.onChange - open it in the trip editor, to change the name or dates or untick
+ *   photos first
  * @param props.onDismiss - stop suggesting these days
  * @returns the list item
  */
@@ -303,7 +291,7 @@ function SuggestionCard({
             Not a trip
           </Button>
           <Button variant="ghost" onClick={onChange} disabled={busy}>
-            Change
+            Change or pick photos
           </Button>
           <Button variant="primary" onClick={onCreate} disabled={busy}>
             Create trip
@@ -311,107 +299,6 @@ function SuggestionCard({
         </div>
       </div>
       {suggestion.sample.length > 0 && <SampleStrip sample={suggestion.sample} />}
-    </li>
-  );
-}
-
-/**
- * A suggestion opened for changes: its name and days, with a live count of the photos the
- * new days take in.
- * @param props.form - the name and dates so far
- * @param props.busy - a job or check is running, so the buttons wait
- * @param props.onChange - called with the form after each edit
- * @param props.onCreate - preview the trip as changed
- * @param props.onCancel - close without changes
- * @returns the list item
- */
-function SuggestionEditor({
-  form,
-  busy,
-  onChange,
-  onCreate,
-  onCancel,
-}: {
-  form: TripForm;
-  busy: boolean;
-  onChange: (form: TripForm) => void;
-  onCreate: () => void;
-  onCancel: () => void;
-}) {
-  const matches = useTripMatches(form, null);
-  const valid = hasValidRange(form);
-  const ready = form.name.trim() !== "" && valid && matches !== null && !matches.problem;
-  const set = (field: keyof TripForm) => (value: string) => onChange({ ...form, [field]: value });
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (ready && !busy) onCreate();
-  }
-
-  return (
-    <li className="rounded-md border border-dashed border-line-strong bg-surface">
-      <form onSubmit={submit} className="flex flex-col gap-4 p-4">
-        <Field label="Name">
-          <input
-            type="text"
-            value={form.name}
-            onChange={(e) => set("name")(e.target.value)}
-            maxLength={80}
-            autoFocus
-            className={`${INPUT} max-w-md`}
-          />
-        </Field>
-        <div className="flex flex-wrap gap-x-6 gap-y-4">
-          <Field label="First day">
-            <input
-              type="date"
-              value={form.startDate}
-              onChange={(e) => set("startDate")(e.target.value)}
-              required
-              className={INPUT}
-            />
-          </Field>
-          <Field label="Last day">
-            <input
-              type="date"
-              value={form.endDate}
-              onChange={(e) => set("endDate")(e.target.value)}
-              required
-              className={INPUT}
-            />
-          </Field>
-        </div>
-
-        {!form.startDate || !form.endDate ? (
-          <p className="text-muted">Pick the first and last day.</p>
-        ) : !valid ? (
-          <p className="text-danger">The last day can't be before the first.</p>
-        ) : matches === null ? (
-          <p className="text-muted">Counting photos from these days</p>
-        ) : matches.problem ? (
-          <p role="alert" className="text-danger">
-            {matches.problem}
-          </p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <p>
-              {matches.files === 0
-                ? "No photos or videos from these days."
-                : `${count(matches.files, "photo or video", "photos and videos")} from these days.`}
-            </p>
-            {matches.sample.length > 0 && <SampleStrip sample={matches.sample} />}
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          <Button type="submit" variant="primary" disabled={!ready || busy}>
-            Create trip
-          </Button>
-          <Button variant="ghost" onClick={onCancel}>
-            Cancel
-          </Button>
-        </div>
-      </form>
     </li>
   );
 }

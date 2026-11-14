@@ -18,7 +18,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { SortPage } from "./pages/SortPage";
 import { SuggestionsPage } from "./pages/SuggestionsPage";
 import { TripsPage } from "./pages/TripsPage";
-import type { TripRange } from "./lib/trips";
+import type { TripStart } from "./lib/trips";
 
 export type PageId =
   "library" | "sort" | "trips" | "suggestions" | "import" | "duplicates" | "history" | "settings";
@@ -51,11 +51,11 @@ function Shell() {
   const { settings } = useSettings();
   const { runCheck } = useUpdates();
   const [page, setPage] = useState<PageId>("library");
-  // Days picked in the Library for a new trip, until the Trips page opens them.
-  const [tripDraft, setTripDraft] = useState<TripRange | null>(null);
+  // A trip started in the Library or Suggestions, until the Trips page opens it.
+  const [tripDraft, setTripDraft] = useState<TripStart | null>(null);
   const clearTripDraft = useCallback(() => setTripDraft(null), []);
-  const createTrip = useCallback((range: TripRange) => {
-    setTripDraft(range);
+  const createTrip = useCallback((start: TripStart) => {
+    setTripDraft(start);
     setPage("trips");
   }, []);
   // Menu requests waiting for their page to open: File > Look for new photos, and Help > About or
@@ -160,9 +160,9 @@ function CurrentPage({
 }: {
   page: PageId;
   onNavigate: (page: PageId) => void;
-  tripDraft: TripRange | null;
+  tripDraft: TripStart | null;
   onTripDraftUsed: () => void;
-  onCreateTrip: (range: TripRange) => void;
+  onCreateTrip: (start: TripStart) => void;
   refresh: boolean;
   onRefreshStarted: () => void;
   showAbout: boolean;
@@ -183,7 +183,7 @@ function CurrentPage({
     case "trips":
       return <TripsPage draft={tripDraft} onDraftUsed={onTripDraftUsed} onNavigate={onNavigate} />;
     case "suggestions":
-      return <SuggestionsPage onNavigate={onNavigate} />;
+      return <SuggestionsPage onNavigate={onNavigate} onCreateTrip={onCreateTrip} />;
     case "import":
       return <ImportPage onNavigate={onNavigate} />;
     case "duplicates":

@@ -178,15 +178,17 @@ export interface TripInfo {
   /** Folder name under Trips. */
   folder: string;
   colour: number;
-  /** Photos and videos taken during the trip. */
+  /** Photos and videos in the trip, not counting any taken out of it. */
   files: number;
   sample: SampleTile[];
+  /** Ids of every file taken out of the trip. */
+  excluded: number[];
 }
 
 /** What a trip's dates take in, for the trip form. */
 export interface TripMatches {
-  files: number;
-  sample: SampleTile[];
+  /** Every photo and video taken within the dates, newest first, without trip bands. */
+  tiles: Tile[];
   /** Why the dates can't be used (they overlap another trip). */
   problem: string | null;
 }
@@ -195,6 +197,11 @@ export interface TripDraft {
   name: string;
   startAt: string;
   endAt: string;
+  /**
+   * Photos within the dates to leave out of the trip; they stay in their month folders.
+   * Omitted keeps an edited trip's exclusions as they are.
+   */
+  excluded?: number[];
 }
 
 export type TripChange =

@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
-import { PhotoPicker } from "../components/PhotoPicker";
+import { PhotoPicker, PickBar } from "../components/PhotoPicker";
 import { FolderList, LeftAlone, MovingProgress, ResultBanner } from "../components/PlanPreview";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import {
@@ -393,31 +393,13 @@ function IncomingView({
           </p>
         </div>
       </section>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line px-8 py-3">
-        <div>
-          <p className="text-[18px]">
-            <strong>
-              {totals.items.toLocaleString()} of {count(preview.items.length, "photo", "photos")}{" "}
-              ticked
-            </strong>{" "}
-            <span className="text-muted">({formatBytes(totals.bytes)})</span>
-          </p>
-          <p className="text-muted">
-            Untick any you don&apos;t want. They stay {where} and show up again next time.
-          </p>
-        </div>
-        <div className="ml-auto flex gap-2">
-          <Button onClick={() => onLeftChange(new Set())} disabled={left.size === 0}>
-            Tick all
-          </Button>
-          <Button
-            onClick={() => onLeftChange(new Set(tiles.map((t) => t.id)))}
-            disabled={totals.items === 0}
-          >
-            Untick all
-          </Button>
-        </div>
-      </div>
+      <PickBar
+        ticked={totals.items}
+        total={preview.items.length}
+        extra={<span className="text-muted">({formatBytes(totals.bytes)})</span>}
+        hint={<>Untick any you don&apos;t want. They stay {where} and show up again next time.</>}
+        onAll={(pick) => onLeftChange(pick ? new Set() : new Set(tiles.map((t) => t.id)))}
+      />
       <div className="flex min-h-0 flex-1 border-t border-line">
         <FolderList folders={folders} />
         <PhotoPicker

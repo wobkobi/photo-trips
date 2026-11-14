@@ -11,7 +11,7 @@ use crate::formats::FormatTable;
 use crate::groups::{Group, MediaRow};
 use crate::index::path_key;
 use crate::scan;
-use crate::trips::{TRIPS_DIR, Trip, trip_for};
+use crate::trips::{TRIPS_DIR, Trip, trip_of};
 
 /// One file to move.
 #[derive(Debug, Clone, PartialEq)]
@@ -55,10 +55,10 @@ pub struct Rules<'a> {
 }
 
 impl Rules<'_> {
-    /// Folder a group belongs in: its trip's folder when it was taken during a trip,
-    /// otherwise its year and month folder.
+    /// Folder a group belongs in: its trip's folder when it was taken during a trip and not
+    /// taken out of it, otherwise its year and month folder.
     pub fn target_dir(&self, group: &Group) -> PathBuf {
-        match trip_for(self.trips, &group.taken_at) {
+        match trip_of(self.trips, group) {
             Some(trip) => self.root.join(TRIPS_DIR).join(&trip.folder),
             None => year_month_dir(self.root, &group.taken_at),
         }
@@ -426,6 +426,7 @@ mod tests {
             end_at: crate::dates::parse("2025-03-18T23:59:59").unwrap(),
             folder: "2025-03-12 Japan".into(),
             created_at: 0,
+            excluded: Default::default(),
         };
         let photo = |id: i64, folder: &str, at: &str| {
             row(id, folder, &format!("IMG_{id}.JPG"), Kind::Photo, at, Exif)

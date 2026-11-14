@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { PageId } from "../App";
 import { Field, INPUT } from "../components/Field";
 import { Icon } from "../components/Icon";
+import { PhotoPicker, PickBar } from "../components/PhotoPicker";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
 import { SampleStrip } from "../components/SampleStrip";
 import { Button, EmptyState, PageHeader } from "../components/ui";
@@ -10,10 +11,12 @@ import {
   errorText,
   type ApplySummary,
   type Preview,
+  type Tile,
   type TripChange,
   type TripInfo,
   type TripMatches,
 } from "../lib/api";
+import { tileSizeOf } from "../lib/display";
 import { count } from "../lib/format";
 import {
   EMPTY_FORM,
@@ -23,15 +26,40 @@ import {
   toDraft,
   tripBg,
   type TripForm,
-  type TripRange,
+  type TripStart,
 } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
+import { useSettings } from "../lib/useSettings";
 import { useTripMatches } from "../lib/useTripMatches";
+
+const NONE_LEFT: ReadonlySet<number> = new Set();
+const NO_TILES: Tile[] = [];
 
 interface Editor {
   /** The trip being edited, or null for a new one. */
   trip: TripInfo | null;
   form: TripForm;
+  /** Ids of the photos unticked, which stay in their month folders. */
+  left: ReadonlySet<number>;
+  /**
+   * Photos picked in the Library, waiting for the dates' photos to load so the rest of those
+   * days can start unticked.
+   */
+  picked: ReadonlySet<number> | null;
+}
+
+/**
+ * The editor for a new trip.
+ * @param start - name, dates and Library picks from elsewhere, or null for a blank trip
+ * @returns the editor state
+ */
+function newEditor(start: TripStart | null): Editor {
+  return {
+    trip: null,
+    form: start?.form ?? EMPTY_FORM,
+    left: NONE_LEFT,
+    picked: start?.picked ? new Set(start.picked) : null,
+  };
 }
 
 /** A trip change previewed and waiting for the user to confirm it. */
@@ -49,7 +77,7 @@ interface Review {
 /**
  * Trips: date ranges whose photos live together in their own folder. Create, edit and delete
  * them, each previewed as file moves before anything changes.
- * @param props.draft - dates picked elsewhere (a Library selection) to start a new trip with
+ * @param props.draft - a trip started elsewhere (a Library selection or a suggestion) to open
  * @param props.onDraftUsed - called once the draft has opened in the editor
  * @param props.onNavigate - switch to another page
  * @returns the page
@@ -59,15 +87,13 @@ export function TripsPage({
   onDraftUsed,
   onNavigate,
 }: {
-  draft: TripRange | null;
+  draft: TripStart | null;
   onDraftUsed: () => void;
   onNavigate: (page: PageId) => void;
 }) {
   const { running } = useJobs();
   const [trips, setTrips] = useState<TripInfo[] | null>(null);
-  const [editor, setEditor] = useState<Editor | null>(() =>
-    draft ? { trip: null, form: { ...EMPTY_FORM, ...draft } } : null,
-  );
+  const [editor, setEditor] = useState<Editor | null>(() => (draft ? newEditor(draft) : null));
   const [review, setReview] = useState<Review | null>(null);
   const [applying, setApplying] = useState<string | null>(null);
   const [result, setResult] = useState<{ summary: ApplySummary; done: string } | null>(null);
@@ -117,8 +143,8 @@ export function TripsPage({
     }
   }
 
-  function reviewSave(current: Editor) {
-    const draftTrip = toDraft(current.form);
+  function reviewSave(current: Editor, excluded: number[]) {
+    const draftTrip = { ...toDraft(current.form), excluded };
     const name = draftTrip.name;
     const change: TripChange = current.trip
       ? { action: "update", id: current.trip.id, draft: draftTrip }
@@ -183,7 +209,7 @@ export function TripsPage({
               variant="primary"
               onClick={() => {
                 setResult(null);
-                setEditor({ trip: null, form: EMPTY_FORM });
+                setEditor(newEditor(null));
               }}
             >
               New trip
@@ -230,8 +256,8 @@ export function TripsPage({
         <TripEditor
           editor={editor}
           busy={busy}
-          onChange={(form) => setEditor({ ...editor, form })}
-          onReview={() => reviewSave(editor)}
+          onChange={setEditor}
+          onReview={(excluded) => reviewSave(editor, excluded)}
           onCancel={() => setEditor(null)}
         />
       )}
@@ -242,7 +268,7 @@ export function TripsPage({
             own folder. You can also use Pick photos for a trip in the Library to make one from the
             photos you choose.
           </p>
-          <Button variant="primary" onClick={() => setEditor({ trip: null, form: EMPTY_FORM })}>
+          <Button variant="primary" onClick={() => setEditor(newEditor(null))}>
             New trip
           </Button>
         </EmptyState>
@@ -256,7 +282,12 @@ export function TripsPage({
               busy={busy}
               onEdit={() => {
                 setResult(null);
-                setEditor({ trip, form: formFromTrip(trip) });
+                setEditor({
+                  trip,
+                  form: formFromTrip(trip),
+                  left: new Set(trip.excluded),
+                  picked: null,
+                });
               }}
               onDelete={() => {
                 setResult(null);
@@ -311,6 +342,16 @@ function TripRow({
   );
 }
 
+/**
+ * The trip form: name and dates at the top, then every photo from those dates with a tick, so
+ * photos that weren't part of the trip can be left out of it.
+ * @param props.editor - the trip, form and unticked photos so far
+ * @param props.busy - a job or check is running, so the buttons wait
+ * @param props.onChange - called with the editor after each change
+ * @param props.onReview - preview the save, given the ids of the photos left out
+ * @param props.onCancel - close without changes
+ * @returns the editor, filling the remaining height
+ */
 function TripEditor({
   editor,
   busy,
@@ -320,68 +361,105 @@ function TripEditor({
 }: {
   editor: Editor;
   busy: boolean;
-  onChange: (form: TripForm) => void;
-  onReview: () => void;
+  onChange: (editor: Editor) => void;
+  onReview: (excluded: number[]) => void;
   onCancel: () => void;
 }) {
-  const { form, trip } = editor;
+  const { settings } = useSettings();
+  const { form, trip, left, picked } = editor;
   const matches = useTripMatches(form, trip?.id ?? null);
-  const ready = form.name.trim() !== "" && hasValidRange(form) && !matches?.problem;
-  const set = (field: keyof TripForm) => (value: string) => onChange({ ...form, [field]: value });
+  const tiles = matches?.tiles ?? NO_TILES;
+  const ready =
+    form.name.trim() !== "" && hasValidRange(form) && matches !== null && !matches.problem;
+  const ticked = tiles.filter((t) => !left.has(t.id)).length;
+  const set = (field: keyof TripForm) => (value: string) =>
+    onChange({ ...editor, form: { ...form, [field]: value } });
+  const setLeft = (next: ReadonlySet<number>) => onChange({ ...editor, left: next, picked: null });
+
+  // Photos picked in the Library become the ticked ones once their days have loaded. Later date
+  // changes then tick the new days' photos as usual.
+  useEffect(() => {
+    if (picked === null || matches === null || matches.problem) return;
+    onChange({
+      ...editor,
+      left: new Set(matches.tiles.filter((t) => !picked.has(t.id)).map((t) => t.id)),
+      picked: null,
+    });
+  }, [editor, picked, matches, onChange]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (ready && !busy) onReview();
+    if (ready && !busy) onReview(tiles.filter((t) => left.has(t.id)).map((t) => t.id));
   }
 
   return (
-    <form onSubmit={submit} className="flex max-w-2xl flex-col gap-6 px-8 py-6">
-      <h2 className="text-[26px] leading-none font-bold tracking-tight text-brand">
-        {trip ? `Edit ${trip.name}` : "New trip"}
-      </h2>
-      <Field label="Name">
-        <input
-          type="text"
-          value={form.name}
-          onChange={(e) => set("name")(e.target.value)}
-          placeholder="Japan"
-          maxLength={80}
-          autoFocus
-          className={INPUT}
-        />
-      </Field>
-      <div className="flex flex-wrap gap-x-8 gap-y-4">
-        <DateTime
-          label="Starts"
-          date={form.startDate}
-          time={form.startTime}
-          onDate={set("startDate")}
-          onTime={set("startTime")}
-        />
-        <DateTime
-          label="Ends"
-          date={form.endDate}
-          time={form.endTime}
-          onDate={set("endDate")}
-          onTime={set("endTime")}
-        />
-      </div>
-      <p className="-mt-3 text-[15px] text-muted">
-        Leave the times empty to take in whole days. Add them for travel days, when the trip starts
-        or ends partway through the day.
-      </p>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <form onSubmit={submit} className="flex flex-col gap-5 px-8 pt-6 pb-5">
+        <h2 className="text-[26px] leading-none font-bold tracking-tight text-brand">
+          {trip ? `Edit ${trip.name}` : "New trip"}
+        </h2>
+        <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+          <Field label="Name">
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => set("name")(e.target.value)}
+              placeholder="Japan"
+              maxLength={80}
+              autoFocus
+              className={`${INPUT} w-72`}
+            />
+          </Field>
+          <DateTime
+            label="Starts"
+            date={form.startDate}
+            time={form.startTime}
+            onDate={set("startDate")}
+            onTime={set("startTime")}
+          />
+          <DateTime
+            label="Ends"
+            date={form.endDate}
+            time={form.endTime}
+            onDate={set("endDate")}
+            onTime={set("endTime")}
+          />
+        </div>
+        <p className="-mt-2 max-w-3xl text-[15px] text-muted">
+          Leave the times empty to take in whole days. Add them for travel days, when the trip starts
+          or ends partway through the day.
+        </p>
 
-      <MatchSummary form={form} matches={matches} />
+        <MatchSummary form={form} matches={matches} />
 
-      <div className="flex items-center gap-2">
-        <Button type="submit" variant="primary" disabled={!ready || busy}>
-          Check the moves
-        </Button>
-        <Button variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
-    </form>
+        <div className="flex items-center gap-2">
+          <Button type="submit" variant="primary" disabled={!ready || busy}>
+            Check the moves
+          </Button>
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+      {tiles.length > 0 && !matches?.problem && (
+        <>
+          <PickBar
+            ticked={ticked}
+            total={tiles.length}
+            hint="Untick any that weren't part of the trip. They stay in their month folders, and you can tick them again by editing the trip."
+            onAll={(pick) => setLeft(pick ? NONE_LEFT : new Set(tiles.map((t) => t.id)))}
+          />
+          <div className="flex min-h-0 flex-1 border-t border-line">
+            <PhotoPicker
+              tiles={tiles}
+              left={left}
+              onChange={setLeft}
+              tileSize={tileSizeOf(settings)}
+            />
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -422,6 +500,13 @@ function DateTime({
   );
 }
 
+/**
+ * What the dates take in, when there's no photo grid to show it: why the dates can't be used
+ * yet, or that no photos match them.
+ * @param props.form - the trip form
+ * @param props.matches - the photos the dates take in, or null while counting
+ * @returns the message, or nothing when the grid shows the photos
+ */
 function MatchSummary({ form, matches }: { form: TripForm; matches: TripMatches | null }) {
   if (!hasValidRange(form)) {
     const backwards = form.startDate !== "" && form.endDate !== "";
@@ -433,7 +518,7 @@ function MatchSummary({ form, matches }: { form: TripForm; matches: TripMatches 
       </p>
     );
   }
-  if (matches === null) return <p className="text-muted">Counting photos from these dates</p>;
+  if (matches === null) return <p className="text-muted">Finding the photos from these dates</p>;
   if (matches.problem) {
     return (
       <p role="alert" className="text-danger">
@@ -441,14 +526,6 @@ function MatchSummary({ form, matches }: { form: TripForm; matches: TripMatches 
       </p>
     );
   }
-  return (
-    <div className="flex flex-col gap-3">
-      <p>
-        {matches.files === 0
-          ? "No photos or videos from these dates yet. Photos added later still go into the trip."
-          : `${count(matches.files, "photo or video", "photos and videos")} from these dates.`}
-      </p>
-      {matches.sample.length > 0 && <SampleStrip sample={matches.sample} />}
-    </div>
-  );
+  if (matches.tiles.length > 0) return null;
+  return <p>No photos or videos from these dates yet. Photos added later still go into the trip.</p>;
 }

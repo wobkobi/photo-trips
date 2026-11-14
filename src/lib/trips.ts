@@ -18,6 +18,16 @@ export interface TripRange {
   endDate: string;
 }
 
+/** A new trip started outside the Trips page, to open in its editor. */
+export interface TripStart {
+  form: TripForm;
+  /**
+   * Ids of the photos picked in the Library, so the rest taken on those days start unticked.
+   * Null ticks every photo from the dates.
+   */
+  picked: number[] | null;
+}
+
 export const EMPTY_FORM: TripForm = {
   name: "",
   startDate: "",

@@ -3,7 +3,7 @@
 // row changes in the same transaction that records the batch, so undo can restore the files
 // and the trip together.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -21,6 +21,7 @@ use crate::executor::OnBegin;
 use crate::formats::FormatTable;
 use crate::groups::{self, Group};
 use crate::index;
+use crate::library::{self, Tile};
 use crate::organise::{self, PendingBatch, Preview, Previews};
 use crate::planner::{self, Plan, Rules, same_path};
 
@@ -44,12 +45,22 @@ pub struct Trip {
     /// Folder name under `Trips`, e.g. "2025-03-12 Japan".
     pub folder: String,
     pub created_at: i64,
+    /// Media ids taken out of the trip: every file of each photo left out. Part of the trip,
+    /// so undo records carry them and they survive date changes. Absent from undo records
+    /// written before exclusions existed.
+    #[serde(default)]
+    pub excluded: BTreeSet<i64>,
 }
 
 impl Trip {
     /// Inclusive at both ends: a photo taken exactly at the start or end time belongs.
     pub fn contains(&self, at: &NaiveDateTime) -> bool {
         self.start_at <= *at && *at <= self.end_at
+    }
+
+    /// The photo was taken out of this trip.
+    pub fn excludes(&self, group: &Group) -> bool {
+        group.members.iter().any(|m| self.excluded.contains(&m.id))
     }
 
     fn overlaps(&self, start: &NaiveDateTime, end: &NaiveDateTime) -> bool {
@@ -64,6 +75,10 @@ pub struct TripDraft {
     pub name: String,
     pub start_at: NaiveDateTime,
     pub end_at: NaiveDateTime,
+    /// Ids of photos within the dates that are left out of the trip (any file of each photo).
+    /// `None` keeps an edited trip's exclusions as they are.
+    #[serde(default)]
+    pub excluded: Option<Vec<i64>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -81,33 +96,57 @@ struct UndoData {
     after: Option<Trip>,
 }
 
-/// Every trip, earliest first.
+/// Every trip with its exclusions, earliest first.
 pub fn load(conn: &Connection) -> Result<Vec<Trip>> {
+    let mut excluded: HashMap<i64, BTreeSet<i64>> = HashMap::new();
+    let mut stmt = conn.prepare("SELECT trip_id, media_id FROM trip_exclusions")?;
+    for row in stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))? {
+        let (trip, media) = row?;
+        excluded.entry(trip).or_default().insert(media);
+    }
     let mut stmt = conn.prepare(
         "SELECT id, name, start_at, end_at, folder, created_at FROM trips ORDER BY start_at",
     )?;
     let rows = stmt.query_map([], |row| {
         let start: String = row.get(2)?;
         let end: String = row.get(3)?;
+        let id: i64 = row.get(0)?;
         Ok(Trip {
-            id: row.get(0)?,
+            id,
             name: row.get(1)?,
             start_at: dates::parse(&start).unwrap_or_default(),
             end_at: dates::parse(&end).unwrap_or_default(),
             folder: row.get(4)?,
             created_at: row.get(5)?,
+            excluded: excluded.remove(&id).unwrap_or_default(),
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// Replace a trip's exclusions.
+fn write_exclusions(conn: &Connection, trip: i64, excluded: &BTreeSet<i64>) -> Result<()> {
+    conn.execute("DELETE FROM trip_exclusions WHERE trip_id = ?1", [trip])?;
+    let mut insert =
+        conn.prepare("INSERT INTO trip_exclusions (trip_id, media_id) VALUES (?1, ?2)")?;
+    for media in excluded {
+        insert.execute(params![trip, media])?;
+    }
+    Ok(())
 }
 
 fn get(conn: &Connection, id: i64) -> Result<Option<Trip>> {
     Ok(load(conn)?.into_iter().find(|t| t.id == id))
 }
 
-/// The trip a photo taken at `at` belongs to, if any.
+/// The trip whose dates cover `at`, if any, whether or not a photo was taken out of it.
 pub fn trip_for<'a>(trips: &'a [Trip], at: &NaiveDateTime) -> Option<&'a Trip> {
     trips.iter().find(|t| t.contains(at))
+}
+
+/// The trip a photo belongs in: the one covering its date, unless it was taken out of it.
+pub fn trip_of<'a>(trips: &'a [Trip], group: &Group) -> Option<&'a Trip> {
+    trip_for(trips, &group.taken_at).filter(|t| !t.excludes(group))
 }
 
 /// A trip name made safe for a Windows folder: no `\ / : * ? " < > |` or control characters,
@@ -202,12 +241,18 @@ pub fn prepare(
             .cloned()
             .ok_or_else(|| Error::msg("That trip no longer exists"))
     };
+    let (groups, _orphans) = groups::build(index::load_rows(conn)?);
     let (before, after) = match change {
-        TripChange::Create { draft } => (None, Some(draft_trip(draft, &trips, None)?)),
+        TripChange::Create { draft } => {
+            let mut new = draft_trip(draft, &trips, None)?;
+            new.excluded = exclusions(&new, None, draft.excluded.as_deref(), &groups);
+            (None, Some(new))
+        }
         TripChange::Update { id, draft } => {
             let old = find(*id)?;
             let mut new = draft_trip(draft, &trips, Some(*id))?;
             new.created_at = old.created_at;
+            new.excluded = exclusions(&new, Some(&old), draft.excluded.as_deref(), &groups);
             (Some(old), Some(new))
         }
         TripChange::Delete { id } => (Some(find(*id)?), None),
@@ -226,7 +271,6 @@ pub fn prepare(
         .map(|t| root.join(TRIPS_DIR).join(&t.folder));
     let in_range =
         |trip: &Option<Trip>, g: &Group| trip.as_ref().is_some_and(|t| t.contains(&g.taken_at));
-    let (groups, _orphans) = groups::build(index::load_rows(conn)?);
     let affected: Vec<Group> = groups
         .into_iter()
         .filter(|g| {
@@ -252,7 +296,38 @@ pub fn prepare(
     })
 }
 
-/// A trip from a validated draft, with its folder name. The id is filled in when saved.
+/// The exclusions a trip has once a draft is saved. The draft speaks for the photos within its
+/// dates: those it lists are out (every file of each), the rest are in. Photos outside the
+/// dates keep whatever the trip had, so narrowing the dates and widening them again doesn't
+/// pull a left-out photo back in. A draft without a list keeps the trip's exclusions as they
+/// are.
+fn exclusions(
+    trip: &Trip,
+    old: Option<&Trip>,
+    draft: Option<&[i64]>,
+    groups: &[Group],
+) -> BTreeSet<i64> {
+    let kept = old.map(|t| t.excluded.clone()).unwrap_or_default();
+    let Some(draft) = draft else {
+        return kept;
+    };
+    let draft: HashSet<i64> = draft.iter().copied().collect();
+    let mut out = kept;
+    for group in groups.iter().filter(|g| trip.contains(&g.taken_at)) {
+        let ids = group.members.iter().map(|m| m.id);
+        if group.members.iter().any(|m| draft.contains(&m.id)) {
+            out.extend(ids);
+        } else {
+            for id in ids {
+                out.remove(&id);
+            }
+        }
+    }
+    out
+}
+
+/// A trip from a validated draft, with its folder name. The id is filled in when saved, and
+/// the exclusions by [`exclusions`].
 fn draft_trip(draft: &TripDraft, trips: &[Trip], editing: Option<i64>) -> Result<Trip> {
     let others: Vec<&Trip> = trips.iter().filter(|t| Some(t.id) != editing).collect();
     validate(draft, &others)?;
@@ -263,6 +338,7 @@ fn draft_trip(draft: &TripDraft, trips: &[Trip], editing: Option<i64>) -> Result
         end_at: draft.end_at,
         folder: folder_for(&draft.start_at, &draft.name, &others),
         created_at: db::now(),
+        excluded: BTreeSet::new(),
     })
 }
 
@@ -274,6 +350,11 @@ fn label_for(before: Option<&Trip>, after: Option<&Trip>) -> String {
             if (old.start_at, old.end_at) == (new.start_at, new.end_at) && old.name != new.name =>
         {
             format!("Renamed trip {} to {}", old.name, new.name)
+        }
+        (Some(old), Some(new))
+            if (old.start_at, old.end_at, &old.name) == (new.start_at, new.end_at, &new.name) =>
+        {
+            format!("Changed which photos are in trip {}", new.name)
         }
         (Some(_), Some(new)) => format!("Changed the dates of trip {}", new.name),
         (None, None) => String::new(),
@@ -301,6 +382,7 @@ fn save(conn: &Connection, before: Option<&Trip>, after: Option<&Trip>) -> Resul
                 name: new.name.clone(),
                 start_at: new.start_at,
                 end_at: new.end_at,
+                excluded: None,
             };
             validate(&draft, &others)?;
             if others
@@ -340,11 +422,13 @@ fn save(conn: &Connection, before: Option<&Trip>, after: Option<&Trip>) -> Resul
                     new.id = conn.last_insert_rowid();
                 }
             }
+            write_exclusions(conn, new.id, &new.excluded)?;
             Some(new)
         }
         None => {
             if let Some(old) = before {
                 conn.execute("DELETE FROM trips WHERE id = ?1", [old.id])?;
+                write_exclusions(conn, old.id, &BTreeSet::new())?;
             }
             None
         }
@@ -395,6 +479,7 @@ pub fn restore(conn: &Connection, data: &str) -> Result<()> {
     match (data.before, data.after) {
         (None, Some(after)) => {
             conn.execute("DELETE FROM trips WHERE id = ?1", [after.id])?;
+            write_exclusions(conn, after.id, &BTreeSet::new())?;
         }
         (Some(before), _) => {
             let exists: Option<i64> = conn
@@ -420,6 +505,7 @@ pub fn restore(conn: &Connection, data: &str) -> Result<()> {
                     before.created_at
                 ],
             )?;
+            write_exclusions(conn, before.id, &before.excluded)?;
         }
         (None, None) => {}
     }
@@ -437,10 +523,12 @@ pub struct TripInfo {
     pub folder: String,
     /// 1 to 6: which trip colour the UI uses.
     pub colour: i64,
-    /// Photos and videos (groups) taken during the trip.
+    /// Photos and videos (groups) in the trip, not counting any taken out of it.
     pub files: usize,
     /// A few photos from the trip.
     pub sample: Vec<SampleTile>,
+    /// Ids of every file taken out of the trip.
+    pub excluded: Vec<i64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -454,8 +542,8 @@ pub struct SampleTile {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TripMatches {
-    pub files: usize,
-    pub sample: Vec<SampleTile>,
+    /// Every photo and video taken within the dates, newest first, for the form's picker.
+    pub tiles: Vec<Tile>,
     /// Why the dates can't be used, when they overlap another trip.
     pub problem: Option<String>,
 }
@@ -488,7 +576,7 @@ pub fn list_trips(state: State<'_, AppState>) -> Result<Vec<TripInfo>> {
     let (groups, _) = groups::build(rows);
     let mut by_trip: HashMap<i64, Vec<&Group>> = HashMap::new();
     for group in &groups {
-        if let Some(trip) = trip_for(&trips, &group.taken_at) {
+        if let Some(trip) = trip_of(&trips, group) {
             by_trip.entry(trip.id).or_default().push(group);
         }
     }
@@ -507,12 +595,13 @@ pub fn list_trips(state: State<'_, AppState>) -> Result<Vec<TripInfo>> {
                 colour: colour(t.id),
                 files: members.len(),
                 sample: sample(members),
+                excluded: t.excluded.iter().copied().collect(),
             }
         })
         .collect())
 }
 
-/// How many photos a draft's dates would take in, and whether the dates can be used.
+/// The photos a draft's dates take in, and whether the dates can be used.
 #[tauri::command(async)]
 pub fn trip_matches(
     state: State<'_, AppState>,
@@ -529,18 +618,18 @@ pub fn trip_matches(
         name: "trip".into(),
         start_at,
         end_at,
+        excluded: None,
     };
     let problem = validate(&draft, &others).err().map(|e| e.to_string());
     let (groups, _) = groups::build(rows);
-    let inside: Vec<&Group> = groups
+    // The form shows which photos are in by their ticks, so tiles carry no trip band.
+    let tiles = groups
         .iter()
+        .rev()
         .filter(|g| start_at <= g.taken_at && g.taken_at <= end_at)
+        .map(|g| library::tile(g, &[]))
         .collect();
-    Ok(TripMatches {
-        files: inside.len(),
-        sample: sample(&inside),
-        problem,
-    })
+    Ok(TripMatches { tiles, problem })
 }
 
 /// Preview the moves a trip change causes. Apply it with `apply_plan`.
@@ -597,6 +686,7 @@ mod tests {
             end_at: at(end),
             folder: format!("{} Trip {id}", &start[..10]),
             created_at: 0,
+            excluded: Default::default(),
         }
     }
 
@@ -654,6 +744,7 @@ mod tests {
             name: "Next".into(),
             start_at: at(start),
             end_at: at(end),
+            excluded: None,
         };
         // Starting the second the first trip ends is fine; sharing that second is not.
         assert!(
@@ -734,7 +825,95 @@ mod tests {
             name: name.into(),
             start_at: at(start),
             end_at: at(end),
+            excluded: None,
         }
+    }
+
+    /// The media id of the library file named `name`.
+    fn media_id(db: &Mutex<Connection>, name: &str) -> i64 {
+        index::load_rows(&db.lock().unwrap())
+            .unwrap()
+            .into_iter()
+            .find(|r| r.path.file_name().is_some_and(|n| n == name))
+            .unwrap()
+            .id
+    }
+
+    /// The batch label History shows for a change, as the last batch recorded.
+    fn last_label(db: &Mutex<Connection>) -> String {
+        db.lock()
+            .unwrap()
+            .query_row("SELECT label FROM batches ORDER BY id DESC LIMIT 1", [], |r| r.get(0))
+            .unwrap()
+    }
+
+    #[test]
+    fn a_photo_left_out_stays_out_through_date_changes_until_put_back() {
+        let (dir, db) = library(&[
+            r"in\IMG_20250312_000000.jpg",
+            r"in\IMG_20250315_120000.jpg",
+            r"in\IMG_20250315_120000.aae",
+            r"in\IMG_20250318_235959.jpg",
+        ]);
+        let root = dir.path();
+        let sidecar = media_id(&db, "IMG_20250315_120000.aae");
+        let photo = media_id(&db, "IMG_20250315_120000.jpg");
+        let with = |name: &str, start: &str, end: &str, excluded: Option<Vec<i64>>| TripDraft {
+            excluded,
+            ..draft(name, start, end)
+        };
+        let out_folder = [
+            r"2025\2025-03\IMG_20250315_120000.aae",
+            r"2025\2025-03\IMG_20250315_120000.jpg",
+        ];
+
+        // Naming any file of a photo leaves the whole photo out, in its month folder.
+        let japan = with("Japan", "2025-03-12T00:00:00", "2025-03-18T23:59:59", Some(vec![sidecar]));
+        change(&db, root, TripChange::Create { draft: japan });
+        let trip = load(&db.lock().unwrap()).unwrap().remove(0);
+        assert_eq!(trip.excluded, BTreeSet::from([photo, sidecar]));
+        assert_eq!(
+            files(root),
+            [
+                out_folder[0],
+                out_folder[1],
+                r"Trips\2025-03-12 Japan\IMG_20250312_000000.jpg",
+                r"Trips\2025-03-12 Japan\IMG_20250318_235959.jpg",
+            ]
+        );
+
+        // Narrowing the dates past it and widening them again doesn't pull it back in.
+        let id = trip.id;
+        let narrow = with("Japan", "2025-03-12T00:00:00", "2025-03-13T23:59:59", Some(vec![]));
+        change(&db, root, TripChange::Update { id, draft: narrow });
+        let wide = with("Japan", "2025-03-11T00:00:00", "2025-03-19T23:59:59", None);
+        change(&db, root, TripChange::Update { id, draft: wide });
+        assert!(out_folder.iter().all(|f| root.join(f).exists()));
+        assert!(root.join(r"Trips\2025-03-11 Japan\IMG_20250318_235959.jpg").exists());
+
+        // Putting it back moves the photo and its sidecar into the trip.
+        let back = with("Japan", "2025-03-11T00:00:00", "2025-03-19T23:59:59", Some(vec![]));
+        let put_back = change(&db, root, TripChange::Update { id, draft: back });
+        assert_eq!(last_label(&db), "Changed which photos are in trip Japan");
+        assert!(root.join(r"Trips\2025-03-11 Japan\IMG_20250315_120000.aae").exists());
+        assert!(load(&db.lock().unwrap()).unwrap()[0].excluded.is_empty());
+
+        // Undo leaves it out again, files and all.
+        undo(&db, root, put_back).unwrap();
+        assert!(out_folder.iter().all(|f| root.join(f).exists()));
+        assert_eq!(load(&db.lock().unwrap()).unwrap()[0].excluded, BTreeSet::from([photo, sidecar]));
+
+        // Deleting the trip forgets its exclusions; undoing the delete brings them back.
+        let delete = change(&db, root, TripChange::Delete { id });
+        let rows: i64 = db
+            .lock()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM trip_exclusions", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 0);
+        undo(&db, root, delete).unwrap();
+        assert_eq!(load(&db.lock().unwrap()).unwrap()[0].excluded, BTreeSet::from([photo, sidecar]));
+        assert!(out_folder.iter().all(|f| root.join(f).exists()));
     }
 
     #[test]
