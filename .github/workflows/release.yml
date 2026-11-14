@@ -1,0 +1,76 @@
+# Publishes a release whenever a merge into main brings a version that isn't released yet, using
+# the same script as a local `npm run release`. Merges that leave the version alone (CI or docs
+# only) stop after the first step, so only changes to the app reach installed copies.
+#
+# Signing needs the updater's private key, pasted whole into the PHOTO_TRIPS_UPDATER_KEY
+# repository secret. Pull requests never run this, so the key is only used on main.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Releases run one at a time, in merge order
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check for an unreleased version
+        id: version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if gh release view "v$version" > /dev/null 2>&1; then
+            echo "v$version is already released, nothing to do."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "v$version isn't released yet."
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.version.outputs.new == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - if: steps.version.outputs.new == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - if: steps.version.outputs.new == 'true'
+        run: npm ci
+
+      # The script reads the key from the file named in PHOTO_TRIPS_UPDATER_KEY
+      - name: Write the signing key
+        if: steps.version.outputs.new == 'true'
+        shell: bash
+        env:
+          KEY: ${{ secrets.PHOTO_TRIPS_UPDATER_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::The PHOTO_TRIPS_UPDATER_KEY secret is missing, so the release can't be signed."
+            exit 1
+          fi
+          printf '%s' "$KEY" > "$RUNNER_TEMP/updater.key"
+          echo "PHOTO_TRIPS_UPDATER_KEY=$RUNNER_TEMP/updater.key" >> "$GITHUB_ENV"
+
+      - name: Build, sign and publish
+        if: steps.version.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run release

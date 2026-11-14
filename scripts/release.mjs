@@ -13,13 +13,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSyn
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import process from "node:process";
-import {
-  RELEASES_REPO,
-  assetName,
-  assetUrl,
-  changelogSection,
-  manifest,
-} from "./release-lib.mjs";
+import { RELEASES_REPO, assetName, assetUrl, changelogSection, manifest } from "./release-lib.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const dryRun = process.argv.includes("--dry-run");
@@ -65,7 +59,16 @@ if (run(process.execPath, [join(root, "scripts", "notices.mjs"), "--check"]) ===
 if (!dryRun && run("gh", ["release", "view", tag, "--repo", RELEASES_REPO]) !== null) {
   fail(`${tag} is already published on ${RELEASES_REPO}. Bump the version first.`);
 }
-const keyPath = process.env.PHOTO_TRIPS_UPDATER_KEY ?? join(homedir(), ".tauri", "photo-trips-updater.key");
+// gh release create reuses an existing tag and ignores --target, so a leftover tag on another
+// commit would publish this version's notes against the wrong code.
+const remoteTag = run("git", ["ls-remote", "--tags", "origin", `refs/tags/${tag}`]);
+if (!dryRun && remoteTag && !remoteTag.startsWith(head)) {
+  fail(
+    `the ${tag} tag already points at another commit. Delete it (git push origin :refs/tags/${tag}) first.`,
+  );
+}
+const keyPath =
+  process.env.PHOTO_TRIPS_UPDATER_KEY ?? join(homedir(), ".tauri", "photo-trips-updater.key");
 if (!existsSync(keyPath)) fail(`no signing key at ${keyPath}.`);
 
 // Build with updater artifacts on, which also signs the installer.
@@ -133,12 +136,24 @@ const published = spawnSync(
   ],
   { cwd: root, stdio: "inherit" },
 );
-if (published.status !== 0) fail("publishing failed. Nothing was released if gh said so; check the releases page.");
+if (published.status !== 0)
+  fail("publishing failed. Nothing was released if gh said so; check the releases page.");
 
-// What installed copies will read on their next check.
-const check = await fetch(`https://github.com/${RELEASES_REPO}/releases/latest/download/latest.json`);
-const live = check.ok ? await check.json() : null;
-if (live?.version !== version) {
-  fail(`published, but the latest release reads ${live?.version ?? `HTTP ${check.status}`}.`);
+// What installed copies will read on their next check. GitHub's latest redirect can lag a new
+// release by a few seconds, so retry for up to a minute before calling it a failure.
+let live = null;
+let status = 0;
+for (let attempt = 0; attempt < 6 && live?.version !== version; attempt++) {
+  if (attempt > 0) await new Promise((done) => setTimeout(done, 10_000));
+  const check = await fetch(
+    `https://github.com/${RELEASES_REPO}/releases/latest/download/latest.json?t=${Date.now()}`,
+  );
+  status = check.status;
+  live = check.ok ? await check.json() : null;
 }
-console.log(`release: published Pic Cabinet ${version}. Installed copies will offer it within a day.`);
+if (live?.version !== version) {
+  fail(`published, but the latest release reads ${live?.version ?? `HTTP ${status}`}.`);
+}
+console.log(
+  `release: published Pic Cabinet ${version}. Installed copies will offer it within a day.`,
+);
