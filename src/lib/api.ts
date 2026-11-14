@@ -340,7 +340,10 @@ export interface WatchStatus {
 export const WATCH_CHANGED = "watch://changed";
 
 /** Free Microsoft Store codec extensions the app can point to. */
-export type StoreProduct = "heif" | "hevc" | "raw" | "av1";
+/** Codecs Windows gets from Microsoft Store extensions. */
+export type Codec = "heif" | "hevc" | "raw" | "av1";
+/** Store pages: one per codec, plus the paid HEVC listing for PCs the free one isn't offered on. */
+export type StoreProduct = Codec | "hevc_paid";
 
 export const api = {
   getSettings: () => invoke<Settings>("get_settings"),
@@ -352,6 +355,7 @@ export const api = {
   mediaDetail: (id: number) => invoke<MediaDetail>("media_detail", { id }),
   openMedia: (id: number) => invoke<void>("open_media", { id }),
   revealMedia: (id: number) => invoke<void>("reveal_media", { id }),
+  installedExtensions: () => invoke<Codec[]>("installed_extensions"),
   openStorePage: (product: StoreProduct) => invoke<void>("open_store_page", { product }),
   planOrganise: () => invoke<Preview>("plan_organise"),
   applyPlan: (id: number) => invoke<void>("apply_plan", { id }),

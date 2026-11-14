@@ -188,36 +188,29 @@ function NoSets({
   );
 }
 
-function Summary({
-  report,
-  plan,
-}: {
-  report: DupReport;
-  plan: { copies: number; bytes: number };
-}) {
+function Summary({ report, plan }: { report: DupReport; plan: { copies: number; bytes: number } }) {
   return (
     <section className="border-b border-line px-8 pt-6 pb-5">
-      <p className="font-display text-[30px] leading-none font-semibold">
+      <p className="text-[30px] leading-none font-extrabold tracking-tight text-brand">
         {count(report.extra, "extra copy", "extra copies")} taking up {formatBytes(report.bytes)}
       </p>
       <div className="mt-3 flex max-w-3xl flex-col gap-1 text-muted">
         <p>
-          Each set keeps the copy marked Keep: the one already in its folder, otherwise the
-          oldest. Click another copy to keep that one instead, or Keep all to leave a set alone.
+          Each set keeps the copy marked Keep: the one already in its folder, otherwise the oldest.
+          Click another copy to keep that one instead, or Keep all to leave a set alone.
         </p>
         <p>
           Sidecar files like .aae and .xmp that only belonged to a removed copy go with it. The
           whole clean-up can be undone from History.
         </p>
         {plan.copies !== report.extra && (
-          <p className="text-paper">
+          <p className="text-ink">
             {count(plan.copies, "copy goes", "copies go")}, freeing {formatBytes(plan.bytes)}.
           </p>
         )}
         {report.unchecked > 0 && (
           <p>
-            {count(report.unchecked, "newer file hasn't", "newer files haven't")} been compared
-            yet.
+            {count(report.unchecked, "newer file hasn't", "newer files haven't")} been compared yet.
           </p>
         )}
       </div>
@@ -302,7 +295,9 @@ function SetRow({
           {keep === null ? "Remove extras" : "Keep all"}
         </Button>
       </div>
-      <ul className="mt-2 flex gap-3 overflow-x-auto pb-3">
+      {/* A scrolling row clips everything outside it, so the padding leaves room for the Keep
+          ring and the focus outline; the negative margin keeps the photos lined up. */}
+      <ul className="-mx-1.5 mt-0.5 flex gap-3 overflow-x-auto px-1.5 pt-1.5 pb-3">
         {set.copies.map((copy) => (
           <CopyCard
             key={copy.id}
@@ -342,11 +337,11 @@ function CopyCard({
         onClick={onKeep}
         aria-pressed={state === "keep"}
         title={going ? "Keep this copy instead" : undefined}
-        className="group block w-full rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper"
+        className="group block w-full rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         <span
-          className={`relative block aspect-[4/3] overflow-hidden rounded-[3px] bg-surface ${
-            state === "keep" ? "ring-2 ring-paper" : ""
+          className={`relative block aspect-[4/3] overflow-hidden rounded-[3px] bg-raised ${
+            state === "keep" ? "ring-3 ring-accent" : ""
           }`}
         >
           {failed ? (
@@ -367,8 +362,8 @@ function CopyCard({
             />
           )}
           <span
-            className={`absolute top-1.5 left-1.5 flex items-center gap-1 rounded-[3px] px-1.5 py-0.5 text-[11px] font-medium ${
-              going ? "bg-ground/85 text-muted" : "bg-paper text-ground"
+            className={`absolute top-1.5 left-1.5 flex items-center gap-1 rounded-[3px] px-1.5 py-0.5 text-[11px] font-semibold ${
+              going ? "on-dark bg-ground/85 text-muted" : "bg-accent text-white"
             }`}
           >
             {going ? (

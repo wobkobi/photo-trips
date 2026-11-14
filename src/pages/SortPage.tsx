@@ -70,7 +70,7 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
         detail={
           <>
             Every photo and video goes in its trip&apos;s folder, or a folder for the month it was
-            taken, like <span className="text-paper">2025\2025-03</span>.
+            taken, like <span className="text-ink">2025\2025-03</span>.
           </>
         }
         actions={

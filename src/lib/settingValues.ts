@@ -6,6 +6,7 @@ import { count } from "./format";
 /** Matches DEFAULT_MIN_PHOTOS in suggest.rs. */
 export const DEFAULT_MIN_PHOTOS = 15;
 
+/** Choices in the busy-day dropdown on the Settings page, as photos per day. */
 const BUSY_CHOICES = [5, 10, 15, 20, 30, 50];
 
 /**

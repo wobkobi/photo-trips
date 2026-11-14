@@ -79,7 +79,7 @@ export function TileMenu({
       role="menu"
       onKeyDown={onKeyDown}
       onContextMenu={(e) => e.preventDefault()}
-      className="fixed z-50 min-w-52 rounded-md border border-line bg-raised py-1 shadow-lg shadow-black/30"
+      className="fixed z-50 min-w-52 rounded-md border border-line bg-surface py-1 shadow-lg shadow-brand/20"
       style={position}
     >
       {items.map((item) => (
@@ -91,7 +91,7 @@ export function TileMenu({
             onClose();
             item.onSelect();
           }}
-          className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-line focus-visible:bg-line focus-visible:outline-none"
+          className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
         >
           {item.label}
         </button>

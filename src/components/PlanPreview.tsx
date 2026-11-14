@@ -41,7 +41,7 @@ export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <section className="px-8 pt-6 pb-5">
-        <p className="font-display text-[30px] leading-none font-semibold">
+        <p className="text-[30px] leading-none font-extrabold tracking-tight text-brand">
           {preview.files === 0
             ? "No files move"
             : `${count(preview.files, "file moves", "files move")} into ${count(
@@ -110,7 +110,7 @@ export function LeftAlone({ files }: { files: number }) {
 export function MovingProgress({ job }: { job: JobProgress }) {
   return (
     <div className="max-w-xl px-8 py-8">
-      <p className="mb-4 font-display text-[26px] leading-none font-semibold">
+      <p className="mb-4 text-[26px] leading-none font-bold tracking-tight text-brand">
         {JOB_NAMES[job.kind] ?? "Working"}
       </p>
       <Progress done={job.done} total={job.total} label={job.stage} />
@@ -165,10 +165,10 @@ export function ResultBanner({
     <div
       role="status"
       className={`mx-8 mt-5 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-md border p-4 ${
-        problem ? "border-warn/40 bg-warn/10" : "border-line bg-surface"
+        problem ? "border-warn-line bg-warn-soft" : "border-line bg-surface"
       }`}
     >
-      <Icon name={problem ? "warn" : "check"} className={problem ? "text-warn" : "text-paper"} />
+      <Icon name={problem ? "warn" : "check"} className={problem ? "text-warn" : "text-accent"} />
       <p className="min-w-0 flex-1">
         {[intro, movedText].filter(Boolean).join(" ")}
         {problem &&
@@ -249,12 +249,7 @@ export function MoveList({
   });
 
   return (
-    <div
-      ref={scrollRef}
-      role="list"
-      aria-label={label}
-      className="min-w-0 flex-1 overflow-y-auto"
-    >
+    <div ref={scrollRef} role="list" aria-label={label} className="min-w-0 flex-1 overflow-y-auto">
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() + 16 }}>
         {virtualizer.getVirtualItems().map((row) => (
           <MoveRow
@@ -281,7 +276,7 @@ function MoveRow({ item, origin, top }: { item: MoveRowData; origin: string; top
       className="absolute left-0 flex w-full items-center gap-3 px-6"
       style={{ top, height: ROW_HEIGHT }}
     >
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[3px] bg-surface text-[11px] text-faint">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[3px] bg-raised text-[11px] text-faint">
         {failed ? (
           `.${ext.toLowerCase()}`
         ) : (
@@ -314,7 +309,7 @@ function MoveRow({ item, origin, top }: { item: MoveRowData; origin: string; top
         <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted">
           <span className="selectable truncate">{from.folder || origin}</span>
           <Icon name="chevron" size={12} className="shrink-0 text-faint" />
-          <span className="selectable shrink-0 text-paper">{to.folder}</span>
+          <span className="selectable shrink-0 text-ink">{to.folder}</span>
         </span>
       </span>
     </div>

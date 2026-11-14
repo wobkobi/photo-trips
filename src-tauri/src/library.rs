@@ -187,24 +187,3 @@ pub fn reveal_media(state: State<'_, AppState>, id: i64) -> Result<()> {
     let path = media_path(&state, id)?;
     tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|e| Error::msg(e.to_string()))
 }
-
-/// Microsoft Store pages for the free codec extensions that let Windows read more formats.
-const STORE_PRODUCTS: &[(&str, &str)] = &[
-    ("heif", "9PMMSR1CGPWG"),
-    ("hevc", "9N4WGH0Z6VHQ"),
-    ("raw", "9NCTDW2W1BH8"),
-    ("av1", "9MVZQVXJBQ9V"),
-];
-
-#[tauri::command]
-pub fn open_store_page(product: String) -> Result<()> {
-    let (_, id) = STORE_PRODUCTS
-        .iter()
-        .find(|(name, _)| *name == product)
-        .ok_or_else(|| Error::msg(format!("Unknown Store product {product}")))?;
-    tauri_plugin_opener::open_url(
-        format!("ms-windows-store://pdp/?ProductId={id}"),
-        None::<&str>,
-    )
-    .map_err(|e| Error::msg(e.to_string()))
-}

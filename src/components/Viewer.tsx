@@ -70,9 +70,20 @@ export function Viewer({
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Photo viewer" className="fixed inset-0 z-40 flex bg-ground">
-      <div className="relative flex min-w-0 flex-1 items-center justify-center p-6">
-        {detail && <Media key={detail.id} detail={detail} onOpen={() => run(() => api.openMedia(detail.id))} />}
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Photo viewer"
+      className="fixed inset-0 z-40 flex bg-ground"
+    >
+      <div className="on-dark relative flex min-w-0 flex-1 items-center justify-center bg-ground p-6">
+        {detail && (
+          <Media
+            key={detail.id}
+            detail={detail}
+            onOpen={() => run(() => api.openMedia(detail.id))}
+          />
+        )}
         <NavButton side="left" disabled={index === 0} onClick={() => onIndex(index - 1)} />
         <NavButton
           side="right"
@@ -90,7 +101,7 @@ export function Viewer({
             type="button"
             onClick={onClose}
             aria-label="Close viewer"
-            className="rounded-md p-1.5 text-muted hover:bg-raised hover:text-paper"
+            className="rounded-md p-1.5 text-muted hover:bg-raised hover:text-ink"
           >
             <Icon name="close" />
           </button>
@@ -100,13 +111,15 @@ export function Viewer({
           {error && <p className="mb-4 text-danger">{error}</p>}
           {detail && (
             <>
-              <h2 className="selectable font-display text-[24px] leading-tight font-semibold break-all">
+              <h2 className="selectable text-[24px] leading-tight font-bold tracking-tight break-all text-brand">
                 {detail.name}
               </h2>
 
               <Fact label="Taken">
                 <p>{formatTaken(detail.takenAt)}</p>
-                <p className={`mt-1 text-[12px] ${detail.dateSource === "modified" ? "text-warn" : "text-faint"}`}>
+                <p
+                  className={`mt-1 text-[12px] ${detail.dateSource === "modified" ? "text-warn" : "text-faint"}`}
+                >
                   {sourceText(detail.dateSource)}
                 </p>
               </Fact>
@@ -223,7 +236,7 @@ function NavButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={side === "left" ? "Newer" : "Older"}
-      className={`absolute top-1/2 -translate-y-1/2 rounded-full bg-surface/80 p-2.5 text-muted hover:bg-raised hover:text-paper disabled:invisible ${
+      className={`absolute top-1/2 -translate-y-1/2 rounded-full bg-surface/80 p-2.5 text-muted hover:bg-raised hover:text-ink disabled:invisible ${
         side === "left" ? "left-4" : "right-4"
       }`}
     >

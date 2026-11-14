@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.4] - 2026-11-14
+
+### Fixed
+
+- Thumbnails of transparent images had the old dark theme colour behind them. Thumbnails now use the
+  light tile colour and full-size previews the viewer's black, and thumbnails cached with the old
+  colour are made again.
+
+## [0.9.3] - 2026-11-14
+
+### Fixed
+
+- The Library's codec hint suggested extensions that were already installed, and linked only the
+  free HEVC listing, which the Store doesn't offer on every PC. It now suggests only missing
+  extensions, suggests HEVC for HEIC photos as well as HEIF, and links the paid HEVC listing for PCs
+  the free one isn't offered on.
+
+## [0.9.1] - 2026-11-14
+
+### Fixed
+
+- The installer's exe showed the previous version in its file details after a version-only change.
+  The build now reruns when package.json changes.
+
+## [0.9.0] - 2026-11-13
+
+### Changed
+
+- Photo Trips wears the To the Point Tech brand: Exo type, a russian-violet sidebar with the chip
+  mark, seasalt pages with white panels and violet headings, and moonstone for selection and focus.
+  Photos opened large still sit on a dark ground. Trip colours come from the brand palette, and the
+  app icon is redrawn in brand colours.
+
 ## [0.8.1] - 2026-11-13
 
 ### Fixed

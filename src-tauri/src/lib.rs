@@ -6,6 +6,7 @@ mod duplicates;
 mod error;
 mod executor;
 mod exiftool;
+mod extensions;
 mod formats;
 mod groups;
 mod hash;
@@ -135,7 +136,8 @@ pub fn run() {
             library::media_detail,
             library::open_media,
             library::reveal_media,
-            library::open_store_page,
+            extensions::installed_extensions,
+            extensions::open_store_page,
             organise::plan_organise,
             organise::apply_plan,
             history::list_batches,

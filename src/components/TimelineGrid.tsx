@@ -93,7 +93,7 @@ export function TimelineGrid({
               >
                 {row.type === "month" ? (
                   <h2 className="flex h-full items-end gap-3 pb-3">
-                    <span className="font-display text-[26px] leading-none font-semibold">
+                    <span className="text-[26px] leading-none font-extrabold tracking-tight text-brand">
                       {row.label}
                     </span>
                     <span className="pb-0.5 text-[13px] text-faint">
@@ -155,11 +155,11 @@ function TileButton({
       onContextMenu={onMenu}
       aria-label={label}
       aria-pressed={selecting ? selected : undefined}
-      className="group relative shrink-0 overflow-hidden rounded-[3px] bg-surface focus-visible:outline-offset-0"
+      className="group relative shrink-0 overflow-hidden rounded-[3px] bg-raised focus-visible:outline-offset-0"
       style={{ width: size, height: size }}
     >
       {failed ? (
-        <span className="flex h-full w-full items-center justify-center font-display text-[20px] text-faint">
+        <span className="flex h-full w-full items-center justify-center text-[20px] font-bold text-faint">
           .{tile.ext}
         </span>
       ) : (
@@ -178,13 +178,13 @@ function TileButton({
       {tile.uncertain && (
         <span
           title="Date uncertain: guessed from when the file was last changed"
-          className="absolute top-1.5 right-1.5 rounded-full bg-ground/80 p-1 text-warn"
+          className="on-dark absolute top-1.5 right-1.5 rounded-full bg-ground/80 p-1 text-warn"
         >
           <Icon name="warn" size={12} />
         </span>
       )}
       {(tile.kind === "video" || tile.kind === "raw" || tile.extra > 0) && (
-        <span className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-ground/80 to-transparent px-2 pt-5 pb-1.5 text-[11px] font-medium text-paper">
+        <span className="on-dark absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-ground/80 to-transparent px-2 pt-5 pb-1.5 text-[11px] font-semibold text-ink">
           {tile.kind === "video" && <Icon name="play" size={12} />}
           {tile.kind === "raw" && <span>raw</span>}
           {tile.extra > 0 && (
@@ -201,12 +201,12 @@ function TileButton({
         />
       )}
       {selected && (
-        <span className="pointer-events-none absolute inset-0 rounded-[3px] ring-2 ring-paper ring-inset" />
+        <span className="pointer-events-none absolute inset-0 rounded-[3px] ring-3 ring-accent ring-inset" />
       )}
       {selecting && (
         <span
           className={`absolute top-1.5 left-1.5 flex h-5 w-5 items-center justify-center rounded-full ${
-            selected ? "bg-paper text-ground" : "border border-paper/70 bg-ground/40"
+            selected ? "bg-accent text-white" : "on-dark border border-ink/70 bg-ground/40"
           }`}
         >
           {selected && <Icon name="check" size={14} />}

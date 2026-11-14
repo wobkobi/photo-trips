@@ -5,12 +5,12 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 const VARIANTS: Record<Variant, string> = {
-  // Primary is inverted paper-on-graphite: colour stays reserved for trips.
-  primary: "bg-paper text-ground hover:bg-white disabled:bg-raised disabled:text-faint",
+  // Russian-violet for the main action and outlined white for the rest, as on the website.
+  primary: "bg-brand text-white hover:bg-brand-hover disabled:bg-raised disabled:text-faint",
   secondary:
-    "bg-raised text-paper hover:bg-line disabled:text-faint disabled:hover:bg-raised border border-line",
-  ghost: "text-muted hover:text-paper hover:bg-raised disabled:text-faint",
-  danger: "bg-danger/15 text-danger hover:bg-danger/25 border border-danger/40",
+    "border border-line-strong bg-surface text-ink hover:border-brand disabled:text-faint disabled:hover:border-line-strong",
+  ghost: "text-muted hover:bg-raised hover:text-ink disabled:text-faint",
+  danger: "border border-danger/40 bg-danger/10 text-danger hover:bg-danger/15",
 };
 
 /**
@@ -27,7 +27,7 @@ export function Button({
   return (
     <button
       type="button"
-      className={`inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
+      className={`inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
       {...rest}
     />
   );
@@ -52,7 +52,7 @@ export function PageHeader({
   return (
     <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line px-8 pt-7 pb-5">
       <div>
-        <h1 className="font-display text-[34px] leading-none font-semibold tracking-tight">
+        <h1 className="text-[34px] leading-[1.05] font-extrabold tracking-tight text-brand">
           {title}
         </h1>
         {detail && <p className="mt-2 text-muted">{detail}</p>}
@@ -71,7 +71,7 @@ export function PageHeader({
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-6 py-24 text-center">
-      <h2 className="font-display text-2xl font-semibold">{title}</h2>
+      <h2 className="text-2xl font-extrabold tracking-tight text-brand">{title}</h2>
       <div className="mt-3 text-muted [&_button]:mt-5">{children}</div>
     </div>
   );
@@ -90,7 +90,7 @@ export function Progress({ done, total, label }: { done: number; total: number; 
     <div className="w-full">
       <div className="h-1 overflow-hidden rounded-full bg-raised">
         <div
-          className={`h-full bg-paper transition-[width] ${pct === null ? "w-1/3 animate-pulse" : ""}`}
+          className={`h-full bg-accent transition-[width] ${pct === null ? "w-1/3 animate-pulse" : ""}`}
           style={pct === null ? undefined : { width: `${pct}%` }}
         />
       </div>

@@ -174,7 +174,7 @@ export function TripsPage({
         detail={
           <>
             Photos taken during a trip live together in its own folder, like{" "}
-            <span className="text-paper">Trips\2025-03-12 Japan</span>.
+            <span className="text-ink">Trips\2025-03-12 Japan</span>.
           </>
         }
         actions={
@@ -287,7 +287,9 @@ function TripRow({
       <div className="flex min-w-0 flex-1 flex-col gap-3 p-4">
         <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
           <div className="min-w-0 flex-1">
-            <p className="font-display text-[22px] leading-tight font-semibold">{trip.name}</p>
+            <p className="text-[22px] leading-tight font-bold tracking-tight text-brand">
+              {trip.name}
+            </p>
             <p className="mt-1 flex flex-wrap gap-x-4 text-[13px] text-muted">
               <span>{rangeText(trip.startAt, trip.endAt)}</span>
               <span>{count(trip.files, "photo or video", "photos and videos")}</span>
@@ -334,7 +336,7 @@ function TripEditor({
 
   return (
     <form onSubmit={submit} className="flex max-w-2xl flex-col gap-6 px-8 py-6">
-      <h2 className="font-display text-[26px] leading-none font-semibold">
+      <h2 className="text-[26px] leading-none font-bold tracking-tight text-brand">
         {trip ? `Edit ${trip.name}` : "New trip"}
       </h2>
       <Field label="Name">
@@ -398,7 +400,7 @@ function DateTime({
 }) {
   return (
     <fieldset className="flex flex-col gap-1.5">
-      <legend className="mb-1.5 text-[13px] font-medium text-muted">{label}</legend>
+      <legend className="mb-1.5 text-[13px] font-semibold text-muted">{label}</legend>
       <div className="flex gap-2">
         <input
           type="date"

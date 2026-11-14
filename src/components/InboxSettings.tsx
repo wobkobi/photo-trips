@@ -69,7 +69,7 @@ export function InboxSettings() {
                   className={`shrink-0 ${missing ? "text-warn" : "text-muted"}`}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">{folderName(folder)}</p>
+                  <p className="font-semibold">{folderName(folder)}</p>
                   <p className="selectable truncate text-[12px] text-muted" title={folder}>
                     {folder}
                   </p>

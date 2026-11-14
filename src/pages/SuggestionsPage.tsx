@@ -287,7 +287,9 @@ function SuggestionCard({
     <li className="flex flex-col gap-3 rounded-md border border-dashed border-line bg-surface p-4">
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
-          <p className="font-display text-[22px] leading-tight font-semibold">{suggestion.name}</p>
+          <p className="text-[22px] leading-tight font-bold tracking-tight text-brand">
+            {suggestion.name}
+          </p>
           <p className="mt-1 text-[13px] text-muted">
             {/* A name made from the dates already says them. */}
             {suggestion.namedByPlace && (
@@ -347,7 +349,7 @@ function SuggestionEditor({
   }
 
   return (
-    <li className="rounded-md border border-dashed border-paper/40 bg-surface">
+    <li className="rounded-md border border-dashed border-line-strong bg-surface">
       <form onSubmit={submit} className="flex flex-col gap-4 p-4">
         <Field label="Name">
           <input
