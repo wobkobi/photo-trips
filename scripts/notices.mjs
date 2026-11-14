@@ -1,0 +1,112 @@
+// Write THIRD_PARTY_NOTICES.txt: every third-party package, tool and data set that ships in the
+// installer, with its licence. Reads the installed node_modules and Cargo's registry, so run it
+// after npm install and a cargo build.
+//
+//   npm run notices             regenerate the file
+//   npm run notices -- --check  exit 1 if the file is out of date (release.mjs runs this)
+
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import process from "node:process";
+import { LICENCE_FILE, renderNotices, shippedCrates } from "./notices-lib.mjs";
+
+const PRODUCT = "Photo Trips";
+const root = resolve(import.meta.dirname, "..");
+const out = join(root, "THIRD_PARTY_NOTICES.txt");
+const check = process.argv.includes("--check");
+
+/**
+ * Contents of the licence files directly inside a package folder.
+ * @param {string} dir - package folder
+ * @returns {string[]} file contents, in file-name order
+ */
+function licenceTexts(dir) {
+  return readdirSync(dir)
+    .filter((name) => LICENCE_FILE.test(name) && statSync(join(dir, name)).isFile())
+    .sort()
+    .map((name) => readFileSync(join(dir, name), "utf8"));
+}
+
+// npm: production dependencies only, since dev tools never reach the installer. The lockfile
+// flags dev-only packages (dev, or devOptional for optional ones) and keys each by its folder.
+const lock = JSON.parse(readFileSync(join(root, "package-lock.json"), "utf8"));
+const seen = new Set();
+const npm = [];
+for (const [path, entry] of Object.entries(lock.packages)) {
+  if (!path || entry.dev || entry.devOptional || entry.link) continue;
+  const dir = join(root, path);
+  // An optional package for another platform isn't installed, so isn't shipped either.
+  if (!existsSync(dir)) continue;
+  const name = path.slice(path.lastIndexOf("node_modules/") + "node_modules/".length);
+  const key = `${name}@${entry.version}`;
+  if (seen.has(key)) continue;
+  seen.add(key);
+  npm.push({
+    name,
+    version: entry.version,
+    licence: entry.license ?? "UNKNOWN",
+    texts: licenceTexts(dir),
+  });
+}
+
+// Rust: the Windows build's dependency graph, as Cargo resolves it.
+const metadata = JSON.parse(
+  execFileSync(
+    "cargo",
+    [
+      "metadata",
+      "--format-version",
+      "1",
+      "--locked",
+      "--filter-platform",
+      "x86_64-pc-windows-msvc",
+      "--manifest-path",
+      join(root, "src-tauri", "Cargo.toml"),
+    ],
+    { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 },
+  ),
+);
+const crates = shippedCrates(metadata).map((pkg) => ({
+  name: pkg.name,
+  version: pkg.version,
+  licence: pkg.license ?? (pkg.license_file ? "see licence file" : "UNKNOWN"),
+  texts: licenceTexts(dirname(pkg.manifest_path)),
+}));
+
+// ExifTool's pinned version lives in the download script, which works without the download.
+const exiftool = readFileSync(join(root, "scripts", "fetch-exiftool.mjs"), "utf8").match(
+  /const VERSION = "([^"]+)"/,
+)?.[1];
+if (!exiftool) throw new Error("notices: couldn't find ExifTool's version in fetch-exiftool.mjs");
+const geocoder = crates.find((c) => c.name === "reverse_geocoder");
+
+const extras = `
+ExifTool ${exiftool}, by Phil Harvey - https://exiftool.org
+  Reads the date taken and location from photos and videos. ExifTool is free software, used under
+  the same terms as Perl itself: the GNU General Public License or the Artistic License. It runs as
+  a separate program, and its source code is available from https://exiftool.org.
+
+Strawberry Perl, bundled with ExifTool - https://strawberryperl.com
+  The Perl runtime ExifTool's Windows build runs on, under the same terms as Perl itself.
+  The licence texts for ExifTool and Strawberry Perl are installed with ${PRODUCT}, in
+  resources\\exiftool\\exiftool_files inside the install folder (LICENSE and
+  Licenses_Strawberry_Perl.zip). The ExifTool Windows launcher is released under CC0 1.0.
+
+GeoNames place data${geocoder ? `, bundled in reverse_geocoder ${geocoder.version}` : ""} - https://www.geonames.org
+  Names the places in suggested trips, offline. Place data by GeoNames, licensed under the Creative
+  Commons Attribution 4.0 licence: https://creativecommons.org/licenses/by/4.0/
+`;
+
+const text = renderNotices({ product: PRODUCT, extras, npm, crates });
+if (check) {
+  const current = existsSync(out) ? readFileSync(out, "utf8").replace(/\r\n/g, "\n") : "";
+  if (current !== text) {
+    console.error("notices: THIRD_PARTY_NOTICES.txt is out of date. Run npm run notices.");
+    process.exit(1);
+  }
+  console.log("notices: up to date");
+} else {
+  writeFileSync(out, text);
+  console.log(`notices: ${npm.length} npm and ${crates.length} Rust packages`);
+}
