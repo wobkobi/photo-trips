@@ -46,6 +46,9 @@ All notable changes to this project are documented here. The format follows
 
 - Renamed to Pic Cabinet. Installing it replaces an installed Photo Trips, keeps your library,
   settings and history, and keeps Start with Windows on if it was.
+- A licence, privacy policy and third-party notices. The installer shows the licence and installs it
+  with the notices, and Settings > About links to all three. The README now describes what the app
+  does.
 
 ## [0.11.0] - 2026-11-14
 
