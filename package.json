@@ -1,7 +1,7 @@
 {
   "name": "photo-trips",
   "private": true,
-  "version": "0.11.0",
+  "version": "0.11.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -38,7 +38,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
-    "eslint": "^10.14.0",
+    "eslint": "^10.15.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^17.14.0",
@@ -49,5 +49,8 @@
     "vite": "^8.0.16",
     "vitest": "^5.1.0"
   },
-  "description": "Windows app that sorts photos into year, month and trip folders"
+  "description": "Windows app that sorts photos into year, month and trip folders",
+  "overrides": {
+    "minimatch": "^11.0.5"
+  }
 }
