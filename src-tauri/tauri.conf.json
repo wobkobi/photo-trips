@@ -34,8 +34,15 @@
     "active": true,
     "targets": ["nsis"],
     "publisher": "To the Point Tech",
+    "copyright": "Copyright © 2026 To the Point Tech",
+    "homepage": "https://www.tothepoint.co.nz",
+    "licenseFile": "../LICENSE",
     "shortDescription": "A photo library that sorts photos into year, month and trip folders",
-    "resources": ["resources/exiftool/**/*"],
+    "resources": {
+      "resources/exiftool/": "resources/exiftool/",
+      "../LICENSE": "LICENSE.txt",
+      "../THIRD_PARTY_NOTICES.txt": "THIRD_PARTY_NOTICES.txt"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
