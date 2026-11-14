@@ -1,7 +1,26 @@
-# Tauri + React + Typescript
+# Photo Trips
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+A Windows tray app that keeps a photo library tidy. Photos and videos are sorted into
+`Year/Month` folders by the date they were taken. Set up a trip with a date range and everything
+taken during it moves into that trip's folder instead.
 
-## Recommended IDE Setup
+```
+<Library>/
+  2025/2025-03/IMG_1234.jpg
+  Trips/2025-03-12 Japan/IMG_2001.heic
+```
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+Every batch of moves is previewed first, logged, and can be undone.
+
+## Development
+
+Needs Node 24+, Rust (MSVC toolchain) and the Visual Studio C++ build tools.
+
+```
+npm install
+npm run tauri dev      # run the app (fetches ExifTool on first run)
+npm run tauri build    # NSIS installer in src-tauri/target/release/bundle
+```
+
+Checks: `npm run typecheck`, `npm run lint` (ESLint + clippy), `npm test` (Vitest + cargo test).
+Test fixtures are regenerated with `scripts/make-fixtures.sh` (needs ffmpeg).

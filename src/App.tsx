@@ -1,51 +1,93 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { Icon, type IconName } from "./components/Icon";
+import { SettingsProvider } from "./lib/settings";
+import { useSettings } from "./lib/useSettings";
+import { SetupPage } from "./pages/SetupPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { PlaceholderPage } from "./pages/PlaceholderPage";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+export type PageId =
+  "library" | "trips" | "suggestions" | "import" | "duplicates" | "history" | "settings";
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+const NAV: { id: PageId; label: string; icon: IconName }[] = [
+  { id: "library", label: "Library", icon: "library" },
+  { id: "trips", label: "Trips", icon: "trips" },
+  { id: "suggestions", label: "Suggestions", icon: "suggest" },
+  { id: "import", label: "Import", icon: "import" },
+  { id: "duplicates", label: "Duplicates", icon: "duplicates" },
+  { id: "history", label: "History", icon: "history" },
+  { id: "settings", label: "Settings", icon: "settings" },
+];
 
+/** Root component: settings provider around the shell. */
+export default function App() {
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <SettingsProvider>
+      <Shell />
+    </SettingsProvider>
   );
 }
 
-export default App;
+function Shell() {
+  const { settings } = useSettings();
+  const [page, setPage] = useState<PageId>("library");
+
+  // The tray menu can ask for a page (e.g. "Import photos...").
+  useEffect(() => {
+    const unlisten = listen<PageId>("navigate", (event) => setPage(event.payload));
+    return () => {
+      unlisten.then((off) => off());
+    };
+  }, []);
+
+  if (settings === null) return null;
+  if (!settings.library_root) return <SetupPage />;
+
+  return (
+    <div className="flex h-full">
+      <nav className="flex w-52 shrink-0 flex-col border-r border-line bg-surface px-3 py-5">
+        <div className="px-3 pb-6">
+          <span className="font-display text-[22px] leading-none font-semibold">Photo Trips</span>
+        </div>
+        <ul className="flex flex-col gap-0.5">
+          {NAV.map((item) => (
+            <li key={item.id}>
+              <button
+                type="button"
+                onClick={() => setPage(item.id)}
+                aria-current={page === item.id ? "page" : undefined}
+                className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors ${
+                  page === item.id
+                    ? "bg-raised text-paper"
+                    : "text-muted hover:bg-raised/60 hover:text-paper"
+                }`}
+              >
+                <Icon name={item.icon} />
+                {item.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p
+          className="selectable mt-auto truncate px-3 text-[12px] text-faint"
+          title={settings.library_root}
+        >
+          {settings.library_root}
+        </p>
+      </nav>
+      <main className="min-w-0 flex-1 overflow-y-auto">
+        <CurrentPage page={page} />
+      </main>
+    </div>
+  );
+}
+
+function CurrentPage({ page }: { page: PageId }) {
+  switch (page) {
+    case "settings":
+      return <SettingsPage />;
+    default:
+      return <PlaceholderPage title={NAV.find((n) => n.id === page)?.label ?? ""} />;
+  }
+}
