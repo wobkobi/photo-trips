@@ -1,0 +1,32 @@
+# Rust checks on GitHub. cargo audit compares Cargo.lock with the RustSec advisory database, so a
+# dependency with a known vulnerability fails the check. It only reads the lockfile, so it runs on
+# Linux in seconds. Clippy and the tests need a full Windows build, so they run locally instead
+# (npm run lint, npm test). The weekly run catches advisories published after a merge.
+name: Rust
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 3 * * 1"
+
+concurrency:
+  group: rust-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Check Rust dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: cargo audit
+        working-directory: src-tauri
+        run: cargo audit
