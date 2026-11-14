@@ -276,7 +276,7 @@ function MoveRow({ item, origin, top }: { item: MoveRowData; origin: string; top
       className="absolute left-0 flex w-full items-center gap-3 px-6"
       style={{ top, height: ROW_HEIGHT }}
     >
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[3px] bg-surface text-[11px] text-faint">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[3px] bg-raised text-[11px] text-faint">
         {failed ? (
           `.${ext.toLowerCase()}`
         ) : (

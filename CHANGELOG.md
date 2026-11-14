@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.4] - 2026-11-14
+
+### Fixed
+
+- Thumbnails of transparent images had the old dark theme colour behind them. Thumbnails now use the
+  light tile colour and full-size previews the viewer's black, and thumbnails cached with the old
+  colour are made again.
+
 ## [0.9.3] - 2026-11-14
 
 ### Fixed
