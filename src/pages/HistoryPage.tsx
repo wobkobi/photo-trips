@@ -27,7 +27,7 @@ export function HistoryPage() {
   }, []);
 
   useEffect(load, [load]);
-  useJobDone(["apply", "undo", "remove", "import"], load);
+  useJobDone(["apply", "undo", "remove", "import", "inbox"], load);
 
   async function undo(batchId: number) {
     setConfirming(null);

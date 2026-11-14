@@ -24,6 +24,7 @@ mod suggest;
 mod thumbs;
 mod tray;
 mod trips;
+mod watch;
 #[cfg(windows)]
 mod win;
 
@@ -50,6 +51,16 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             tray::show_main(app)
         }))
+        // Warnings from background work (the inbox watcher, devices, indexing) go to
+        // %LOCALAPPDATA%\<identifier>\logs as well as the console, so they can be read afterwards.
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
+                .max_file_size(512_000)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(2))
+                .build(),
+        )
         .plugin(
             tauri_plugin_autostart::Builder::new()
                 .args([HIDDEN_FLAG])
@@ -60,6 +71,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .register_asynchronous_uri_scheme_protocol("thumb", thumbs::protocol)
         .setup(|app| {
+            log::info!("Photo Trips {} started", app.package_info().version);
             let data_dir = app.path().app_local_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
             let conn = db::open(&data_dir.join("library.db"))?;
@@ -89,8 +101,8 @@ pub fn run() {
             {
                 log::warn!("Startup index skipped: {err}");
             }
-            tray::set_watch_state(app.handle(), None);
             devices::start(app.handle());
+            watch::start(app.handle());
 
             // The window starts hidden (see tauri.conf.json) to avoid a flash on a tray-only start.
             if !std::env::args().any(|arg| arg == HIDDEN_FLAG) {
@@ -143,6 +155,9 @@ pub fn run() {
             suggest::suggest_trips,
             suggest::dismiss_suggestion,
             suggest::restore_dismissed,
+            suggest::home_place,
+            watch::watch_status,
+            watch::set_watch_paused,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Photo Trips");

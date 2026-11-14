@@ -325,6 +325,20 @@ export interface Suggestions {
 /** Sent with the full device list whenever a card or phone comes or goes. */
 export const DEVICES_CHANGED = "devices://changed";
 
+/** What the inbox watcher is doing. Mirrors WatchStatus in watch.rs. */
+export interface WatchStatus {
+  /** Folders being watched (or that would be, when paused). */
+  folders: string[];
+  /** Inbox folders that can't be found, so aren't watched. */
+  missing: string[];
+  paused: boolean;
+  /** Files seen arriving that haven't finished copying yet. */
+  waiting: number;
+}
+
+/** Sent with a WatchStatus whenever the folders, the pause or the waiting count change. */
+export const WATCH_CHANGED = "watch://changed";
+
 /** Free Microsoft Store codec extensions the app can point to. */
 export type StoreProduct = "heif" | "hevc" | "raw" | "av1";
 
@@ -369,6 +383,11 @@ export const api = {
     invoke<void>("dismiss_suggestion", { startDay, endDay }),
   /** Show every dismissed suggestion again. */
   restoreDismissed: () => invoke<void>("restore_dismissed"),
+  watchStatus: () => invoke<WatchStatus>("watch_status"),
+  /** Pause or resume the inbox watcher (job kind "inbox" moves in what arrives). */
+  setWatchPaused: (paused: boolean) => invoke<WatchStatus>("set_watch_paused", { paused }),
+  /** The town nearest a typed "lat, lon", e.g. "Auckland, New Zealand"; null out at sea. */
+  homePlace: (location: string) => invoke<string | null>("home_place", { location }),
 };
 
 /**

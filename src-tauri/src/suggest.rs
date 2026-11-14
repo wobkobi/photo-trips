@@ -362,17 +362,40 @@ pub struct Suggestions {
 /// What Settings says about suggestions: the busy-day count and the home location.
 fn suggest_settings(conn: &Connection) -> Result<(usize, Option<Point>)> {
     let min_photos = db::get_setting(conn, "suggest_min_photos")?
-        .and_then(|v| v.trim().parse::<usize>().ok())
-        .filter(|&n| n >= 1)
+        .and_then(|v| parse_min_photos(&v))
         .unwrap_or(DEFAULT_MIN_PHOTOS);
-    let coord = |key: &str| -> Result<Option<f64>> {
-        Ok(db::get_setting(conn, key)?.and_then(|v| v.trim().parse::<f64>().ok()))
-    };
-    let home = match (coord("home_lat")?, coord("home_lon")?) {
-        (Some(lat), Some(lon)) if lat.abs() <= 90.0 && lon.abs() <= 180.0 => Some(Point { lat, lon }),
-        _ => None,
-    };
+    let home = db::get_setting(conn, "home_location")?.and_then(|v| parse_home(&v));
     Ok((min_photos, home))
+}
+
+/// The busy-day count from Settings, when it's a whole number from 1 to 1,000.
+pub fn parse_min_photos(text: &str) -> Option<usize> {
+    text.trim().parse::<usize>().ok().filter(|n| (1..=1000).contains(n))
+}
+
+/// A home typed or pasted as "latitude, longitude", the way map apps copy a place, e.g.
+/// "-36.8485, 174.7633". A space between the two numbers works too.
+pub fn parse_home(text: &str) -> Option<Point> {
+    let mut parts = text.split([',', ' ']).filter(|p| !p.trim().is_empty());
+    let lat = parts.next()?.trim().parse::<f64>().ok()?;
+    let lon = parts.next()?.trim().parse::<f64>().ok()?;
+    let valid = parts.next().is_none() && lat.abs() <= 90.0 && lon.abs() <= 180.0;
+    valid.then_some(Point { lat, lon })
+}
+
+/// The town nearest a home typed in Settings, with its country, so the page can confirm it.
+/// `None` when there's no town within 100 km.
+#[tauri::command(async)]
+pub fn home_place(location: String) -> Result<Option<String>> {
+    let point = parse_home(&location)
+        .ok_or_else(|| Error::msg("Type the latitude and longitude, like -36.85, 174.76"))?;
+    Ok(place_of(point).map(|p| {
+        if p.country.is_empty() || p.country == p.town {
+            p.town
+        } else {
+            format!("{}, {}", p.town, p.country)
+        }
+    }))
 }
 
 fn load_dismissed(conn: &Connection) -> Result<Vec<(NaiveDate, NaiveDate)>> {
@@ -747,5 +770,27 @@ mod tests {
     fn country_codes_become_names() {
         assert!(country_name("JP").is_some_and(|n| n.len() > 2));
         assert_eq!(country_name("ZZ"), None);
+    }
+
+    #[test]
+    fn a_home_can_be_pasted_from_a_map() {
+        let home = Point { lat: -36.8485, lon: 174.7633 };
+        assert_eq!(parse_home("-36.8485, 174.7633"), Some(home));
+        assert_eq!(parse_home(" -36.8485 174.7633 "), Some(home));
+        assert_eq!(parse_home("-36.8485,174.7633"), Some(home));
+        assert_eq!(parse_home("91, 0"), None);
+        assert_eq!(parse_home("0, 181"), None);
+        assert_eq!(parse_home("-36.8485"), None);
+        assert_eq!(parse_home("1, 2, 3"), None);
+        assert_eq!(parse_home("Auckland"), None);
+        assert_eq!(parse_home(""), None);
+    }
+
+    #[test]
+    fn the_busy_day_count_is_a_sensible_whole_number() {
+        assert_eq!(parse_min_photos(" 20 "), Some(20));
+        assert_eq!(parse_min_photos("0"), None);
+        assert_eq!(parse_min_photos("1001"), None);
+        assert_eq!(parse_min_photos("lots"), None);
     }
 }

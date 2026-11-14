@@ -38,6 +38,8 @@ windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_Co
 trash = "5.3.0"
 winmtp = "0.3.2"
 reverse_geocoder = "4.1.1"
+notify = "8"
+tauri-plugin-log = "2"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

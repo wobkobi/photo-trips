@@ -13,6 +13,8 @@ use crate::exiftool;
 use crate::formats::FormatTable;
 use crate::index;
 use crate::jobs::{self, Jobs, Progress};
+use crate::suggest;
+use crate::watch;
 
 /// Settings the UI may write. Anything else is rejected so a UI bug can't pollute the table.
 const WRITABLE_SETTINGS: &[&str] = &[
@@ -54,22 +56,70 @@ pub fn set_setting(
     if !WRITABLE_SETTINGS.contains(&key.as_str()) {
         return Err(Error::msg(format!("Unknown setting {key}")));
     }
-    let new_library = key == "library_root";
-    if new_library {
-        let root = Path::new(&value);
-        if !root.is_absolute() || !root.is_dir() {
-            return Err(Error::msg("Choose an existing folder for the library"));
+    match key.as_str() {
+        "library_root" => {
+            let root = Path::new(&value);
+            if !root.is_absolute() || !root.is_dir() {
+                return Err(Error::msg("Choose an existing folder for the library"));
+            }
+            if jobs.is_running() {
+                return Err(Error::msg(
+                    "Wait for the current task to finish before changing the library folder",
+                ));
+            }
+            allow_library(&app, &value);
         }
-        if jobs.is_running() {
-            return Err(Error::msg(
-                "Wait for the current task to finish before changing the library folder",
-            ));
+        "inbox_folders" => {
+            let conn = lock_db(&state)?;
+            let root = db::get_setting(&conn, "library_root")?;
+            let saved = watch::inbox_folders(&conn).unwrap_or_default();
+            watch::check_folders(&value, root.as_deref().map(Path::new), &saved)?;
         }
-        allow_library(&app, &value);
+        "home_location" => {
+            if !value.trim().is_empty() && suggest::parse_home(&value).is_none() {
+                return Err(Error::msg("Type the latitude and longitude, like -36.85, 174.76"));
+            }
+        }
+        "suggest_min_photos" => {
+            if suggest::parse_min_photos(&value).is_none() {
+                return Err(Error::msg("Use a whole number from 1 to 1,000"));
+            }
+        }
+        "extra_photo_exts" | "extra_video_exts" => check_extensions(&value)?,
+        _ => {}
     }
     db::set_setting(&*lock_db(&state)?, &key, &value)?;
-    if new_library {
-        start_index(&app)?;
+    match key.as_str() {
+        "library_root" => {
+            watch::reload(&app);
+            start_index(&app)?;
+        }
+        "inbox_folders" => watch::reload(&app),
+        "extra_photo_exts" | "extra_video_exts" => {
+            watch::reload(&app);
+            // Files of the new types show up once the library is read again. With another task
+            // running, that happens at the next start or refresh instead.
+            if let Err(err) = start_index(&app) {
+                log::info!("Library check for new file types waits: {err}");
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Extra extensions must be short runs of letters and digits, e.g. "orf, .XYZ".
+fn check_extensions(text: &str) -> Result<()> {
+    let exts = text
+        .split([',', ';', ' '])
+        .map(|e| e.trim().trim_start_matches('.'))
+        .filter(|e| !e.is_empty());
+    for ext in exts {
+        if ext.len() > 10 || !ext.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return Err(Error::msg(format!(
+                "\"{ext}\" isn't a file extension. Use letters and digits, like xyz"
+            )));
+        }
     }
     Ok(())
 }
@@ -151,4 +201,18 @@ pub fn lock_db<'a>(state: &'a AppState) -> Result<std::sync::MutexGuard<'a, Conn
         .db
         .lock()
         .map_err(|_| Error::msg("Database lock poisoned"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extra_extensions_are_letters_and_digits() {
+        assert!(check_extensions("").is_ok());
+        assert!(check_extensions("orf, .XYZ; mp4v").is_ok());
+        assert!(check_extensions("my files").is_ok());
+        assert!(check_extensions("*.jpg").is_err());
+        assert!(check_extensions("verylongextension").is_err());
+    }
 }

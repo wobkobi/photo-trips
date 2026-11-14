@@ -10,7 +10,15 @@ taken during it moves into that trip's folder instead.
   Trips/2025-03-12 Japan/IMG_2001.heic
 ```
 
-Every batch of moves is previewed first, logged, and can be undone.
+It also:
+
+- suggests trips from runs of busy days and days spent away from home
+- finds identical copies and sends the extras to the Recycle Bin
+- imports from folders, SD cards and phones, skipping photos already in the library
+- watches inbox folders (such as a camera upload folder) and moves new photos in as they arrive
+
+Every batch of moves is logged and can be undone from History. Batches you start are previewed
+first; inbox batches run on their own.
 
 ## Development
 
