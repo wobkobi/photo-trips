@@ -4,7 +4,7 @@
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -63,9 +63,11 @@ execFileSync(tar, ["-xf", zipPath, "-C", work]);
 const unpacked = join(work, `exiftool-${VERSION}_64`);
 rmSync(target, { recursive: true, force: true });
 mkdirSync(target, { recursive: true });
+// Copied, not renamed: the temp folder can be on another drive (C: on GitHub's runners, with
+// the checkout on D:), and a rename can't cross drives.
 // The "(-k)" in the shipped name makes ExifTool wait for a key press; the plain name doesn't.
-renameSync(join(unpacked, "exiftool(-k).exe"), join(target, "exiftool.exe"));
-renameSync(join(unpacked, "exiftool_files"), join(target, "exiftool_files"));
+cpSync(join(unpacked, "exiftool(-k).exe"), join(target, "exiftool.exe"));
+cpSync(join(unpacked, "exiftool_files"), join(target, "exiftool_files"), { recursive: true });
 writeFileSync(marker, `${VERSION}\n`);
 rmSync(work, { recursive: true, force: true });
 console.log(`fetch-exiftool: ExifTool ${VERSION} ready in ${target}`);
