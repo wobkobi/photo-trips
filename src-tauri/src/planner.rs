@@ -107,31 +107,44 @@ pub fn plan(
             plan.in_place += 1;
             continue;
         }
-        // Some number is always free: `exists` and `claimed` only know finitely many names.
-        let (moves, number) = (0..)
-            .find_map(|n| {
-                let moves: Vec<Move> = group
-                    .members
-                    .iter()
-                    .map(|m| Move {
-                        media_id: m.id,
-                        from: m.path.clone(),
-                        to: dir.join(numbered_name(m, n, table)),
-                    })
-                    .collect();
-                let free = moves
-                    .iter()
-                    .all(|mv| !claimed.contains(&path_key(&mv.to)) && !exists(&mv.to));
-                free.then_some((moves, n))
-            })
-            .unwrap_or_default();
-        claimed.extend(moves.iter().map(|mv| path_key(&mv.to)));
-        plan.groups.push(GroupMove {
-            moves,
-            renamed: number > 0,
-        });
+        plan.groups.push(place(group, &dir, table, &mut claimed, exists));
     }
     plan
+}
+
+/// The moves that put every member of `group` in `dir` under its own name, or with the lowest
+/// ` (n)` that frees every member's name at once, so the group keeps matching names. A name is
+/// taken when `exists` says so or `claimed` holds it; the names picked are added to `claimed`.
+pub fn place(
+    group: &Group,
+    dir: &Path,
+    table: &FormatTable,
+    claimed: &mut HashSet<String>,
+    exists: &dyn Fn(&Path) -> bool,
+) -> GroupMove {
+    // Some number is always free: `exists` and `claimed` only know finitely many names.
+    let (moves, number) = (0..)
+        .find_map(|n| {
+            let moves: Vec<Move> = group
+                .members
+                .iter()
+                .map(|m| Move {
+                    media_id: m.id,
+                    from: m.path.clone(),
+                    to: dir.join(numbered_name(m, n, table)),
+                })
+                .collect();
+            let free = moves
+                .iter()
+                .all(|mv| !claimed.contains(&path_key(&mv.to)) && !exists(&mv.to));
+            free.then_some((moves, n))
+        })
+        .unwrap_or_default();
+    claimed.extend(moves.iter().map(|mv| path_key(&mv.to)));
+    GroupMove {
+        moves,
+        renamed: number > 0,
+    }
 }
 
 /// The member's file name, with ` (n)` before the part it shares with its partners when `n`

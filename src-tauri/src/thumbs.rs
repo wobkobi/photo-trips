@@ -262,7 +262,8 @@ fn encode_jpeg(rgb: &[u8], width: u32, height: u32) -> Option<Vec<u8>> {
     Some(out)
 }
 
-/// Handler for `thumb://localhost/<media id>` (grid tile) and `...?full` (viewer). The flag is a
+/// Handler for `thumb://localhost/<media id>` (grid tile), `.../i<preview>-<n>` (a file the
+/// import preview would bring in) and `...?full` (viewer). The flag is a
 /// query parameter because the webview's URL helper percent-encodes any slash in the path.
 /// Database and disk work happens off the webview thread.
 pub fn protocol<R: Runtime>(
@@ -277,7 +278,12 @@ pub fn protocol<R: Runtime>(
         .query()
         .is_some_and(|q| q.split('&').any(|part| part == "full"));
     tauri::async_runtime::spawn_blocking(move || {
-        let Some((source, size, mtime)) = id.parse().ok().and_then(|id| lookup(&app, id)) else {
+        // `i<preview>-<n>` names a file in the import preview, not yet in the library.
+        let found = match id.strip_prefix('i') {
+            Some(item) => crate::import::thumb_source(&app, item),
+            None => id.parse().ok().and_then(|id| lookup(&app, id)),
+        };
+        let Some((source, size, mtime)) = found else {
             return responder.respond(not_found());
         };
         let pool = app.state::<Pool>();

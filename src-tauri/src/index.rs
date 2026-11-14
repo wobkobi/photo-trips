@@ -17,7 +17,7 @@ use crate::error::{Error, Result};
 use crate::exiftool::ExifTool;
 use crate::formats::{FormatTable, Kind};
 use crate::groups::MediaRow;
-use crate::metadata::{self, Embedded};
+use crate::metadata::{self, Embedded, MediaMeta};
 use crate::scan::{self, ScannedFile};
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -32,6 +32,18 @@ pub struct IndexSummary {
 
 /// Progress callback: (what is happening, done, total). Total 0 means "unknown yet".
 pub type Report<'a> = &'a (dyn Fn(&str, usize, usize) + Sync);
+
+/// A file as the scan saw it, plus the date and place read from it: everything its index row
+/// needs except the group key, which depends on where the file ends up.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NewRow {
+    pub path: PathBuf,
+    pub kind: Kind,
+    pub size: u64,
+    /// Unix seconds.
+    pub mtime: i64,
+    pub meta: MediaMeta,
+}
 
 /// Bring the index in line with the files under `root`. Unchanged files (same path, size and
 /// modified time) are not re-read, so a refresh of a big library takes seconds.
@@ -60,8 +72,7 @@ pub fn run(
         })
         .collect();
 
-    let embedded = read_embedded(&to_read, cancel, report)?;
-    let embedded = exiftool_pass(&to_read, embedded, exiftool, cancel, report)?;
+    let new_rows = read_files(&to_read, exiftool, cancel, report)?;
 
     report("Saving the index", 0, 0);
     let mut summary = IndexSummary {
@@ -84,8 +95,8 @@ pub fn run(
                 indexed_at = excluded.indexed_at",
         )?;
         let now = db::now();
-        for (file, found) in to_read.iter().zip(embedded) {
-            let meta = metadata::finish(&file.path, file.mtime, found);
+        for file in &new_rows {
+            let meta = &file.meta;
             upsert.execute(params![
                 file.path.to_string_lossy(),
                 scan::group_key(&file.path, file.kind, table),
@@ -119,6 +130,29 @@ pub fn run(
     }
     tx.commit()?;
     Ok(summary)
+}
+
+/// Work out when and where each file was taken: the in-process readers in parallel, ExifTool
+/// for what they missed, then the file name and modified time. Errors only when cancelled.
+pub fn read_files(
+    files: &[&ScannedFile],
+    exiftool: Option<&Path>,
+    cancel: &AtomicBool,
+    report: Report,
+) -> Result<Vec<NewRow>> {
+    let embedded = read_embedded(files, cancel, report)?;
+    let embedded = exiftool_pass(files, embedded, exiftool, cancel, report)?;
+    Ok(files
+        .iter()
+        .zip(embedded)
+        .map(|(file, found)| NewRow {
+            path: file.path.clone(),
+            kind: file.kind,
+            size: file.size,
+            mtime: file.mtime,
+            meta: metadata::finish(&file.path, file.mtime, found),
+        })
+        .collect())
 }
 
 /// Read dates with the in-process readers, in parallel across cores.

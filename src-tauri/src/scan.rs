@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::error::{Error, Result};
 use crate::formats::{FormatTable, Kind};
+use crate::planner::same_path;
 
 #[derive(Debug, Clone)]
 pub struct ScannedFile {
@@ -32,12 +33,23 @@ fn skip_dir(name: &str) -> bool {
 /// List every recognised file under `root`. Unreadable entries are skipped rather than failing
 /// the whole scan.
 pub fn scan(root: &Path, table: &FormatTable, cancel: &AtomicBool) -> Result<ScanResult> {
+    scan_excluding(root, None, table, cancel)
+}
+
+/// [`scan`], never descending into `exclude` (the library, when importing a folder that holds it).
+pub fn scan_excluding(
+    root: &Path,
+    exclude: Option<&Path>,
+    table: &FormatTable,
+    cancel: &AtomicBool,
+) -> Result<ScanResult> {
     let mut result = ScanResult::default();
     let walker = walkdir::WalkDir::new(root).follow_links(false).into_iter();
     let walker = walker.filter_entry(|entry| {
         entry.depth() == 0
             || !entry.file_type().is_dir()
-            || !skip_dir(&entry.file_name().to_string_lossy())
+            || !(skip_dir(&entry.file_name().to_string_lossy())
+                || exclude.is_some_and(|ex| same_path(entry.path(), ex)))
     });
     for entry in walker {
         if cancel.load(Ordering::Relaxed) {
@@ -147,6 +159,19 @@ mod tests {
         names.sort();
         assert_eq!(names, ["IMG_1.AAE", "IMG_1.JPG", "clip.MP4"]);
         assert_eq!(result.other_files, 2);
+    }
+
+    #[test]
+    fn scan_excluding_skips_the_given_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        touch(&root.join("Camera/IMG_1.JPG"));
+        touch(&root.join("Library/2025/IMG_2.JPG"));
+        let library = root.join("library");
+        let t = FormatTable::default();
+        let result = scan_excluding(root, Some(&library), &t, &AtomicBool::new(false)).unwrap();
+        assert_eq!(result.files.len(), 1);
+        assert!(result.files[0].path.ends_with("IMG_1.JPG"));
     }
 
     #[test]
