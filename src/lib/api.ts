@@ -1,4 +1,4 @@
-// Typed wrappers around the Rust commands (src-tauri/src/commands.rs and library.rs).
+// Typed wrappers around the Rust commands (src-tauri/src/*.rs).
 
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 
@@ -20,6 +20,16 @@ export interface Tile {
   /** Companion files (Live Photo video, RAW twin, sidecars). */
   extra: number;
   version: number;
+  /** Trip the photo was taken during. */
+  trip: TileTrip | null;
+}
+
+/** Enough of a trip to draw its band on a tile. */
+export interface TileTrip {
+  id: number;
+  name: string;
+  /** 1 to 6: which trip colour to use. */
+  colour: number;
 }
 
 export interface MediaMember {
@@ -147,6 +157,46 @@ export interface BatchEntry {
   error: string | null;
 }
 
+/** A thumbnail for a trip sample. */
+export interface SampleTile {
+  id: number;
+  version: number;
+}
+
+/** One trip on the Trips page. Mirrors TripInfo in trips.rs. */
+export interface TripInfo {
+  id: number;
+  name: string;
+  /** Inclusive local wall-clock times, "YYYY-MM-DDTHH:MM:SS". */
+  startAt: string;
+  endAt: string;
+  /** Folder name under Trips. */
+  folder: string;
+  colour: number;
+  /** Photos and videos taken during the trip. */
+  files: number;
+  sample: SampleTile[];
+}
+
+/** What a trip's dates take in, for the trip form. */
+export interface TripMatches {
+  files: number;
+  sample: SampleTile[];
+  /** Why the dates can't be used (they overlap another trip). */
+  problem: string | null;
+}
+
+export interface TripDraft {
+  name: string;
+  startAt: string;
+  endAt: string;
+}
+
+export type TripChange =
+  | { action: "create"; draft: TripDraft }
+  | { action: "update"; id: number; draft: TripDraft }
+  | { action: "delete"; id: number };
+
 /** Free Microsoft Store codec extensions the app can point to. */
 export type StoreProduct = "heif" | "hevc" | "raw" | "av1";
 
@@ -166,6 +216,11 @@ export const api = {
   listBatches: () => invoke<BatchInfo[]>("list_batches"),
   batchEntries: (batchId: number) => invoke<BatchEntry[]>("batch_entries", { batchId }),
   undoBatch: (batchId: number) => invoke<void>("undo_batch", { batchId }),
+  listTrips: () => invoke<TripInfo[]>("list_trips"),
+  tripMatches: (startAt: string, endAt: string, editing: number | null) =>
+    invoke<TripMatches>("trip_matches", { startAt, endAt, editing }),
+  /** Preview a trip change; apply it with {@link api.applyPlan}. */
+  planTrip: (change: TripChange) => invoke<Preview>("plan_trip", { change }),
 };
 
 /**

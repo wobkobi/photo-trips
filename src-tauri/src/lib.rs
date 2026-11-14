@@ -17,6 +17,7 @@ mod planner;
 mod scan;
 mod thumbs;
 mod tray;
+mod trips;
 #[cfg(windows)]
 mod win;
 
@@ -117,6 +118,9 @@ pub fn run() {
             history::list_batches,
             history::batch_entries,
             history::undo_batch,
+            trips::list_trips,
+            trips::trip_matches,
+            trips::plan_trip,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Photo Trips");

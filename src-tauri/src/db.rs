@@ -83,6 +83,10 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE journal ADD COLUMN error TEXT;
     CREATE INDEX journal_status ON journal(status);
 "#,
+    r#"
+    -- JSON a batch needs to reverse its non-file change on undo (a trip's previous dates).
+    ALTER TABLE batches ADD COLUMN undo_data TEXT;
+"#,
 ];
 
 /// Open (or create) the database and bring it up to the latest schema.

@@ -11,6 +11,7 @@ use crate::formats::FormatTable;
 use crate::groups::{Group, MediaRow};
 use crate::index::path_key;
 use crate::scan;
+use crate::trips::{TRIPS_DIR, Trip, trip_for};
 
 /// One file to move.
 #[derive(Debug, Clone, PartialEq)]
@@ -49,12 +50,18 @@ impl Plan {
 /// Where groups belong.
 pub struct Rules<'a> {
     pub root: &'a Path,
+    /// Trips never overlap, so at most one contains any date.
+    pub trips: &'a [Trip],
 }
 
 impl Rules<'_> {
-    /// Folder a group belongs in.
+    /// Folder a group belongs in: its trip's folder when it was taken during a trip,
+    /// otherwise its year and month folder.
     pub fn target_dir(&self, group: &Group) -> PathBuf {
-        year_month_dir(self.root, &group.taken_at)
+        match trip_for(self.trips, &group.taken_at) {
+            Some(trip) => self.root.join(TRIPS_DIR).join(&trip.folder),
+            None => year_month_dir(self.root, &group.taken_at),
+        }
     }
 }
 
@@ -166,11 +173,16 @@ mod tests {
     const ROOT: &str = "C:\\L";
 
     fn run(rows: Vec<MediaRow>, on_disk: &[&str]) -> Plan {
+        run_with_trips(rows, on_disk, &[])
+    }
+
+    fn run_with_trips(rows: Vec<MediaRow>, on_disk: &[&str], trips: &[Trip]) -> Plan {
         let (groups, orphans) = groups::build(rows);
         let disk: HashSet<String> = on_disk.iter().map(|p| path_key(Path::new(p))).collect();
         plan(
             &Rules {
                 root: Path::new(ROOT),
+                trips,
             },
             &groups,
             orphans.len(),
@@ -390,5 +402,41 @@ mod tests {
             Path::new("c:\\l")
         ));
         assert!(!is_inside(Path::new("C:\\Lib\\a.jpg"), Path::new("C:\\L")));
+    }
+
+    #[test]
+    fn trip_photos_go_to_the_trip_folder_from_its_first_second_to_its_last() {
+        let japan = Trip {
+            id: 1,
+            name: "Japan".into(),
+            start_at: crate::dates::parse("2025-03-12T00:00:00").unwrap(),
+            end_at: crate::dates::parse("2025-03-18T23:59:59").unwrap(),
+            folder: "2025-03-12 Japan".into(),
+            created_at: 0,
+        };
+        let photo = |id: i64, folder: &str, at: &str| {
+            row(id, folder, &format!("IMG_{id}.JPG"), Kind::Photo, at, Exif)
+        };
+        let plan = run_with_trips(
+            vec![
+                photo(1, "in", "2025-03-11T23:59:59"),
+                photo(2, "in", "2025-03-12T00:00:00"),
+                photo(3, "in", "2025-03-18T23:59:59"),
+                photo(4, "in", "2025-03-19T00:00:00"),
+                photo(5, r"Trips\2025-03-12 Japan", "2025-03-15T12:00:00"),
+            ],
+            &[],
+            &[japan],
+        );
+        assert_eq!(
+            targets(&plan),
+            [
+                vec![r"2025\2025-03\IMG_1.JPG"],
+                vec![r"Trips\2025-03-12 Japan\IMG_2.JPG"],
+                vec![r"Trips\2025-03-12 Japan\IMG_3.JPG"],
+                vec![r"2025\2025-03\IMG_4.JPG"],
+            ]
+        );
+        assert_eq!(plan.in_place, 1);
     }
 }

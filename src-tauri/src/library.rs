@@ -13,6 +13,7 @@ use crate::error::{Error, Result};
 use crate::formats::{self, Kind};
 use crate::groups::{self, Group};
 use crate::index;
+use crate::trips::{self, Trip, trip_for};
 
 /// One grid tile: a group shown by its leader.
 #[derive(Debug, Serialize)]
@@ -28,6 +29,18 @@ pub struct Tile {
     pub extra: usize,
     /// Changes whenever the file does, so thumbnail URLs bust the webview cache.
     pub version: i64,
+    /// Trip the photo was taken during, if any.
+    pub trip: Option<TileTrip>,
+}
+
+/// Enough of a trip to draw its band on a tile.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TileTrip {
+    pub id: i64,
+    pub name: String,
+    /// 1 to 6: which trip colour the UI uses.
+    pub colour: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -64,15 +77,18 @@ pub struct Detail {
 /// Every group in the library, newest first.
 #[tauri::command(async)]
 pub fn library_tiles(state: State<'_, AppState>) -> Result<Vec<Tile>> {
-    let rows = {
-        let conn = state.db.lock().map_err(|_| Error::msg("Database lock poisoned"))?;
-        index::load_rows(&conn)?
+    let (rows, trips) = {
+        let conn = state
+            .db
+            .lock()
+            .map_err(|_| Error::msg("Database lock poisoned"))?;
+        (index::load_rows(&conn)?, trips::load(&conn)?)
     };
     let (groups, _orphans) = groups::build(rows);
-    Ok(groups.iter().rev().map(tile).collect())
+    Ok(groups.iter().rev().map(|g| tile(g, &trips)).collect())
 }
 
-fn tile(group: &Group) -> Tile {
+fn tile(group: &Group, trips: &[Trip]) -> Tile {
     let leader = group.leader();
     Tile {
         id: leader.id,
@@ -82,14 +98,24 @@ fn tile(group: &Group) -> Tile {
         uncertain: group.date_source == DateSource::Modified,
         extra: group.members.len() - 1,
         version: leader.mtime,
+        trip: trip_for(trips, &group.taken_at).map(|t| TileTrip {
+            id: t.id,
+            name: t.name.clone(),
+            colour: trips::colour(t.id),
+        }),
     }
 }
 
 #[tauri::command(async)]
 pub fn media_detail(state: State<'_, AppState>, id: i64) -> Result<Detail> {
-    let conn = state.db.lock().map_err(|_| Error::msg("Database lock poisoned"))?;
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| Error::msg("Database lock poisoned"))?;
     let key: String = conn
-        .query_row("SELECT group_key FROM media WHERE id = ?1", [id], |row| row.get(0))
+        .query_row("SELECT group_key FROM media WHERE id = ?1", [id], |row| {
+            row.get(0)
+        })
         .optional()?
         .ok_or_else(|| Error::msg("This file is no longer in the library"))?;
     let (groups, _) = groups::build(index::load_group(&conn, &key)?);
@@ -136,7 +162,10 @@ fn file_name(path: &Path) -> String {
 }
 
 fn media_path(state: &AppState, id: i64) -> Result<PathBuf> {
-    let conn = state.db.lock().map_err(|_| Error::msg("Database lock poisoned"))?;
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| Error::msg("Database lock poisoned"))?;
     conn.query_row("SELECT path FROM media WHERE id = ?1", [id], |row| {
         row.get::<_, String>(0)
     })
@@ -173,6 +202,9 @@ pub fn open_store_page(product: String) -> Result<()> {
         .iter()
         .find(|(name, _)| *name == product)
         .ok_or_else(|| Error::msg(format!("Unknown Store product {product}")))?;
-    tauri_plugin_opener::open_url(format!("ms-windows-store://pdp/?ProductId={id}"), None::<&str>)
-        .map_err(|e| Error::msg(e.to_string()))
+    tauri_plugin_opener::open_url(
+        format!("ms-windows-store://pdp/?ProductId={id}"),
+        None::<&str>,
+    )
+    .map_err(|e| Error::msg(e.to_string()))
 }

@@ -1,15 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
 import { CodecHint } from "../components/CodecHint";
 import { Icon } from "../components/Icon";
-import { TimelineGrid } from "../components/TimelineGrid";
+import { TileMenu } from "../components/TileMenu";
+import { TimelineGrid, type TileEvent } from "../components/TimelineGrid";
 import { Viewer } from "../components/Viewer";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { api, errorText, type IndexSummary, type Tile } from "../lib/api";
+import { count as countOf } from "../lib/format";
+import { rangeOfTiles, type TripRange } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { useSettings } from "../lib/useSettings";
 
-/** The whole library as a month-by-month timeline, with a viewer for single photos. */
-export function LibraryPage() {
+/**
+ * The whole library as a month-by-month timeline, with a viewer for single photos.
+ * Ctrl-click, Shift-click or right-click selects photos to make a trip from.
+ * @param props.onCreateTrip - start a new trip covering the given days
+ * @returns the page
+ */
+export function LibraryPage({ onCreateTrip }: { onCreateTrip: (range: TripRange) => void }) {
   const { settings, save } = useSettings();
   const { running } = useJobs();
   const [tiles, setTiles] = useState<Tile[] | null>(null);
@@ -17,6 +25,9 @@ export function LibraryPage() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [failedThumbs, setFailedThumbs] = useState<Tile[]>([]);
+  const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
+  const [anchor, setAnchor] = useState<number | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
   const load = useCallback(() => {
     api.libraryTiles().then(
@@ -40,6 +51,64 @@ export function LibraryPage() {
     [],
   );
   const closeViewer = useCallback(() => setOpen(null), []);
+  const clearSelection = useCallback(() => {
+    setSelected(new Set());
+    setAnchor(null);
+    setMenu(null);
+  }, []);
+
+  useEffect(() => {
+    if (selected.size === 0) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") clearSelection();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected, clearSelection]);
+
+  /**
+   * Explorer-style selection: Ctrl toggles, Shift extends from the last clicked tile, and a
+   * plain click toggles while anything is selected. Otherwise a plain click opens the viewer.
+   */
+  function onTileClick(index: number, event: TileEvent) {
+    if (!tiles) return;
+    const id = tiles[index].id;
+    if (event.shiftKey && anchor !== null) {
+      const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
+      const next = new Set(event.ctrlKey ? selected : []);
+      for (let i = from; i <= to; i += 1) next.add(tiles[i].id);
+      setSelected(next);
+      return;
+    }
+    if (event.ctrlKey || event.metaKey || selected.size > 0) {
+      const next = new Set(selected);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setSelected(next);
+      setAnchor(index);
+      return;
+    }
+    setOpen(index);
+  }
+
+  function onTileMenu(index: number, event: TileEvent) {
+    if (!tiles) return;
+    event.preventDefault();
+    const id = tiles[index].id;
+    if (!selected.has(id)) {
+      setSelected(new Set([id]));
+      setAnchor(index);
+    }
+    setMenu({ x: event.clientX, y: event.clientY });
+  }
+
+  function createTrip() {
+    if (!tiles) return;
+    const chosen = tiles.filter((t) => selected.has(t.id));
+    if (chosen.length === 0) return;
+    clearSelection();
+    onCreateTrip(rangeOfTiles(chosen));
+  }
 
   async function refresh() {
     try {
@@ -58,10 +127,25 @@ export function LibraryPage() {
         title="Library"
         detail={<Detail count={count} summary={summary} indexing={indexing && count === 0} />}
         actions={
-          <Button onClick={refresh} disabled={running !== null}>
-            <Icon name="refresh" size={16} />
-            Refresh
-          </Button>
+          selected.size > 0 ? (
+            <>
+              <span className="mr-2 text-[13px] text-muted">
+                {countOf(selected.size, "photo", "photos")} selected
+              </span>
+              <Button variant="ghost" onClick={clearSelection}>
+                Clear
+              </Button>
+              <Button variant="primary" onClick={createTrip}>
+                <Icon name="trips" size={16} />
+                Create trip
+              </Button>
+            </>
+          ) : (
+            <Button onClick={refresh} disabled={running !== null}>
+              <Icon name="refresh" size={16} />
+              Refresh
+            </Button>
+          )
         }
       />
       {error && <p className="mx-8 mt-4 text-danger">{error}</p>}
@@ -83,7 +167,27 @@ export function LibraryPage() {
         </EmptyState>
       )}
       {tiles !== null && count > 0 && (
-        <TimelineGrid tiles={tiles} onOpen={setOpen} onThumbError={onThumbError} />
+        <TimelineGrid
+          tiles={tiles}
+          selected={selected}
+          onTileClick={onTileClick}
+          onTileMenu={onTileMenu}
+          onThumbError={onThumbError}
+        />
+      )}
+      {menu && (
+        <TileMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          items={[
+            {
+              label: `Create trip from ${countOf(selected.size, "photo", "photos")}`,
+              onSelect: createTrip,
+            },
+            { label: "Clear selection", onSelect: clearSelection },
+          ]}
+        />
       )}
 
       {tiles && open !== null && open < tiles.length && (
