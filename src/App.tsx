@@ -11,8 +11,8 @@ import { ImportPage } from "./pages/ImportPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { SetupPage } from "./pages/SetupPage";
 import { SettingsPage } from "./pages/SettingsPage";
-import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { SortPage } from "./pages/SortPage";
+import { SuggestionsPage } from "./pages/SuggestionsPage";
 import { TripsPage } from "./pages/TripsPage";
 import type { TripRange } from "./lib/trips";
 
@@ -131,6 +131,8 @@ function CurrentPage({
       return <SortPage onNavigate={onNavigate} />;
     case "trips":
       return <TripsPage draft={tripDraft} onDraftUsed={onTripDraftUsed} onNavigate={onNavigate} />;
+    case "suggestions":
+      return <SuggestionsPage onNavigate={onNavigate} />;
     case "import":
       return <ImportPage onNavigate={onNavigate} />;
     case "duplicates":
@@ -139,7 +141,5 @@ function CurrentPage({
       return <HistoryPage />;
     case "settings":
       return <SettingsPage />;
-    default:
-      return <PlaceholderPage title={NAV.find((n) => n.id === page)?.label ?? ""} />;
   }
 }

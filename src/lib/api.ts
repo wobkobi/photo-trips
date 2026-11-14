@@ -256,7 +256,7 @@ export type ImportSource =
 /** What an import will do. Mirrors ImportPreview in import.rs. */
 export interface ImportPreview {
   id: number;
-  /** "EOS_DIGITAL (E:)", a phone's name, or a folder path. */
+  /** "EOS_DIGITAL (E:)", a phone's name, or a folder's name. */
   source: string;
   /** What was looked through, so it can be checked again. */
   spec: ImportSource;
@@ -289,6 +289,37 @@ export interface ImportItem {
   to: string;
   extra: number;
   renamed: boolean;
+}
+
+/** A stretch of days that looks like a trip. Mirrors Suggestion in suggest.rs. */
+export interface Suggestion {
+  /** First and last day, "YYYY-MM-DD". */
+  startDay: string;
+  endDay: string;
+  /** A place name, or "Trip 12-18 Mar 2025". */
+  name: string;
+  /** The name came from where the photos were taken. */
+  namedByPlace: boolean;
+  /** Photos and videos taken during those days. */
+  files: number;
+  /** Days spent more than 50 km from home. */
+  awayDays: number;
+  /** How far from home those days were, in km. */
+  awayKm: number | null;
+  sample: SampleTile[];
+}
+
+export interface Suggestions {
+  /** Newest first. */
+  suggestions: Suggestion[];
+  /** Where home is, when it's set or could be worked out. */
+  home: { place: string | null; set: boolean } | null;
+  /** Suggestions hidden because they were dismissed. */
+  dismissed: number;
+  /** Photos and videos in a day for it to count as busy. */
+  minPhotos: number;
+  /** Photos and videos with a location. */
+  located: number;
 }
 
 /** Sent with the full device list whenever a card or phone comes or goes. */
@@ -332,6 +363,12 @@ export const api = {
   applyImport: (id: number) => invoke<void>("apply_import", { id }),
   /** Drop an import preview (and any phone files copied off for it). */
   discardImport: (id: number) => invoke<void>("discard_import", { id }),
+  suggestTrips: () => invoke<Suggestions>("suggest_trips"),
+  /** Hide a suggestion while its dates overlap these. */
+  dismissSuggestion: (startDay: string, endDay: string) =>
+    invoke<void>("dismiss_suggestion", { startDay, endDay }),
+  /** Show every dismissed suggestion again. */
+  restoreDismissed: () => invoke<void>("restore_dismissed"),
 };
 
 /**

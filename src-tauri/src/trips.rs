@@ -466,7 +466,7 @@ pub fn colour(id: i64) -> i64 {
 }
 
 /// Up to `SAMPLE_SIZE` leaders spread evenly through `groups`.
-fn sample(groups: &[&Group]) -> Vec<SampleTile> {
+pub(crate) fn sample(groups: &[&Group]) -> Vec<SampleTile> {
     let step = groups.len().div_ceil(SAMPLE_SIZE).max(1);
     groups
         .iter()

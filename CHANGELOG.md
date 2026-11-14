@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-11-13
+
+### Added
+
+- Suggestions page that finds trips you haven't made yet. Two or more busy days in a row (15 or more photos and videos each, with up to one quiet day between) make a suggestion.
+- Days spent more than 50 km from home are suggested too, however few photos they have. Home is worked out from where photos were taken on the most days, and the page says where that is.
+- Each suggestion is named after where its photos were taken, like "Tokyo" or "Kyoto and Tokyo", with no internet needed. Without locations it's named by its dates, like "Trip 1-2 Feb 2025".
+- Each suggestion shows its dates, why it was suggested, and some of its photos. Create trip previews the moves like any new trip, and the result can be undone. Change lets you rename it or move its first and last days first, with a live count of the photos those days take in.
+- Not a trip hides a suggestion, and hidden ones can be shown again. Days already in a trip are never suggested.
+
 ## [0.6.0] - 2026-11-13
 
 ### Added
