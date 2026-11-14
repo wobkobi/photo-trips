@@ -151,6 +151,8 @@ export type EntryStatus = "pending" | "done" | "failed" | "skipped" | "undoing" 
 
 export interface BatchEntry {
   seq: number;
+  /** "move", or "trash" for a file sent to the Recycle Bin (`to` is then empty). */
+  op: "move" | "trash";
   from: string;
   to: string;
   status: EntryStatus;
@@ -197,6 +199,42 @@ export type TripChange =
   | { action: "update"; id: number; draft: TripDraft }
   | { action: "delete"; id: number };
 
+/** Photos or videos that are identical, byte for byte. Mirrors DupSet in duplicates.rs. */
+export interface DupSet {
+  hash: string;
+  size: number;
+  kind: "photo" | "raw" | "video";
+  /** Suggested keeper first. */
+  copies: DupCopy[];
+}
+
+export interface DupCopy {
+  id: number;
+  version: number;
+  /** Relative to the library folder. */
+  path: string;
+  /** Already in the trip or month folder it belongs in. */
+  inPlace: boolean;
+  /** Other files that travel with this copy (a Live Photo video, a sidecar). */
+  extra: number;
+}
+
+export interface DupReport {
+  sets: DupSet[];
+  /** Files that share a size with another but haven't been compared yet. */
+  unchecked: number;
+  /** Copies beyond the first in every set. */
+  extra: number;
+  /** Space those extra copies take. */
+  bytes: number;
+}
+
+/** One set's outcome: the copy to keep and the copies to send to the Recycle Bin. */
+export interface DupChoice {
+  keep: number;
+  remove: number[];
+}
+
 /** Free Microsoft Store codec extensions the app can point to. */
 export type StoreProduct = "heif" | "hevc" | "raw" | "av1";
 
@@ -221,6 +259,11 @@ export const api = {
     invoke<TripMatches>("trip_matches", { startAt, endAt, editing }),
   /** Preview a trip change; apply it with {@link api.applyPlan}. */
   planTrip: (change: TripChange) => invoke<Preview>("plan_trip", { change }),
+  /** Compare same-size files in the background (job kind "duplicates"). */
+  findDuplicates: () => invoke<void>("find_duplicates"),
+  listDuplicates: () => invoke<DupReport>("list_duplicates"),
+  /** Send copies to the Recycle Bin in the background (job kind "remove"). */
+  removeDuplicates: (choices: DupChoice[]) => invoke<void>("remove_duplicates", { choices }),
 };
 
 /**

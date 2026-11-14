@@ -91,7 +91,7 @@ export function TripsPage({
   }, []);
 
   useEffect(load, [load]);
-  useJobDone("index", load);
+  useJobDone(["index", "remove"], load);
   useJobDone("apply", (done) => {
     if (applying !== null) {
       if (done.ok) setResult({ summary: done.result as ApplySummary, done: applying });

@@ -43,6 +43,8 @@ pub struct BatchInfo {
 #[serde(rename_all = "camelCase")]
 pub struct EntryInfo {
     pub seq: i64,
+    /// `move`, or `trash` for a file sent to the Recycle Bin (`to` is then empty).
+    pub op: String,
     /// Paths relative to the library folder when inside it.
     pub from: String,
     pub to: String,
@@ -90,18 +92,19 @@ pub fn batch_entries(state: State<'_, AppState>, batch_id: i64) -> Result<Vec<En
     let conn = lock_db(&state)?;
     let root = library_root(&conn).unwrap_or_default();
     let mut stmt = conn.prepare(
-        "SELECT seq, src, dst, status, error FROM journal
+        "SELECT seq, op, src, dst, status, error FROM journal
          WHERE batch_id = ?1 ORDER BY seq LIMIT ?2",
     )?;
     let rows = stmt.query_map(params![batch_id, ENTRY_LIMIT], |row| {
-        let src: String = row.get(1)?;
-        let dst: String = row.get(2)?;
+        let src: String = row.get(2)?;
+        let dst: String = row.get(3)?;
         Ok(EntryInfo {
             seq: row.get(0)?,
+            op: row.get(1)?,
             from: relative(&root, Path::new(&src)),
             to: relative(&root, Path::new(&dst)),
-            status: row.get(3)?,
-            error: row.get(4)?,
+            status: row.get(4)?,
+            error: row.get(5)?,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)

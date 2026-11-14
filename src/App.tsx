@@ -5,6 +5,7 @@ import { JobStatus } from "./components/JobStatus";
 import { JobsProvider } from "./lib/jobs";
 import { SettingsProvider } from "./lib/settings";
 import { useSettings } from "./lib/useSettings";
+import { DuplicatesPage } from "./pages/DuplicatesPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { SetupPage } from "./pages/SetupPage";
@@ -129,6 +130,8 @@ function CurrentPage({
       return <SortPage onNavigate={onNavigate} />;
     case "trips":
       return <TripsPage draft={tripDraft} onDraftUsed={onTripDraftUsed} onNavigate={onNavigate} />;
+    case "duplicates":
+      return <DuplicatesPage onNavigate={onNavigate} />;
     case "history":
       return <HistoryPage />;
     case "settings":

@@ -87,6 +87,11 @@ const MIGRATIONS: &[&str] = &[
     -- JSON a batch needs to reverse its non-file change on undo (a trip's previous dates).
     ALTER TABLE batches ADD COLUMN undo_data TEXT;
 "#,
+    r#"
+    -- The media row of a file sent to the Recycle Bin, as JSON, so undo can put it back in the
+    -- index along with the file.
+    ALTER TABLE journal ADD COLUMN media_row TEXT;
+"#,
 ];
 
 /// Open (or create) the database and bring it up to the latest schema.

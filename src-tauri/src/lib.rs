@@ -1,6 +1,7 @@
 mod commands;
 mod dates;
 mod db;
+mod duplicates;
 mod error;
 mod executor;
 mod exiftool;
@@ -14,6 +15,7 @@ mod library;
 mod metadata;
 mod organise;
 mod planner;
+mod recycle;
 mod scan;
 mod thumbs;
 mod tray;
@@ -121,6 +123,9 @@ pub fn run() {
             trips::list_trips,
             trips::trip_matches,
             trips::plan_trip,
+            duplicates::find_duplicates,
+            duplicates::list_duplicates,
+            duplicates::remove_duplicates,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Photo Trips");
