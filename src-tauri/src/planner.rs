@@ -5,11 +5,10 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use chrono::{Datelike, NaiveDateTime};
-
 use crate::formats::FormatTable;
 use crate::groups::{Group, MediaRow};
 use crate::index::path_key;
+use crate::naming::Naming;
 use crate::scan;
 use crate::trips::{TRIPS_DIR, Trip, trip_of};
 
@@ -52,26 +51,19 @@ pub struct Rules<'a> {
     pub root: &'a Path,
     /// Trips never overlap, so at most one contains any date.
     pub trips: &'a [Trip],
+    /// How month folders are named. Trip folder names are stored with each trip.
+    pub naming: Naming,
 }
 
 impl Rules<'_> {
     /// Folder a group belongs in: its trip's folder when it was taken during a trip and not
-    /// taken out of it, otherwise its year and month folder.
+    /// taken out of it, otherwise its month folder.
     pub fn target_dir(&self, group: &Group) -> PathBuf {
         match trip_of(self.trips, group) {
             Some(trip) => self.root.join(TRIPS_DIR).join(&trip.folder),
-            None => year_month_dir(self.root, &group.taken_at),
+            None => self.naming.month_dir(self.root, &group.taken_at),
         }
     }
-}
-
-/// `<root>/YYYY/YYYY-MM` for a taken date.
-pub fn year_month_dir(root: &Path, taken: &NaiveDateTime) -> PathBuf {
-    root.join(format!("{:04}", taken.year())).join(format!(
-        "{:04}-{:02}",
-        taken.year(),
-        taken.month()
-    ))
 }
 
 /// Plan the moves that put every group in the folder `rules` picks for it.
@@ -196,6 +188,7 @@ mod tests {
             &Rules {
                 root: Path::new(ROOT),
                 trips,
+                naming: Naming::default(),
             },
             &groups,
             orphans.len(),

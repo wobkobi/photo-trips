@@ -3,35 +3,50 @@ import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { isEnabled } from "@tauri-apps/plugin-autostart";
+import type { PageId } from "../App";
 import { BrandMark } from "../components/BrandMark";
+import { FolderNames } from "../components/FolderNames";
+import { Icon } from "../components/Icon";
 import { InboxSettings } from "../components/InboxSettings";
 import { LegalLinks } from "../components/LegalLinks";
+import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
 import { Choices, Row, SavedText, Section, Toggle } from "../components/SettingParts";
 import { SuggestionSettings } from "../components/SuggestionSettings";
 import { Button, PageHeader } from "../components/ui";
 import { UpdateCheck } from "../components/UpdateCheck";
-import { api, AUTOSTART_CHANGED } from "../lib/api";
+import { api, AUTOSTART_CHANGED, errorText, type ApplySummary, type Preview } from "../lib/api";
+import { count } from "../lib/format";
 import { PHOTO_SIZES, photoSizeOf, TEXT_SIZES, textSizeOf } from "../lib/display";
 import { normaliseExtensions } from "../lib/settingValues";
 import { useAction } from "../lib/useAction";
+import { useJobDone, useJobs } from "../lib/useJobs";
 import { useSettings } from "../lib/useSettings";
 
 /**
- * App settings (text and photo sizes, library, inbox folders, suggestions, file types and window
- * behaviour), then the app's version, maker and updates.
+ * App settings (text and photo sizes, library, folder names, inbox folders, suggestions, file
+ * types and window behaviour), then the app's version, maker and updates. A folder name change
+ * swaps the page for its preview of the renames until it's applied or abandoned.
  * @param props.showAbout - Help > About or Check for updates was picked; scroll to the About
  * section on opening
  * @param props.onAboutShown - called once About has been scrolled into view
+ * @param props.onNavigate - switch to another page
  * @returns the page
  */
 export function SettingsPage({
   showAbout,
   onAboutShown,
+  onNavigate,
 }: {
   showAbout: boolean;
   onAboutShown: () => void;
+  onNavigate: (page: PageId) => void;
 }) {
   const { settings, save } = useSettings();
+  const { running } = useJobs();
+  const [review, setReview] = useState<Preview | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [result, setResult] = useState<ApplySummary | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
   const display = useAction();
   const library = useAction();
   const types = useAction();
@@ -56,16 +71,94 @@ export function SettingsPage({
     onAboutShown();
   }, [showAbout, onAboutShown]);
 
+  useJobDone("apply", (done) => {
+    if (!applying) return;
+    if (done.ok) setResult(done.result as ApplySummary);
+    else if (done.error) setRenameError(done.error);
+    setApplying(false);
+    setReview(null);
+  });
+  useJobDone("undo", () => setResult(null));
+
+  async function rename(preview: Preview) {
+    setRenameError(null);
+    setApplying(true);
+    try {
+      await api.applyPlan(preview.id);
+    } catch (err) {
+      setApplying(false);
+      setRenameError(errorText(err));
+    }
+  }
+
+  async function undo(batchId: number) {
+    setRenameError(null);
+    try {
+      await api.undoBatch(batchId);
+    } catch (err) {
+      setRenameError(errorText(err));
+    }
+  }
+
   async function changeLibrary() {
     const picked = await open({ directory: true, title: "Choose your photo library folder" });
     if (typeof picked === "string") await library.run(() => save("library_root", picked));
   }
 
   const closeToTray = settings?.close_to_tray !== "false";
+  const errorLine = renameError && (
+    <p role="alert" className="mx-8 mt-4 text-danger">
+      {renameError}
+    </p>
+  );
+
+  if (review !== null) {
+    const moving = applying && running !== null;
+    return (
+      <div className="flex h-full flex-col">
+        <PageHeader
+          title="Folder names"
+          detail="Every sorted folder gets its new name. Files outside them stay where they are."
+          actions={
+            !moving && (
+              <>
+                <Button variant="ghost" onClick={() => setReview(null)} disabled={applying}>
+                  <Icon name="back" size={16} />
+                  Back to Settings
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => rename(review)}
+                  disabled={applying || running !== null}
+                >
+                  {review.files > 0
+                    ? `Rename folders and move ${count(review.files, "file", "files")}`
+                    : "Save folder names"}
+                </Button>
+              </>
+            )
+          }
+        />
+        {errorLine}
+        {moving ? <MovingProgress job={running} /> : <PlanView preview={review} />}
+      </div>
+    );
+  }
 
   return (
     <>
       <PageHeader title="Settings" />
+      {errorLine}
+      {result && (
+        <ResultBanner
+          result={result}
+          intro="Changed the folder names."
+          undoable
+          busy={running !== null}
+          onUndo={() => undo(result.batchId)}
+          onHistory={() => onNavigate("history")}
+        />
+      )}
       <div className="max-w-2xl px-8 py-8">
         <Section
           title="Display"
@@ -116,6 +209,15 @@ export function SettingsPage({
             <Button onClick={changeLibrary}>Change folder</Button>
           </Row>
         </Section>
+
+        <FolderNames
+          busy={running !== null}
+          onReview={(preview) => {
+            setResult(null);
+            setRenameError(null);
+            setReview(preview);
+          }}
+        />
 
         <InboxSettings />
         <SuggestionSettings />

@@ -5,6 +5,8 @@ export interface SettingsContextValue {
   settings: Settings | null;
   /** Save one setting and update local state once the backend accepts it. */
   save: (key: string, value: string) => Promise<void>;
+  /** Read every setting again, after a batch saved some itself (folder names, say). */
+  reload: () => void;
 }
 
 export const SettingsContext = createContext<SettingsContextValue | null>(null);

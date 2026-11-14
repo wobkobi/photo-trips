@@ -35,6 +35,10 @@ and sidecar files (`.aae`, `.xmp`, `.thm` and similar) all stay with their photo
 would end up with the same name, the newcomer gets a ` (1)` rather than replacing anything.
 Files of types Pic Cabinet doesn't recognise are never touched.
 
+Settings > Folder names offers a few other ways to name the folders, such as `2025/03 March` for
+months and `Trips/Japan 2025` for trips. Changing it renames the folders already sorted, after
+showing every move, and can be undone like any other change.
+
 ### Keeps trips together
 
 Add a trip with a name and dates, and everything taken during it goes into

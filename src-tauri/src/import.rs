@@ -32,6 +32,7 @@ use crate::mtp;
 use crate::organise::{FolderCount, Previews, relative};
 use crate::planner::{self, Rules, is_inside};
 use crate::scan::{self, ScannedFile};
+use crate::naming::Naming;
 use crate::trips::{self, Trip};
 
 
@@ -124,6 +125,7 @@ pub struct Ctx<'a> {
     pub root: &'a Path,
     pub table: &'a FormatTable,
     pub trips: &'a [Trip],
+    pub naming: Naming,
     pub exiftool: Option<&'a Path>,
     pub cancel: &'a AtomicBool,
     pub report: Report<'a>,
@@ -268,6 +270,7 @@ pub fn plan(ctx: &Ctx, mut found: Vec<Found>, exists: &dyn Fn(&Path) -> bool) ->
     let rules = Rules {
         root: ctx.root,
         trips: &trips,
+        naming: ctx.naming,
     };
     let mut claimed = HashSet::new();
     let now = db::now();
@@ -531,9 +534,14 @@ pub fn scan_import(app: AppHandle, source: SourceSpec) -> Result<()> {
 /// [`scan_import`], also started from the tray's "Import from <card>" item.
 pub fn start_scan(app: &AppHandle, source: SourceSpec) -> Result<()> {
     let state = app.state::<AppState>();
-    let (root, table, trips) = {
+    let (root, table, trips, naming) = {
         let conn = lock_db(&state)?;
-        (library_root(&conn)?, format_table(&conn)?, trips::load(&conn)?)
+        (
+            library_root(&conn)?,
+            format_table(&conn)?,
+            trips::load(&conn)?,
+            Naming::load(&conn)?,
+        )
     };
     if let SourceSpec::Folder { path, .. } | SourceSpec::Drive { path, .. } = &source {
         if !path.is_dir() {
@@ -558,6 +566,7 @@ pub fn start_scan(app: &AppHandle, source: SourceSpec) -> Result<()> {
             root: &root,
             table: &table,
             trips: &trips,
+            naming,
             exiftool: exiftool.as_deref(),
             cancel: job.cancel_flag(),
             report: &|stage, done, total| job.report(stage, done, total),
@@ -834,6 +843,7 @@ pub mod testing {
             root,
             table: &table,
             trips,
+            naming: Naming::default(),
             exiftool: None,
             cancel: &cancel,
             report: &no_report,

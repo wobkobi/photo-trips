@@ -33,6 +33,7 @@ use crate::index::path_key;
 use crate::planner::is_inside;
 use crate::scan::{self, ScannedFile};
 use crate::menu;
+use crate::naming::Naming;
 use crate::tray;
 use crate::trips;
 
@@ -522,12 +523,13 @@ fn being_written(_path: &Path) -> bool {
 /// Move `paths` into the library in the background, as job kind `inbox`.
 fn start_sorting(app: &AppHandle, paths: Vec<PathBuf>) -> Result<()> {
     let state = app.state::<AppState>();
-    let (root, table, trips) = {
+    let (root, table, trips, naming) = {
         let conn = lock_db(&state)?;
         (
             crate::commands::library_root(&conn)?,
             format_table(&conn)?,
             trips::load(&conn)?,
+            Naming::load(&conn)?,
         )
     };
     let folders = app.state::<Watch>().lock()?.folders.clone();
@@ -544,6 +546,7 @@ fn start_sorting(app: &AppHandle, paths: Vec<PathBuf>) -> Result<()> {
             root: &root,
             table: &table,
             trips: &trips,
+            naming,
             exiftool: exiftool.as_deref(),
             cancel: job.cancel_flag(),
             report: &|stage, done, total| job.report(stage, done, total),
@@ -810,6 +813,7 @@ mod tests {
             root,
             table: &table,
             trips: &[],
+            naming: Default::default(),
             exiftool: None,
             cancel: &cancel,
             report: &no_report,

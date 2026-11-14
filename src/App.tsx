@@ -7,6 +7,7 @@ import { JobsProvider } from "./lib/jobs";
 import { useMenuBar, type MenuRequest } from "./lib/menu";
 import { SettingsProvider } from "./lib/settings";
 import { UpdatesProvider } from "./lib/updates";
+import { useJobDone } from "./lib/useJobs";
 import { useUpdates } from "./lib/useUpdates";
 import { useSettings } from "./lib/useSettings";
 import { DuplicatesPage } from "./pages/DuplicatesPage";
@@ -48,7 +49,9 @@ export default function App() {
 }
 
 function Shell() {
-  const { settings } = useSettings();
+  const { settings, reload } = useSettings();
+  // A folder name change saves its presets with the batch, and undoing it puts them back.
+  useJobDone(["apply", "undo"], reload);
   const { runCheck } = useUpdates();
   const [page, setPage] = useState<PageId>("library");
   // A trip started in the Library or Suggestions, until the Trips page opens it.
@@ -191,6 +194,8 @@ function CurrentPage({
     case "history":
       return <HistoryPage />;
     case "settings":
-      return <SettingsPage showAbout={showAbout} onAboutShown={onAboutShown} />;
+      return (
+        <SettingsPage showAbout={showAbout} onAboutShown={onAboutShown} onNavigate={onNavigate} />
+      );
   }
 }

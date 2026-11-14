@@ -5,7 +5,9 @@ import { LeftAlone, MovingProgress, PlanView, ResultBanner } from "../components
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { api, errorText, type ApplySummary, type Preview } from "../lib/api";
 import { count } from "../lib/format";
+import { monthFolder, namingOf } from "../lib/naming";
 import { useJobDone, useJobs } from "../lib/useJobs";
+import { useSettings } from "../lib/useSettings";
 
 /**
  * Sort the library into trip and year/month folders: review every move first, then apply it
@@ -15,6 +17,7 @@ import { useJobDone, useJobs } from "../lib/useJobs";
  */
 export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
   const { running } = useJobs();
+  const naming = namingOf(useSettings().settings);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +73,8 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
         detail={
           <>
             Every photo and video goes in its trip&apos;s folder, or a folder for the month it was
-            taken, like <span className="text-ink">2025\2025-03</span>.
+            taken, like <span className="text-ink">{monthFolder(naming.months, "2025-03-12")}</span>
+            .
           </>
         }
         actions={

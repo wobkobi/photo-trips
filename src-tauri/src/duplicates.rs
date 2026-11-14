@@ -25,7 +25,8 @@ use crate::index::{self, Report, path_key};
 use crate::jobs;
 use crate::organise::relative;
 use crate::planner::{Rules, same_path};
-use crate::trips::{self, Trip};
+use crate::naming::Naming;
+use crate::trips;
 
 /// Photos and videos that are identical, byte for byte.
 #[derive(Debug, Serialize)]
@@ -88,15 +89,21 @@ pub fn find_duplicates(app: AppHandle) -> Result<()> {
 /// Every duplicate set found so far, with a suggested keeper for each.
 #[tauri::command(async)]
 pub fn list_duplicates(state: State<'_, AppState>) -> Result<DupReport> {
-    let (root, rows, trips) = {
+    let (root, rows, trips, naming) = {
         let conn = lock_db(&state)?;
         (
             library_root(&conn)?,
             index::load_rows(&conn)?,
             trips::load(&conn)?,
+            Naming::load(&conn)?,
         )
     };
-    Ok(report(&root, rows, &trips, &|p| {
+    let rules = Rules {
+        root: &root,
+        trips: &trips,
+        naming,
+    };
+    Ok(report(&rules, rows, &|p| {
         fs::symlink_metadata(p).is_ok()
     }))
 }
@@ -185,12 +192,8 @@ pub fn hash_pending(db: &Mutex<Connection>, cancel: &AtomicBool, report: Report)
 
 /// Group hashed files into duplicate sets, newest first, and rank each set's copies so the
 /// best one to keep comes first. Files no longer on disk are left out.
-pub fn report(
-    root: &Path,
-    rows: Vec<MediaRow>,
-    trips: &[Trip],
-    exists: &dyn Fn(&Path) -> bool,
-) -> DupReport {
+pub fn report(rules: &Rules, rows: Vec<MediaRow>, exists: &dyn Fn(&Path) -> bool) -> DupReport {
+    let root = rules.root;
     let unchecked = {
         let mut sizes: HashMap<u64, usize> = HashMap::new();
         for row in rows.iter().filter(|r| comparable(r)) {
@@ -202,7 +205,6 @@ pub fn report(
     };
 
     // Each file's group size, place and taken date, from the same grouping Sort uses.
-    let rules = Rules { root, trips };
     let (groups, _) = groups::build(rows.clone());
     let mut info: HashMap<i64, (usize, bool, chrono::NaiveDateTime)> = HashMap::new();
     for group in &groups {
@@ -421,7 +423,12 @@ mod tests {
 
     fn listing(db: &Mutex<Connection>, root: &Path) -> DupReport {
         let rows = index::load_rows(&db.lock().unwrap()).unwrap();
-        report(root, rows, &[], &|p| p.exists())
+        let rules = Rules {
+            root,
+            trips: &[],
+            naming: Naming::default(),
+        };
+        report(&rules, rows, &|p| p.exists())
     }
 
     fn paths(set: &DupSet) -> Vec<&str> {

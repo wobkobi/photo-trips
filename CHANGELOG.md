@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.16.0] - 2026-11-15
+
+### Added
+
+- Choose how folders are named in Settings: month folders as 2026\2026-03, 2026\03 March or
+  2026\March 2026, and trip folders as 2026-03-12 Japan, Japan 2026 or 2026 Japan. Each drop-down
+  shows example folders and a sentence shows where a photo and a trip would go. A change renames the
+  folders already in the library as one previewed batch that can be undone, and trips that would
+  share a name get (2) added.
+
 ## [0.15.0] - 2026-11-15
 
 ### Added
