@@ -29,6 +29,7 @@ mod tray;
 mod trips;
 mod updater;
 mod watch;
+mod watchdog;
 #[cfg(windows)]
 mod win;
 
@@ -75,6 +76,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .register_asynchronous_uri_scheme_protocol("thumb", thumbs::protocol)
+        // On the builder, because the window (and its page) exists before setup runs.
+        .manage(watchdog::PageReady::default())
         .setup(|app| {
             log::info!("Pic Cabinet {} started", app.package_info().version);
             let data_dir = app.path().app_local_data_dir()?;
@@ -97,6 +100,7 @@ pub fn run() {
             app.manage(organise::Previews::<import::PendingImport>::default());
             app.manage(devices::Devices::default());
             app.manage(updater::Updates::default());
+            watchdog::start(app.handle(), &data_dir);
             app.manage(AppState {
                 db: Mutex::new(conn),
                 data_dir,
@@ -177,6 +181,7 @@ pub fn run() {
             updater::update_status,
             updater::check_for_update,
             updater::install_update,
+            watchdog::frontend_ready,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pic Cabinet");

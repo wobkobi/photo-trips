@@ -402,6 +402,8 @@ export const UPDATE_AVAILABLE = "update://available";
 export const UPDATE_PROGRESS = "update://progress";
 
 export const api = {
+  /** Tells the engine the page loaded, so it doesn't restart to fix a blank window. */
+  frontendReady: () => invoke<void>("frontend_ready"),
   getSettings: () => invoke<Settings>("get_settings"),
   setSetting: (key: string, value: string) => invoke<void>("set_setting", { key, value }),
   /** Turn Start with Windows on or off; the menu bar's tick follows. */

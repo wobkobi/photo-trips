@@ -13,7 +13,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSyn
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import process from "node:process";
-import { RELEASES_REPO, assetName, assetUrl, changelogSection, manifest } from "./release-lib.mjs";
+import { RELEASES_REPO, assetName, assetUrl, manifest, releaseNotes } from "./release-lib.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const dryRun = process.argv.includes("--dry-run");
@@ -50,7 +50,20 @@ if (!dryRun && run("git", ["status", "--porcelain"]) !== "") {
 if (!dryRun && !run("git", ["branch", "-r", "--contains", "HEAD"])) {
   fail("this commit isn't pushed, and the release tag points at it. Push it first.");
 }
-const notes = changelogSection(readFileSync(join(root, "CHANGELOG.md"), "utf8"), version);
+// The notes cover every version since the last published release, so one that was never
+// released (or a gh that isn't signed in, which gives just this version) still gets described.
+const latestTag = run("gh", [
+  "release",
+  "view",
+  "--repo",
+  RELEASES_REPO,
+  "--json",
+  "tagName",
+  "--jq",
+  ".tagName",
+]);
+const since = latestTag ? latestTag.replace(/^v/, "") : null;
+const notes = releaseNotes(readFileSync(join(root, "CHANGELOG.md"), "utf8"), version, since);
 if (!notes) fail(`CHANGELOG.md has no section for ${version}.`);
 // The installer ships THIRD_PARTY_NOTICES.txt, so it must list this build's dependencies.
 if (run(process.execPath, [join(root, "scripts", "notices.mjs"), "--check"]) === null) {
