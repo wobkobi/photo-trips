@@ -45,6 +45,9 @@ struct Running {
 #[derive(Default)]
 pub struct Jobs {
     current: Mutex<Option<Running>>,
+    /// Set while an update installs. The app exits partway through, so no job may start.
+    /// Only changed with `current` locked, which keeps it in step with the busy check.
+    closed: AtomicBool,
 }
 
 /// Handed to a job's work function: cancel flag and progress reporting.
@@ -97,6 +100,26 @@ impl Jobs {
     pub fn is_running(&self) -> bool {
         self.current.lock().map(|c| c.is_some()).unwrap_or(false)
     }
+
+    /// Stop any more jobs starting, when none is running. Returns the running job's kind
+    /// instead (and leaves jobs open) when one is.
+    pub fn close(&self) -> std::result::Result<(), &'static str> {
+        let Ok(current) = self.current.lock() else {
+            return Err("job");
+        };
+        if let Some(running) = current.as_ref() {
+            return Err(running.progress.lock().map(|p| p.kind).unwrap_or("job"));
+        }
+        self.closed.store(true, Ordering::Relaxed);
+        Ok(())
+    }
+
+    /// Let jobs start again after [`Jobs::close`].
+    pub fn reopen(&self) {
+        if let Ok(_current) = self.current.lock() {
+            self.closed.store(false, Ordering::Relaxed);
+        }
+    }
 }
 
 /// Start `work` on a background thread. Fails straight away if another job is running.
@@ -112,6 +135,9 @@ where
             .current
             .lock()
             .map_err(|_| Error::msg("Job lock poisoned"))?;
+        if jobs.closed.load(Ordering::Relaxed) {
+            return Err(Error::msg("Photo Trips is installing an update."));
+        }
         if current.is_some() {
             return Err(Error::msg("Photo Trips is busy with another task. Try again when it finishes."));
         }

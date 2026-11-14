@@ -12,9 +12,13 @@ use crate::watch;
 
 const PAUSE_ID: &str = "pause";
 const IMPORT_ID: &str = "import";
+const UPDATE_ID: &str = "update";
 
 /// Handle to the "Pause watching" menu item, kept so its label can follow the watcher state.
 struct PauseItem(MenuItem<Wry>);
+
+/// Handle to the updates item, whose text names a waiting update.
+struct UpdateItem(MenuItem<Wry>);
 
 /// Handle to the import menu item and the card or phone it currently offers, if any.
 struct ImportItem {
@@ -28,10 +32,12 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let import = MenuItem::with_id(app, IMPORT_ID, "Import photos...", true, None::<&str>)?;
     // Disabled until there are inbox folders to watch.
     let pause = MenuItem::with_id(app, PAUSE_ID, "Pause watching", false, None::<&str>)?;
+    let update = MenuItem::with_id(app, UPDATE_ID, update_text(None), true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&open, &import, &pause, &separator, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &import, &pause, &separator, &update, &quit])?;
     app.manage(PauseItem(pause));
+    app.manage(UpdateItem(update));
     app.manage(ImportItem {
         item: import,
         device: Mutex::new(None),
@@ -45,6 +51,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
             "open" => show_main(app),
             IMPORT_ID => open_import(app),
             PAUSE_ID => watch::toggle_pause(app),
+            UPDATE_ID => open_updates(app),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -80,6 +87,12 @@ pub fn open_import(app: &AppHandle) {
     }
 }
 
+/// Show Settings > About and check for updates there, where a waiting update can be installed.
+pub fn open_updates(app: &AppHandle) {
+    show_main(app);
+    let _ = app.emit(crate::menu::ACTION_EVENT, "updates");
+}
+
 /// Bring the main window back from the tray (or from behind other windows).
 pub fn show_main(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
@@ -102,6 +115,20 @@ pub fn set_import_device(app: &AppHandle, device: Option<&Device>) {
     crate::menu::show_import_device(app, device.map(|d| d.name.as_str()));
     if let Ok(mut offered) = import.device.lock() {
         *offered = device.cloned();
+    }
+}
+
+fn update_text(version: Option<&str>) -> String {
+    match version {
+        Some(version) => format!("Install update {version}..."),
+        None => "Check for updates...".to_owned(),
+    }
+}
+
+/// Name the update waiting to install, or offer a check when there is none.
+pub fn set_update(app: &AppHandle, version: Option<&str>) {
+    if let Some(item) = app.try_state::<UpdateItem>() {
+        let _ = item.0.set_text(update_text(version));
     }
 }
 

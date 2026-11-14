@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-11-14
+
+### Added
+
+- Updates. Settings > About checks for a newer version, shows what changed and installs it with
+  Install and restart. The app also checks once a day and says so once per version, and the tray and
+  Help menu have Check for updates. Updates are signed, and one signed for a different version is
+  refused. npm run release publishes a version.
+
 ## [0.10.1] - 2026-11-14
 
 ### Fixed

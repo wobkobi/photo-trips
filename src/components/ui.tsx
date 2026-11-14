@@ -82,9 +82,20 @@ export function EmptyState({ title, children }: { title: string; children?: Reac
  * @param props.done - completed units
  * @param props.total - total units (0 = unknown, shows an indeterminate bar)
  * @param props.label - caption under the bar
+ * @param props.count - add "done of total" to the caption (default true)
  * @returns the progress element
  */
-export function Progress({ done, total, label }: { done: number; total: number; label: string }) {
+export function Progress({
+  done,
+  total,
+  label,
+  count = true,
+}: {
+  done: number;
+  total: number;
+  label: string;
+  count?: boolean;
+}) {
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : null;
   return (
     <div className="w-full">
@@ -96,7 +107,7 @@ export function Progress({ done, total, label }: { done: number; total: number; 
       </div>
       <p className="mt-2 text-[12px] text-muted">
         {label}
-        {pct !== null && total > 0 && ` - ${done.toLocaleString()} of ${total.toLocaleString()}`}
+        {count && pct !== null && ` - ${done.toLocaleString()} of ${total.toLocaleString()}`}
       </p>
     </div>
   );

@@ -6,6 +6,8 @@ import { JobStatus } from "./components/JobStatus";
 import { JobsProvider } from "./lib/jobs";
 import { useMenuBar, type MenuRequest } from "./lib/menu";
 import { SettingsProvider } from "./lib/settings";
+import { UpdatesProvider } from "./lib/updates";
+import { useUpdates } from "./lib/useUpdates";
 import { useSettings } from "./lib/useSettings";
 import { DuplicatesPage } from "./pages/DuplicatesPage";
 import { HistoryPage } from "./pages/HistoryPage";
@@ -37,7 +39,9 @@ export default function App() {
   return (
     <SettingsProvider>
       <JobsProvider>
-        <Shell />
+        <UpdatesProvider>
+          <Shell />
+        </UpdatesProvider>
       </JobsProvider>
     </SettingsProvider>
   );
@@ -45,6 +49,7 @@ export default function App() {
 
 function Shell() {
   const { settings } = useSettings();
+  const { runCheck } = useUpdates();
   const [page, setPage] = useState<PageId>("library");
   // Days picked in the Library for a new trip, until the Trips page opens them.
   const [tripDraft, setTripDraft] = useState<TripRange | null>(null);
@@ -53,7 +58,8 @@ function Shell() {
     setTripDraft(range);
     setPage("trips");
   }, []);
-  // Menu bar requests waiting for their page to open: File > Refresh library and Help > About.
+  // Menu requests waiting for their page to open: File > Refresh library, and Help > About or
+  // Check for updates (from Help or the tray), which both open Settings at About.
   const [refresh, setRefresh] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const refreshStarted = useCallback(() => setRefresh(false), []);
@@ -64,6 +70,7 @@ function Shell() {
       setRefresh(true);
       setPage("library");
     } else {
+      if (request === "updates") void runCheck();
       setShowAbout(true);
       setPage("settings");
     }

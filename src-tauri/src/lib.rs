@@ -26,6 +26,7 @@ mod suggest;
 mod thumbs;
 mod tray;
 mod trips;
+mod updater;
 mod watch;
 #[cfg(windows)]
 mod win;
@@ -71,6 +72,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .register_asynchronous_uri_scheme_protocol("thumb", thumbs::protocol)
         .setup(|app| {
             log::info!("Photo Trips {} started", app.package_info().version);
@@ -92,6 +94,7 @@ pub fn run() {
             app.manage(organise::Previews::<organise::PendingBatch>::default());
             app.manage(organise::Previews::<import::PendingImport>::default());
             app.manage(devices::Devices::default());
+            app.manage(updater::Updates::default());
             app.manage(AppState {
                 db: Mutex::new(conn),
                 data_dir,
@@ -107,6 +110,7 @@ pub fn run() {
             }
             devices::start(app.handle());
             watch::start(app.handle());
+            updater::start(app.handle());
 
             // The window starts hidden (see tauri.conf.json) to avoid a flash on a tray-only start.
             if !std::env::args().any(|arg| arg == HIDDEN_FLAG) {
@@ -165,6 +169,9 @@ pub fn run() {
             watch::set_watch_paused,
             menu::menu_action,
             menu::set_autostart,
+            updater::update_status,
+            updater::check_for_update,
+            updater::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Photo Trips");

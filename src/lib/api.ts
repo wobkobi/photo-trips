@@ -355,6 +355,27 @@ export interface SettingChange {
 /** Sent with the new on/off state whenever Start with Windows changes. */
 export const AUTOSTART_CHANGED = "autostart://changed";
 
+/** A newer version of Photo Trips on offer. */
+export interface UpdateAvailable {
+  version: string;
+  /** Its changelog section, in the release script's markdown. */
+  notes: string | null;
+}
+
+/** How far an update install has got. */
+export type UpdateProgress =
+  /** `total` is null when the server doesn't give a size. */
+  | { stage: "downloading"; done: number; total: number | null }
+  /** Downloaded; waiting for the running job of this kind to finish. */
+  | { stage: "waiting"; kind: string }
+  /** The installer is starting and the app is about to close. */
+  | { stage: "installing" };
+
+/** Sent with an {@link UpdateAvailable} whenever a check (the daily one too) finds a newer version. */
+export const UPDATE_AVAILABLE = "update://available";
+/** Sent with an {@link UpdateProgress} while an update installs. */
+export const UPDATE_PROGRESS = "update://progress";
+
 export const api = {
   getSettings: () => invoke<Settings>("get_settings"),
   setSetting: (key: string, value: string) => invoke<void>("set_setting", { key, value }),
@@ -362,6 +383,12 @@ export const api = {
   setAutostart: (enabled: boolean) => invoke<void>("set_autostart", { enabled }),
   /** Run a menu bar item by id, for its keyboard shortcut. */
   menuAction: (id: string) => invoke<void>("menu_action", { id }),
+  /** The update the last check found, without checking again. */
+  updateStatus: () => invoke<UpdateAvailable | null>("update_status"),
+  /** Ask the releases page for a newer version; null when this is the latest. */
+  checkForUpdate: () => invoke<UpdateAvailable | null>("check_for_update"),
+  /** Download and install the update, then reopen the app (progress on UPDATE_PROGRESS). */
+  installUpdate: () => invoke<void>("install_update"),
   indexLibrary: () => invoke<void>("index_library"),
   jobStatus: () => invoke<JobProgress | null>("job_status"),
   cancelJob: () => invoke<void>("cancel_job"),

@@ -33,7 +33,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "publisher": "Harrison",
+    "publisher": "To the Point Tech",
     "shortDescription": "Sort photos into year, month and trip folders",
     "resources": ["resources/exiftool/**/*"],
     "icon": [
@@ -46,6 +46,18 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE5NUE5MjBGM0QzRTZFRTQKUldUa2JqNDlENUphR1JtdFRBRzY2V2Y4QTlyZkpDWHNudkVXK3ZOVVMvMERiQU1HZTJsY0lOTzQK",
+      "endpoints": [
+        "https://github.com/wobkobi/photo-trips/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

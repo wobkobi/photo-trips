@@ -29,6 +29,7 @@ const PAUSE: &str = "menu-pause";
 const CLOSE_TO_TRAY: &str = "menu-close-to-tray";
 const AUTOSTART: &str = "menu-autostart";
 const OPEN_LOGS: &str = "menu-open-logs";
+const UPDATES: &str = "menu-updates";
 const ABOUT: &str = "menu-about";
 /// View items are this prefix plus the page id the frontend uses.
 const PAGE_PREFIX: &str = "menu-page-";
@@ -44,7 +45,7 @@ const PAGES: &[(&str, &str, &str)] = &[
     ("history", "&History", "Ctrl+7"),
 ];
 
-/// Asks the page to do something only it can show: `"refresh"` or `"about"`.
+/// Asks the page to do something only it can show: `"refresh"`, `"about"` or `"updates"`.
 pub const ACTION_EVENT: &str = "menu://action";
 /// Sent with a [`SettingChanged`] when the menu changes a stored setting.
 pub const SETTING_EVENT: &str = "settings://changed";
@@ -141,6 +142,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         true,
         &[
             &item(OPEN_LOGS, "Open &log folder", None)?,
+            &item(UPDATES, "Check for &updates...", None)?,
             &PredefinedMenuItem::separator(app)?,
             &item(ABOUT, "&About Photo Trips", None)?,
         ],
@@ -222,6 +224,7 @@ fn run(app: &AppHandle, id: &str) -> bool {
             Err(err) => log::warn!("Can't find the log folder: {err}"),
         },
         ABOUT => ask_page(app, "about"),
+        UPDATES => tray::open_updates(app),
         _ => match id.strip_prefix(PAGE_PREFIX) {
             Some(page) if PAGES.iter().any(|(known, _, _)| *known == page) => navigate(app, page),
             _ => return false,
@@ -364,6 +367,7 @@ mod tests {
             CLOSE_TO_TRAY,
             AUTOSTART,
             OPEN_LOGS,
+            UPDATES,
             ABOUT,
         ];
         let known = |id: &str| {

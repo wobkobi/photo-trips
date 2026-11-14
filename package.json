@@ -1,7 +1,7 @@
 {
   "name": "photo-trips",
   "private": true,
-  "version": "0.10.1",
+  "version": "0.11.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,7 @@
     "predev": "node scripts/fetch-exiftool.mjs",
     "prebuild": "node scripts/fetch-exiftool.mjs",
     "fetch-exiftool": "node scripts/fetch-exiftool.mjs",
+    "release": "node scripts/release.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint . && npm run lint:rust",
     "lint:fix": "eslint . --fix && npm run lint:rust",
