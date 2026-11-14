@@ -61,7 +61,7 @@ describe("timelineRows", () => {
       "1-3",
       "3-4",
     ]);
-    expect(rows[2]).toMatchObject({ type: "month", count: 3 });
+    expect(rows[2]).toMatchObject({ type: "month", count: 3, start: 1, end: 4 });
   });
 
   it("returns nothing for an empty library", () => {
