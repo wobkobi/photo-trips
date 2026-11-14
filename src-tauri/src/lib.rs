@@ -75,7 +75,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .register_asynchronous_uri_scheme_protocol("thumb", thumbs::protocol)
         .setup(|app| {
-            log::info!("Photo Trips {} started", app.package_info().version);
+            log::info!("Pic Cabinet {} started", app.package_info().version);
             let data_dir = app.path().app_local_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
             let conn = db::open(&data_dir.join("library.db"))?;
@@ -174,5 +174,5 @@ pub fn run() {
             updater::install_update,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Photo Trips");
+        .expect("error while running Pic Cabinet");
 }

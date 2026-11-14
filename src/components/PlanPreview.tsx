@@ -115,7 +115,7 @@ export function MovingProgress({ job }: { job: JobProgress }) {
       </p>
       <Progress done={job.done} total={job.total} label={job.stage} />
       <p className="mt-4 text-[13px] text-muted">
-        You can close this window. Photo Trips keeps going in the tray.
+        You can close this window. Pic Cabinet keeps going in the tray.
       </p>
     </div>
   );

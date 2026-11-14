@@ -95,6 +95,6 @@ mod tests {
 
     #[test]
     fn missing_package_family_is_not_installed() {
-        assert!(!package_installed("PhotoTrips.NoSuchPackage_0000000000000"));
+        assert!(!package_installed("PicCabinet.NoSuchPackage_0000000000000"));
     }
 }

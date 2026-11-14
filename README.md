@@ -1,4 +1,4 @@
-# Photo Trips
+# Pic Cabinet
 
 A Windows app by [To the Point Tech](https://www.tothepoint.co.nz) that keeps a photo library
 tidy on its own. Point it at the folder your photos live in, and it files every photo and video
@@ -20,8 +20,8 @@ Pictures/
 
 ### Sorts the library by date
 
-Every photo and video goes into a `Year/Year-Month` folder for the month it was taken. Photo
-Trips works out the date from the best source a file has, in this order:
+Every photo and video goes into a `Year/Year-Month` folder for the month it was taken. Pic
+Cabinet works out the date from the best source a file has, in this order:
 
 1. the date the camera recorded inside the photo (EXIF) or video
 2. the date Windows has for it, for formats Windows can read
@@ -32,8 +32,8 @@ Trips works out the date from the best source a file has, in this order:
 
 Files that belong together move together: an iPhone Live Photo's video, the RAW twin of a JPEG,
 and sidecar files (`.aae`, `.xmp`, `.thm` and similar) all stay with their photo. When two files
-would end up with the same name, the newcomer gets a ` (1)` rather than replacing anything. Files of types Photo Trips
-doesn't recognise are never touched.
+would end up with the same name, the newcomer gets a ` (1)` rather than replacing anything.
+Files of types Pic Cabinet doesn't recognise are never touched.
 
 ### Keeps trips together
 
@@ -41,7 +41,7 @@ Add a trip with a name and dates, and everything taken during it goes into
 `Trips/<start date> <name>` instead of the month folders. Trips never overlap, so each photo has
 exactly one home.
 
-Photo Trips also suggests trips you haven't added. It looks for runs of busy days and for days
+Pic Cabinet also suggests trips you haven't added. It looks for runs of busy days and for days
 spent away from home (more than 50 km from where most of your photos are taken), names each run
 after the town, region or country most of its photos were taken near, and shows sample photos so
 you can tell at a glance. Accept a suggestion to make it a trip, or dismiss it. Place names come
@@ -55,11 +55,11 @@ from a list built into the app, so your locations never leave your PC.
   the card or phone changes, and phones are only ever read.
 - **Inbox folders** are watched in the background. Anything saved into one, such as a phone
   backup or a camera upload folder, is moved into the library once it has finished copying.
-- When a memory card or phone is plugged in, Photo Trips lets you know if it has new photos.
+- When a memory card or phone is plugged in, Pic Cabinet lets you know if it has new photos.
 
 ### Finds duplicates
 
-Photo Trips finds files with identical contents anywhere in the library, whatever they're named,
+Pic Cabinet finds files with identical contents anywhere in the library, whatever they're named,
 and sends the extra copies to the Recycle Bin, keeping one. Only files the same size as another
 are read in full, so checking a large library is quick.
 
@@ -67,7 +67,7 @@ are read in full, so checking a large library is quick.
 
 The Library page shows the whole collection as a timeline of thumbnails, with a full-size viewer
 for photos and videos. HEIC, RAW and AVIF thumbnails use the Windows image extensions; if one is
-missing, Photo Trips says which one and links to it in the Microsoft Store.
+missing, Pic Cabinet says which one and links to it in the Microsoft Store.
 
 ## Safe by design
 
@@ -76,37 +76,37 @@ missing, Photo Trips says which one and links to it in the Microsoft Store.
 - **Undo anything.** Every batch of changes, including those from inbox folders, is listed in
   History and can be put back with one click.
 - **Nothing is deleted.** Duplicates go to the Recycle Bin, where they stay until you empty it.
-- **Interruptions are safe.** Every move is written down before it happens. If Photo Trips or the
+- **Interruptions are safe.** Every move is written down before it happens. If Pic Cabinet or the
   PC stops partway through a batch, the next start checks where each file actually ended up, so
   nothing is lost and History stays accurate.
 
 ## Installing and updating
 
-Photo Trips runs on Windows 10 and 11. Download the installer (`Photo-Trips_<version>_x64-setup.exe`)
-from the [latest release](https://github.com/wobkobi/photo-trips/releases/latest) and run it; it
+Pic Cabinet runs on Windows 10 and 11. Download the installer (`Pic-Cabinet_<version>_x64-setup.exe`)
+from the [latest release](https://github.com/wobkobi/pic-cabinet/releases/latest) and run it; it
 installs for your Windows account only and doesn't need administrator rights. On first start it
 asks which folder your photo library is in.
 
-Photo Trips checks for updates once a day and lets you know when one is ready. Settings > About
+Pic Cabinet checks for updates once a day and lets you know when one is ready. Settings > About
 shows what's new and installs it with **Install and restart**. Updates are signed, and the app
 refuses any that aren't.
 
 ## Privacy
 
-Your photos, and everything Photo Trips works out about them, stay on your PC. The app has no
+Your photos, and everything Pic Cabinet works out about them, stay on your PC. The app has no
 accounts, analytics or tracking; the only thing it does online is check GitHub for updates. The
 [privacy policy](PRIVACY.md) has the details. To report a security problem, see the
 [security policy](SECURITY.md).
 
 ## Licence
 
-Photo Trips is proprietary software, copyright To the Point Tech, and free to use under the terms
+Pic Cabinet is proprietary software, copyright To the Point Tech, and free to use under the terms
 in [LICENSE](LICENSE). It includes third-party software and data under their own licences,
 listed in [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
 
 ## Development
 
-Photo Trips is a [Tauri](https://tauri.app) app: a Rust engine (`src-tauri/`) with a React and
+Pic Cabinet is a [Tauri](https://tauri.app) app: a Rust engine (`src-tauri/`) with a React and
 TypeScript interface (`src/`). Building it needs Node 24+, Rust (MSVC toolchain) and the Visual
 Studio C++ build tools.
 
@@ -123,8 +123,8 @@ Test fixtures are regenerated with `scripts/make-fixtures.sh` (needs ffmpeg).
 ### Releases
 
 Installed copies check this repo's
-[releases](https://github.com/wobkobi/photo-trips/releases) once a day. To publish the version in
-`package.json`:
+[releases](https://github.com/wobkobi/pic-cabinet/releases) once a day and offer new versions
+in Settings > About. To publish the version in `package.json`:
 
 ```
 npm run release              # build, sign and publish (needs a clean, pushed tree and gh signed in)

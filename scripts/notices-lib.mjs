@@ -128,7 +128,7 @@ const THIN = "-".repeat(100);
 /**
  * Render THIRD_PARTY_NOTICES.txt.
  * @param {object} input - what goes in the file
- * @param {string} input.product - app name, e.g. "Photo Trips"
+ * @param {string} input.product - app name, e.g. "Pic Cabinet"
  * @param {string} input.extras - hand-written section for bundled tools and data
  * @param {Shipped[]} input.npm - JavaScript packages in the app's interface
  * @param {Shipped[]} input.crates - Rust packages compiled into the app

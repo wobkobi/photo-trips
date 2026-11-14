@@ -89,12 +89,12 @@ describe("groupByText", () => {
 describe("renderNotices", () => {
   it("lists packages, then each licence text with who uses it", () => {
     const text = renderNotices({
-      product: "Photo Trips",
+      product: "Pic Cabinet",
       extras: "ExifTool",
       npm: [{ name: "react", version: "19.0.0", licence: "MIT", texts: ["MIT text"] }],
       crates: [{ name: "serde", version: "1.0.0", licence: "MIT OR Apache-2.0", texts: [] }],
     });
-    expect(text).toMatch(/^Photo Trips - third-party notices\n/);
+    expect(text).toMatch(/^Pic Cabinet - third-party notices\n/);
     expect(text).toContain("ExifTool");
     expect(text).toMatch(/ {2}react 19\.0\.0 +MIT\n/);
     expect(text).toContain("Used by:\n  react 19.0.0\n");

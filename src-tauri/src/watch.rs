@@ -439,7 +439,7 @@ fn tick(app: &AppHandle) -> Result<()> {
         }
         std::mem::take(&mut inner.catch_up).then(|| (inner.folders.clone(), inner.root.clone(), inner.table.clone()))
     };
-    // Everything already in the folders, e.g. saved while Photo Trips was closed. The walk
+    // Everything already in the folders, e.g. saved while Pic Cabinet was closed. The walk
     // happens outside the lock so events keep flowing.
     if let Some((folders, root, table)) = catch_up {
         let never = AtomicBool::new(false);

@@ -11,7 +11,7 @@ import { dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { LICENCE_FILE, renderNotices, shippedCrates } from "./notices-lib.mjs";
 
-const PRODUCT = "Photo Trips";
+const PRODUCT = "Pic Cabinet";
 const root = resolve(import.meta.dirname, "..");
 const out = join(root, "THIRD_PARTY_NOTICES.txt");
 const check = process.argv.includes("--check");

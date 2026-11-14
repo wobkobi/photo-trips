@@ -1,5 +1,5 @@
 [package]
-name = "photo-trips"
+name = "pic-cabinet"
 version = "0.0.0" # The app version lives in package.json (tauri.conf.json reads it from there)
 description = "Sort photos into year, month and trip folders"
 authors = ["Harrison"]
@@ -14,7 +14,7 @@ publish = false
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "photo_trips_lib"
+name = "pic_cabinet_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

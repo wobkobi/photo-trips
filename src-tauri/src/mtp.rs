@@ -197,7 +197,7 @@ pub fn open(provider: &Provider, id: &str, name: &str) -> Result<Phone> {
 /// Open a device read-only. WPD asks every app to say who it is when it opens a device.
 fn open_device(id: &str) -> windows::core::Result<IPortableDevice> {
     let version = |part: &str| part.parse().unwrap_or(0);
-    let app = HSTRING::from("Photo Trips");
+    let app = HSTRING::from("Pic Cabinet");
     let id = HSTRING::from(id);
     unsafe {
         let client: IPortableDeviceValues = CoCreateInstance(&PortableDeviceValues, None, CLSCTX_ALL)?;

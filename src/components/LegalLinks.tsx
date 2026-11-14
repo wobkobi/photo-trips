@@ -1,7 +1,7 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 /** The public repo, whose main branch holds the current version of each document. */
-const DOCS = "https://github.com/wobkobi/photo-trips/blob/main";
+const DOCS = "https://github.com/wobkobi/pic-cabinet/blob/main";
 
 const LINKS = [
   { label: "Licence", href: `${DOCS}/LICENSE` },

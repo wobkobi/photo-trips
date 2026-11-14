@@ -150,8 +150,8 @@ fn notify_once(app: &AppHandle, found: &Available) {
     let shown = app
         .notification()
         .builder()
-        .title(format!("Photo Trips {} is ready to install", found.version))
-        .body("Choose Install update in the Photo Trips tray menu to see what's new.")
+        .title(format!("Pic Cabinet {} is ready to install", found.version))
+        .body("Choose Install update in the Pic Cabinet tray menu to see what's new.")
         .show();
     match shown {
         Ok(()) => {
@@ -236,7 +236,7 @@ async fn install(app: &AppHandle, update: &Update) -> Result<()> {
     }
 
     let _ = app.emit(PROGRESS_EVENT, InstallProgress::Installing);
-    log::info!("Installing Photo Trips {}", update.version);
+    log::info!("Installing Pic Cabinet {}", update.version);
     // On Windows this starts the installer and exits the app; it only returns on failure.
     let installed = update.install(&bytes).map_err(|err| Error::msg(err.to_string()));
     jobs.reopen();
@@ -281,7 +281,7 @@ mod tests {
             updater["endpoints"][0]
                 .as_str()
                 .unwrap()
-                .starts_with("https://github.com/wobkobi/photo-trips/releases/")
+                .starts_with("https://github.com/wobkobi/pic-cabinet/releases/")
         );
         assert!(!updater["pubkey"].as_str().unwrap().is_empty());
     }

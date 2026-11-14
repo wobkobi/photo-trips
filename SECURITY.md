@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest release of Photo Trips gets security fixes. Installed copies check for updates
+Only the latest release of Pic Cabinet gets security fixes. Installed copies check for updates
 daily and offer new versions in Settings > About, so the fix for a problem is to update.
 
 ## Reporting a vulnerability

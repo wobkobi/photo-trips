@@ -28,7 +28,7 @@ struct ImportItem {
 
 /// Create the tray icon. Left click opens the window; right click shows the menu.
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "Open Photo Trips", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", "Open Pic Cabinet", true, None::<&str>)?;
     let import = MenuItem::with_id(app, IMPORT_ID, "Import photos...", true, None::<&str>)?;
     // Disabled until there are inbox folders to watch.
     let pause = MenuItem::with_id(app, PAUSE_ID, "Pause watching", false, None::<&str>)?;
@@ -44,7 +44,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     });
 
     let mut builder = TrayIconBuilder::with_id("main")
-        .tooltip("Photo Trips")
+        .tooltip("Pic Cabinet")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
@@ -144,9 +144,9 @@ pub fn set_watch_state(app: &AppHandle, paused: Option<bool>) {
     }
     if let Some(tray) = app.tray_by_id("main") {
         let tip = if paused == Some(true) {
-            "Photo Trips (watching paused)"
+            "Pic Cabinet (watching paused)"
         } else {
-            "Photo Trips"
+            "Pic Cabinet"
         };
         let _ = tray.set_tooltip(Some(tip));
     }

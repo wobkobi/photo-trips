@@ -28,7 +28,7 @@ export function SetupPage() {
           Where do your photos live?
         </h1>
         <p className="mt-5 text-[15px] leading-relaxed text-muted">
-          Pick the folder you want Photo Trips to keep tidy. Photos inside it get sorted into year
+          Pick the folder you want Pic Cabinet to keep tidy. Photos inside it get sorted into year
           and month folders, and trips get folders of their own. Nothing moves until you review the
           plan and say so.
         </p>
