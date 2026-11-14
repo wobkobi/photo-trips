@@ -128,7 +128,14 @@ Test fixtures are regenerated with `scripts/make-fixtures.sh` (needs ffmpeg).
 
 Installed copies check this repo's
 [releases](https://github.com/wobkobi/pic-cabinet/releases) once a day and offer new versions
-in Settings > About. To publish the version in `package.json`:
+in Settings > About.
+
+Releasing is automatic: when a merge into main brings a version in `package.json` that isn't
+released yet, the Release workflow builds, signs and publishes it. Merges that leave the version
+alone (CI or docs only) don't release anything. The workflow signs with the
+`PHOTO_TRIPS_UPDATER_KEY` repository secret, which holds the whole private key.
+
+To publish by hand instead (the workflow then skips that version):
 
 ```
 npm run release              # build, sign and publish (needs a clean, pushed tree and gh signed in)
