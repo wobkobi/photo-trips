@@ -8,7 +8,7 @@ import { Button, EmptyState, PageHeader } from "../components/ui";
 import { api, errorText, type IndexSummary, type Tile } from "../lib/api";
 import { tileSizeOf } from "../lib/display";
 import { count as countOf } from "../lib/format";
-import { rangeOfTiles, type TripRange } from "../lib/trips";
+import { EMPTY_FORM, rangeOfTiles, type TripStart } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { useSettings } from "../lib/useSettings";
 
@@ -16,7 +16,8 @@ import { useSettings } from "../lib/useSettings";
  * The whole library as a month-by-month timeline, with a viewer for single photos.
  * "Pick photos for a trip" turns clicks into picking, so the photos to make a trip from can be
  * chosen without knowing any shortcuts; Ctrl-click, Shift-click and right-click pick too.
- * @param props.onCreateTrip - start a new trip covering the given days
+ * @param props.onCreateTrip - start a new trip over the picked photos' days, with only those
+ *   photos ticked
  * @param props.onImport - open the Import page
  * @param props.refreshRequested - File > Look for new photos (F5) was picked; refresh on opening
  * @param props.onRefreshStarted - called once that refresh has been asked for
@@ -28,7 +29,7 @@ export function LibraryPage({
   refreshRequested,
   onRefreshStarted,
 }: {
-  onCreateTrip: (range: TripRange) => void;
+  onCreateTrip: (start: TripStart) => void;
   onImport: () => void;
   refreshRequested: boolean;
   onRefreshStarted: () => void;
@@ -138,7 +139,10 @@ export function LibraryPage({
     const chosen = tiles.filter((t) => selected.has(t.id));
     if (chosen.length === 0) return;
     clearSelection();
-    onCreateTrip(rangeOfTiles(chosen));
+    onCreateTrip({
+      form: { ...EMPTY_FORM, ...rangeOfTiles(chosen) },
+      picked: chosen.map((t) => t.id),
+    });
   }
 
 

@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { Tile } from "../lib/api";
+import { count } from "../lib/format";
 import { setPicked } from "../lib/picker";
 import { TimelineGrid, type MonthRow, type TileEvent } from "./TimelineGrid";
 import { Button } from "./ui";
@@ -73,5 +74,51 @@ export function PhotoPicker({
       thumbOf={thumbOf}
       monthAction={monthAction}
     />
+  );
+}
+
+/**
+ * The bar above a {@link PhotoPicker}: how many photos are ticked, what happens to the rest,
+ * and buttons to tick or untick everything.
+ * @param props.ticked - photos still ticked
+ * @param props.total - photos in the picker
+ * @param props.extra - shown after the count, e.g. the ticked size
+ * @param props.hint - what happens to unticked photos
+ * @param props.onAll - tick (true) or untick (false) every photo
+ * @returns the bar
+ */
+export function PickBar({
+  ticked,
+  total,
+  extra,
+  hint,
+  onAll,
+}: {
+  ticked: number;
+  total: number;
+  extra?: ReactNode;
+  hint: ReactNode;
+  onAll: (pick: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line px-8 py-3">
+      <div>
+        <p className="text-[18px]">
+          <strong>
+            {ticked.toLocaleString()} of {count(total, "photo", "photos")} ticked
+          </strong>
+          {extra && <> {extra}</>}
+        </p>
+        <p className="text-muted">{hint}</p>
+      </div>
+      <div className="ml-auto flex gap-2">
+        <Button onClick={() => onAll(true)} disabled={ticked === total}>
+          Tick all
+        </Button>
+        <Button onClick={() => onAll(false)} disabled={ticked === 0}>
+          Untick all
+        </Button>
+      </div>
+    </div>
   );
 }

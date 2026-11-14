@@ -6,7 +6,7 @@ import { hasValidRange, toDraft, type TripForm } from "./trips";
 const MATCH_DELAY_MS = 250;
 
 /**
- * Live count of the photos a form's dates take in, refreshed shortly after the dates change.
+ * The photos a form's dates take in, refreshed shortly after the dates change.
  * @param form - the trip form
  * @param editing - id of the trip being edited, so its own dates don't count as an overlap
  * @returns the matches, or null while counting or when the dates are incomplete
@@ -26,7 +26,7 @@ export function useTripMatches(form: TripForm, editing: number | null): TripMatc
           if (live) setMatches({ key, value });
         },
         (err) => {
-          if (live) setMatches({ key, value: { files: 0, sample: [], problem: errorText(err) } });
+          if (live) setMatches({ key, value: { tiles: [], problem: errorText(err) } });
         },
       );
     }, MATCH_DELAY_MS);

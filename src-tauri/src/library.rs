@@ -13,7 +13,7 @@ use crate::error::{Error, Result};
 use crate::formats::{self, Kind};
 use crate::groups::{self, Group};
 use crate::index;
-use crate::trips::{self, Trip, trip_for};
+use crate::trips::{self, Trip, trip_of};
 
 /// One grid tile: a group shown by its leader.
 #[derive(Debug, Serialize)]
@@ -88,7 +88,8 @@ pub fn library_tiles(state: State<'_, AppState>) -> Result<Vec<Tile>> {
     Ok(groups.iter().rev().map(|g| tile(g, &trips)).collect())
 }
 
-fn tile(group: &Group, trips: &[Trip]) -> Tile {
+/// A group as a grid tile, with the band of the trip it belongs in.
+pub fn tile(group: &Group, trips: &[Trip]) -> Tile {
     let leader = group.leader();
     Tile {
         id: leader.id,
@@ -98,7 +99,7 @@ fn tile(group: &Group, trips: &[Trip]) -> Tile {
         uncertain: group.date_source == DateSource::Modified,
         extra: group.members.len() - 1,
         version: leader.mtime,
-        trip: trip_for(trips, &group.taken_at).map(|t| TileTrip {
+        trip: trip_of(trips, group).map(|t| TileTrip {
             id: t.id,
             name: t.name.clone(),
             colour: trips::colour(t.id),

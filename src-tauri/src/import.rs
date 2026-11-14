@@ -254,9 +254,20 @@ pub fn plan(ctx: &Ctx, mut found: Vec<Found>, exists: &dyn Fn(&Path) -> bool) ->
     let (groups, orphans) = groups::build(rows);
     out.left_alone += orphans.len();
 
+    // Incoming rows use their index in `found` as an id, which could match a library photo
+    // taken out of a trip, so imports go by the trips' dates alone. New photos can't have
+    // been left out of a trip yet.
+    let trips: Vec<Trip> = ctx
+        .trips
+        .iter()
+        .map(|t| Trip {
+            excluded: Default::default(),
+            ..t.clone()
+        })
+        .collect();
     let rules = Rules {
         root: ctx.root,
-        trips: ctx.trips,
+        trips: &trips,
     };
     let mut claimed = HashSet::new();
     let now = db::now();
@@ -856,6 +867,7 @@ mod tests {
             end_at: dates::parse("2025-05-03T23:59:59").unwrap(),
             folder: "2025-05-01 Japan".into(),
             created_at: 0,
+            excluded: Default::default(),
         }
     }
 

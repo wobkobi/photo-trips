@@ -105,6 +105,16 @@ const MIGRATIONS: &[&str] = &[
         PRIMARY KEY (device, path)
     );
 "#,
+    r#"
+    -- Photos taken during a trip that the user took out of it; they stay in their year and
+    -- month folders. Every file of a photo's group is listed. Kept with the trip, not the
+    -- dates, so they stay out when the trip's dates change.
+    CREATE TABLE trip_exclusions (
+        trip_id  INTEGER NOT NULL,
+        media_id INTEGER NOT NULL,
+        PRIMARY KEY (trip_id, media_id)
+    );
+"#,
 ];
 
 /// Open (or create) the database and bring it up to the latest schema.

@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.15.0] - 2026-11-15
+
+### Added
+
+- Leave photos out of a trip. The trip form shows every photo from its dates with a tick; unticked
+  photos stay in their month folders, stay out when the dates change, and can be ticked again by
+  editing the trip. Photos picked in the Library start as the only ones ticked, and a suggestion's
+  Change or pick photos button opens the same form.
+
 ## [0.14.0] - 2026-11-15
 
 ### Added

@@ -42,6 +42,7 @@ describe("trip form", () => {
       colour: 1,
       files: 0,
       sample: [],
+      excluded: [],
     };
     const loaded = formFromTrip(trip);
     expect(loaded).toMatchObject({ startTime: "", endTime: "09:15" });
