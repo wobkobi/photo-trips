@@ -1,25 +1,55 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
+import { isEnabled } from "@tauri-apps/plugin-autostart";
+import { BrandMark } from "../components/BrandMark";
 import { InboxSettings } from "../components/InboxSettings";
 import { Row, SavedText, Section, Toggle } from "../components/SettingParts";
 import { SuggestionSettings } from "../components/SuggestionSettings";
 import { Button, PageHeader } from "../components/ui";
+import { api, AUTOSTART_CHANGED } from "../lib/api";
 import { normaliseExtensions } from "../lib/settingValues";
 import { useAction } from "../lib/useAction";
 import { useSettings } from "../lib/useSettings";
 
-/** App settings: library, inbox folders, suggestions, file types and window behaviour. */
-export function SettingsPage() {
+/**
+ * App settings (library, inbox folders, suggestions, file types and window behaviour), then
+ * the app's version and maker.
+ * @param props.showAbout - Help > About was picked; scroll to the About section on opening
+ * @param props.onAboutShown - called once About has been scrolled into view
+ * @returns the page
+ */
+export function SettingsPage({
+  showAbout,
+  onAboutShown,
+}: {
+  showAbout: boolean;
+  onAboutShown: () => void;
+}) {
   const { settings, save } = useSettings();
   const library = useAction();
   const types = useAction();
   const windowing = useAction();
   const [autostart, setAutostart] = useState<boolean | null>(null);
+  const [version, setVersion] = useState<string | null>(null);
+  const about = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     isEnabled().then(setAutostart, () => setAutostart(false));
+    getVersion().then(setVersion, () => setVersion(null));
+    // The menu bar's Start with Windows tick changes it too.
+    const unlisten = listen<boolean>(AUTOSTART_CHANGED, ({ payload }) => setAutostart(payload));
+    return () => {
+      unlisten.then((off) => off());
+    };
   }, []);
+
+  useEffect(() => {
+    if (!showAbout) return;
+    about.current?.scrollIntoView({ block: "start" });
+    onAboutShown();
+  }, [showAbout, onAboutShown]);
 
   async function changeLibrary() {
     const picked = await open({ directory: true, title: "Choose your photo library folder" });
@@ -89,15 +119,23 @@ export function SettingsPage() {
               checked={autostart ?? false}
               disabled={autostart === null}
               label="Start with Windows"
-              onChange={(on) =>
-                windowing.run(async () => {
-                  await (on ? enable() : disable());
-                  setAutostart(on);
-                })
-              }
+              onChange={(on) => windowing.run(() => api.setAutostart(on))}
             />
           </Row>
         </Section>
+
+        <div ref={about} className="mt-12">
+          <Section title="About">
+            <div className="flex items-center gap-4">
+              <BrandMark size={48} className="shrink-0 text-brand" />
+              <div>
+                <p className="text-[17px] leading-tight font-extrabold">Photo Trips</p>
+                {version && <p className="mt-1 text-[13px] text-muted">Version {version}</p>}
+                <p className="mt-0.5 text-[13px] text-muted">Made by To the Point Tech</p>
+              </div>
+            </div>
+          </Section>
+        </div>
       </div>
     </>
   );

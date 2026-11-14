@@ -16,14 +16,20 @@ import { useSettings } from "../lib/useSettings";
  * Ctrl-click, Shift-click or right-click selects photos to make a trip from.
  * @param props.onCreateTrip - start a new trip covering the given days
  * @param props.onImport - open the Import page
+ * @param props.refreshRequested - File > Refresh library (F5) was picked; refresh on opening
+ * @param props.onRefreshStarted - called once that refresh has been asked for
  * @returns the page
  */
 export function LibraryPage({
   onCreateTrip,
   onImport,
+  refreshRequested,
+  onRefreshStarted,
 }: {
   onCreateTrip: (range: TripRange) => void;
   onImport: () => void;
+  refreshRequested: boolean;
+  onRefreshStarted: () => void;
 }) {
   const { settings, save } = useSettings();
   const { running } = useJobs();
@@ -63,6 +69,16 @@ export function LibraryPage({
     setAnchor(null);
     setMenu(null);
   }, []);
+
+  function refresh() {
+    api.indexLibrary().catch((err) => setError(errorText(err)));
+  }
+
+  useEffect(() => {
+    if (!refreshRequested) return;
+    onRefreshStarted();
+    api.indexLibrary().catch((err) => setError(errorText(err)));
+  }, [refreshRequested, onRefreshStarted]);
 
   useEffect(() => {
     if (selected.size === 0) return;
@@ -117,13 +133,6 @@ export function LibraryPage({
     onCreateTrip(rangeOfTiles(chosen));
   }
 
-  async function refresh() {
-    try {
-      await api.indexLibrary();
-    } catch (err) {
-      setError(errorText(err));
-    }
-  }
 
   const indexing = running?.kind === "index";
   const count = tiles?.length ?? 0;

@@ -4,6 +4,7 @@ import { BrandMark } from "./components/BrandMark";
 import { Icon, type IconName } from "./components/Icon";
 import { JobStatus } from "./components/JobStatus";
 import { JobsProvider } from "./lib/jobs";
+import { useMenuBar, type MenuRequest } from "./lib/menu";
 import { SettingsProvider } from "./lib/settings";
 import { useSettings } from "./lib/useSettings";
 import { DuplicatesPage } from "./pages/DuplicatesPage";
@@ -52,8 +53,23 @@ function Shell() {
     setTripDraft(range);
     setPage("trips");
   }, []);
+  // Menu bar requests waiting for their page to open: File > Refresh library and Help > About.
+  const [refresh, setRefresh] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+  const refreshStarted = useCallback(() => setRefresh(false), []);
+  const aboutShown = useCallback(() => setShowAbout(false), []);
 
-  // The tray menu can ask for a page (e.g. "Import photos...").
+  useMenuBar((request: MenuRequest) => {
+    if (request === "refresh") {
+      setRefresh(true);
+      setPage("library");
+    } else {
+      setShowAbout(true);
+      setPage("settings");
+    }
+  });
+
+  // The tray menu and the menu bar can ask for a page (e.g. "Import photos...").
   useEffect(() => {
     const unlisten = listen<PageId>("navigate", (event) => setPage(event.payload));
     return () => {
@@ -114,6 +130,10 @@ function Shell() {
           tripDraft={tripDraft}
           onTripDraftUsed={clearTripDraft}
           onCreateTrip={createTrip}
+          refresh={refresh}
+          onRefreshStarted={refreshStarted}
+          showAbout={showAbout}
+          onAboutShown={aboutShown}
         />
       </main>
     </div>
@@ -126,16 +146,31 @@ function CurrentPage({
   tripDraft,
   onTripDraftUsed,
   onCreateTrip,
+  refresh,
+  onRefreshStarted,
+  showAbout,
+  onAboutShown,
 }: {
   page: PageId;
   onNavigate: (page: PageId) => void;
   tripDraft: TripRange | null;
   onTripDraftUsed: () => void;
   onCreateTrip: (range: TripRange) => void;
+  refresh: boolean;
+  onRefreshStarted: () => void;
+  showAbout: boolean;
+  onAboutShown: () => void;
 }) {
   switch (page) {
     case "library":
-      return <LibraryPage onCreateTrip={onCreateTrip} onImport={() => onNavigate("import")} />;
+      return (
+        <LibraryPage
+          onCreateTrip={onCreateTrip}
+          onImport={() => onNavigate("import")}
+          refreshRequested={refresh}
+          onRefreshStarted={onRefreshStarted}
+        />
+      );
     case "sort":
       return <SortPage onNavigate={onNavigate} />;
     case "trips":
@@ -149,6 +184,6 @@ function CurrentPage({
     case "history":
       return <HistoryPage />;
     case "settings":
-      return <SettingsPage />;
+      return <SettingsPage showAbout={showAbout} onAboutShown={onAboutShown} />;
   }
 }

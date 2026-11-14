@@ -13,6 +13,7 @@ use crate::exiftool;
 use crate::formats::FormatTable;
 use crate::index;
 use crate::jobs::{self, Jobs, Progress};
+use crate::menu;
 use crate::suggest;
 use crate::watch;
 
@@ -95,6 +96,7 @@ pub fn set_setting(
             start_index(&app)?;
         }
         "inbox_folders" => watch::reload(&app),
+        "close_to_tray" => menu::show_close_to_tray(&app, value != "false"),
         "extra_photo_exts" | "extra_video_exts" => {
             watch::reload(&app);
             // Files of the new types show up once the library is read again. With another task
