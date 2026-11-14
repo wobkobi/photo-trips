@@ -5,10 +5,11 @@ import {
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { thumbUrl, type Tile } from "../lib/api";
-import { timelineRows } from "../lib/format";
+import { timelineRows, type TimelineRow } from "../lib/format";
 import { tripBg } from "../lib/trips";
 import { Icon } from "./Icon";
 
@@ -19,6 +20,18 @@ const HEADER_HEIGHT = 64;
 /** Click or right-click on a tile, with the modifier keys that decide what it does. */
 export type TileEvent = ReactMouseEvent<HTMLButtonElement>;
 
+/** A month heading, with the tiles it covers (`start` to `end` index into the tiles). */
+export type MonthRow = Extract<TimelineRow, { type: "month" }>;
+
+/**
+ * A library tile's thumbnail.
+ * @param tile - the tile
+ * @returns the thumbnail URL
+ */
+function libraryThumb(tile: Tile): string {
+  return thumbUrl(tile.id, tile.version);
+}
+
 /**
  * Month-grouped photo grid that only renders the rows on screen.
  * @param props.tiles - tiles, newest first
@@ -28,6 +41,9 @@ export type TileEvent = ReactMouseEvent<HTMLButtonElement>;
  * @param props.onTileClick - called with a tile's index and the click
  * @param props.onTileMenu - called with a tile's index and the right-click
  * @param props.onThumbError - called when Windows has no thumbnail for a tile
+ * @param props.thumbOf - a tile's thumbnail URL (default: the library thumbnail for its id)
+ * @param props.monthAction - something to show at the right of a month heading
+ * @param props.fadeUnselected - fade tiles that aren't selected, for when most are
  * @returns the scrolling grid
  */
 export function TimelineGrid({
@@ -38,6 +54,9 @@ export function TimelineGrid({
   onTileClick,
   onTileMenu,
   onThumbError,
+  thumbOf = libraryThumb,
+  monthAction,
+  fadeUnselected = false,
 }: {
   tiles: Tile[];
   tileSize: number;
@@ -46,6 +65,9 @@ export function TimelineGrid({
   onTileClick: (index: number, event: TileEvent) => void;
   onTileMenu: (index: number, event: TileEvent) => void;
   onThumbError: (tile: Tile) => void;
+  thumbOf?: (tile: Tile) => string;
+  monthAction?: (month: MonthRow) => ReactNode;
+  fadeUnselected?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -95,14 +117,17 @@ export function TimelineGrid({
                 }}
               >
                 {row.type === "month" ? (
-                  <h2 className="flex h-full items-end gap-3 pb-3">
-                    <span className="text-[26px] leading-none font-extrabold tracking-tight text-brand">
-                      {row.label}
-                    </span>
-                    <span className="pb-0.5 text-[15px] text-faint">
-                      {row.count.toLocaleString()}
-                    </span>
-                  </h2>
+                  <div className="flex h-full items-end gap-4 pb-3">
+                    <h2 className="flex items-end gap-3">
+                      <span className="text-[26px] leading-none font-extrabold tracking-tight text-brand">
+                        {row.label}
+                      </span>
+                      <span className="pb-0.5 text-[15px] text-faint">
+                        {row.count.toLocaleString()}
+                      </span>
+                    </h2>
+                    {monthAction?.(row)}
+                  </div>
                 ) : (
                   <div className="flex" style={{ gap: GAP }}>
                     {tiles.slice(row.start, row.end).map((tile, offset) => (
@@ -111,7 +136,9 @@ export function TimelineGrid({
                         tile={tile}
                         size={tileSize}
                         selecting={selecting}
+                        thumb={thumbOf(tile)}
                         selected={selected.has(tile.id)}
+                        faded={fadeUnselected && !selected.has(tile.id)}
                         onClick={(event) => onTileClick(row.start + offset, event)}
                         onMenu={(event) => onTileMenu(row.start + offset, event)}
                         onThumbError={onThumbError}
@@ -130,18 +157,22 @@ export function TimelineGrid({
 
 function TileButton({
   tile,
+  thumb,
   size,
   selecting,
   selected,
+  faded,
   onClick,
   onMenu,
   onThumbError,
 }: {
   tile: Tile;
+  thumb: string;
   size: number;
   /** Picking photos, so a plain click picks instead of opening. */
   selecting: boolean;
   selected: boolean;
+  faded: boolean;
   onClick: (event: TileEvent) => void;
   onMenu: (event: TileEvent) => void;
   onThumbError: (tile: Tile) => void;
@@ -167,7 +198,7 @@ function TileButton({
         </span>
       ) : (
         <img
-          src={thumbUrl(tile.id, tile.version)}
+          src={thumb}
           alt=""
           decoding="async"
           draggable={false}
@@ -175,7 +206,9 @@ function TileButton({
             setFailed(true);
             onThumbError(tile);
           }}
-          className="h-full w-full object-cover transition-opacity group-hover:opacity-90"
+          className={`h-full w-full object-cover transition-opacity ${
+            faded ? "opacity-35 grayscale group-hover:opacity-60" : "group-hover:opacity-90"
+          }`}
         />
       )}
       {tile.uncertain && (

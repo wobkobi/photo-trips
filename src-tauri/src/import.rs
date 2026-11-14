@@ -19,12 +19,12 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::AppState;
 use crate::commands::{format_table, library_root, lock_db};
-use crate::dates;
+use crate::dates::{self, DateSource};
 use crate::db;
 use crate::error::{Error, Result};
 use crate::executor::{self, Env, Incoming, IncomingGroup, NewBatch, Transfer};
 use crate::exiftool;
-use crate::formats::{FormatTable, Kind};
+use crate::formats::{self, FormatTable, Kind};
 use crate::groups::{self, MediaRow};
 use crate::index::{self, NewRow, Report};
 use crate::jobs;
@@ -34,8 +34,6 @@ use crate::planner::{self, Rules, is_inside};
 use crate::scan::{self, ScannedFile};
 use crate::trips::{self, Trip};
 
-/// Items listed in a preview. The counts above the list always cover every file.
-const ITEM_LIMIT: usize = 3000;
 
 /// Where to import from, as the Import page asks for it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,7 +75,8 @@ pub struct ImportPreview {
     pub items: Vec<ImportItem>,
 }
 
-/// One incoming group, shown by its leader.
+/// One incoming group, shown by its leader. Items are in the same order as the plan's groups,
+/// so an item's index is what [`apply_import`] is told to leave out.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportItem {
@@ -90,6 +89,15 @@ pub struct ImportItem {
     pub to: String,
     /// Companion files coming with it.
     pub extra: usize,
+    /// Size of the leader and its companions together.
+    pub bytes: u64,
+    /// When the group was taken, as `YYYY-MM-DDTHH:MM:SS` local time.
+    pub taken_at: String,
+    /// The date was only guessed from the file's modified time.
+    pub uncertain: bool,
+    pub kind: String,
+    /// The leader's extension, lower case, for a tile with no thumbnail.
+    pub ext: String,
     pub renamed: bool,
 }
 
@@ -97,7 +105,8 @@ pub struct ImportItem {
 pub struct PendingImport {
     /// Batch kind: `import` for copies, `import_move` for files moved in.
     kind: &'static str,
-    label: String,
+    /// What History calls the source: a folder's full path, or the card's or phone's name.
+    from: String,
     root: PathBuf,
     transfer: Transfer,
     groups: Vec<IncomingGroup>,
@@ -136,6 +145,9 @@ pub struct Found {
 #[derive(Debug, Default)]
 pub struct ImportPlan {
     pub groups: Vec<IncomingGroup>,
+    /// When each group (in the order of `groups`) was taken, and whether that was only guessed
+    /// from a modified time.
+    pub taken: Vec<(String, bool)>,
     pub already: usize,
     pub already_bytes: u64,
     pub left_alone: usize,
@@ -279,6 +291,7 @@ pub fn plan(ctx: &Ctx, mut found: Vec<Found>, exists: &dyn Fn(&Path) -> bool) ->
             files,
             renamed: placed.renamed,
         });
+        out.taken.push((dates::format(&group.taken_at), group.date_source == DateSource::Modified));
     }
     Ok(out)
 }
@@ -620,22 +633,15 @@ fn look_through(ctx: &Ctx, source: SourceSpec) -> Result<Looked> {
 impl Looked {
     fn into_pending(self, id: u64, root: &Path) -> PendingImport {
         let moving = self.transfer == Transfer::Move;
-        let files = self.plan.file_count();
-        let files = format!("{files} {}", if files == 1 { "file" } else { "files" });
         // History names a folder in full, since its name alone may not say which one it was.
         let from = match &self.spec {
             SourceSpec::Folder { path, .. } => path.display().to_string(),
             _ => self.name.clone(),
         };
-        let label = if moving {
-            format!("Moved {files} in from {from}")
-        } else {
-            format!("Copied {files} from {from}")
-        };
         let (preview, thumbs) = describe(id, &self, root);
         PendingImport {
             kind: if moving { "import_move" } else { "import" },
-            label,
+            from,
             root: root.to_path_buf(),
             transfer: self.transfer,
             groups: self.plan.groups,
@@ -658,26 +664,31 @@ fn describe(id: u64, looked: &Looked, root: &Path) -> (ImportPreview, Vec<(PathB
             *folders.entry(folder).or_default() += 1;
         }
     }
-    let mut thumbs = Vec::new();
-    let items = plan
-        .groups
-        .iter()
-        .take(ITEM_LIMIT)
-        .filter_map(|group| {
-            let leader = group.files.first()?;
-            let mtime = leader.row["mtime"].as_i64().unwrap_or(0);
-            let size = leader.row["size"].as_u64().unwrap_or(0);
-            thumbs.push((leader.from.clone(), size, mtime));
-            Some(ImportItem {
-                thumb: format!("i{id}-{}", thumbs.len() - 1),
-                version: mtime,
-                from: relative(&looked.source_root, &leader.origin),
-                to: relative(root, &leader.to),
-                extra: group.files.len() - 1,
-                renamed: group.renamed,
-            })
-        })
-        .collect();
+    // Every group is listed, one item each, so item indexes line up with the plan's groups.
+    let mut thumbs = Vec::with_capacity(plan.groups.len());
+    let mut items = Vec::with_capacity(plan.groups.len());
+    for (n, (group, (taken_at, uncertain))) in plan.groups.iter().zip(&plan.taken).enumerate() {
+        let Some(leader) = group.files.first() else {
+            thumbs.push(Default::default());
+            continue;
+        };
+        let mtime = leader.row["mtime"].as_i64().unwrap_or(0);
+        let size = leader.row["size"].as_u64().unwrap_or(0);
+        thumbs.push((leader.from.clone(), size, mtime));
+        items.push(ImportItem {
+            thumb: format!("i{id}-{n}"),
+            version: mtime,
+            from: relative(&looked.source_root, &leader.origin),
+            to: relative(root, &leader.to),
+            extra: group.files.len() - 1,
+            bytes: group.files.iter().map(|f| f.row["size"].as_u64().unwrap_or(0)).sum(),
+            taken_at: taken_at.clone(),
+            uncertain: *uncertain,
+            kind: leader.row["kind"].as_str().unwrap_or("photo").to_owned(),
+            ext: formats::ext_of(&leader.to),
+            renamed: group.renamed,
+        });
+    }
     let preview = ImportPreview {
         id,
         source: looked.name.clone(),
@@ -716,10 +727,44 @@ pub fn discard_import(previews: State<Previews<PendingImport>>, id: u64) {
     }
 }
 
-/// Run a previewed import in the background as one undoable batch.
+/// The History label for an import of `files` files.
+fn import_label(transfer: Transfer, files: usize, from: &str) -> String {
+    let files = format!("{files} {}", if files == 1 { "file" } else { "files" });
+    if transfer == Transfer::Move {
+        format!("Moved {files} in from {from}")
+    } else {
+        format!("Copied {files} from {from}")
+    }
+}
+
+/// The groups still wanted once the items at `skip` (indexes into the preview's items) are
+/// left out. Out-of-range indexes are ignored.
+fn chosen_groups(groups: &[IncomingGroup], skip: &[usize]) -> Vec<IncomingGroup> {
+    let skip: HashSet<usize> = skip.iter().copied().collect();
+    groups
+        .iter()
+        .enumerate()
+        .filter(|(n, _)| !skip.contains(n))
+        .map(|(_, group)| group.clone())
+        .collect()
+}
+
+/// Run a previewed import in the background as one undoable batch, leaving out the items the
+/// user unticked. Files left out stay where they are and show up again on the next check.
 #[tauri::command]
-pub fn apply_import(app: AppHandle, previews: State<Previews<PendingImport>>, id: u64) -> Result<()> {
+pub fn apply_import(
+    app: AppHandle,
+    previews: State<Previews<PendingImport>>,
+    id: u64,
+    skip: Vec<usize>,
+) -> Result<()> {
     let pending = previews.get(id)?;
+    let groups = chosen_groups(&pending.groups, &skip);
+    if groups.is_empty() {
+        return Err(Error::msg("Pick at least one photo to bring in"));
+    }
+    let files = groups.iter().map(|g| g.files.len()).sum();
+    let label = import_label(pending.transfer, files, &pending.from);
     let handle = app.clone();
     jobs::start(&app, "import", move |job| {
         let state = handle.state::<AppState>();
@@ -733,10 +778,10 @@ pub fn apply_import(app: AppHandle, previews: State<Previews<PendingImport>>, id
         };
         let batch = NewBatch {
             kind: pending.kind,
-            label: &pending.label,
+            label: &label,
             on_begin: None,
         };
-        let summary = executor::import(&env, &batch, &pending.groups, pending.transfer);
+        let summary = executor::import(&env, &batch, &groups, pending.transfer);
         if pending.staging.is_some() {
             clear_staging(&pending.root);
         }
@@ -919,6 +964,76 @@ mod tests {
         let (again, _) = plan_folder(&db, root, card.path(), &[japan()]);
         assert_eq!(again.file_count(), 0);
         assert_eq!((again.already, again.left_alone), (7, 1));
+    }
+
+    #[test]
+    fn the_preview_lists_every_group_with_its_date_and_size() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let card = card(root);
+        let (plan, other_files) = plan_folder(&db, root, card.path(), &[japan()]);
+        let groups = plan.groups.len();
+        let looked = Looked {
+            spec: SourceSpec::Folder {
+                path: card.path().to_path_buf(),
+                move_files: false,
+            },
+            name: "card".into(),
+            source_root: card.path().to_path_buf(),
+            transfer: Transfer::Copy,
+            staging: None,
+            plan,
+            other_files,
+        };
+        let (preview, thumbs) = describe(7, &looked, root);
+
+        assert_eq!((preview.items.len(), thumbs.len()), (groups, groups));
+        for (n, item) in preview.items.iter().enumerate() {
+            assert_eq!(item.thumb, format!("i7-{n}"));
+        }
+        let march = preview
+            .items
+            .iter()
+            .find(|i| i.to.ends_with("IMG_20250312_101500.jpg"))
+            .unwrap();
+        assert_eq!(march.extra, 1);
+        assert_eq!(march.bytes, ("march photo".len() + "march edits".len()) as u64);
+        assert_eq!(march.taken_at, "2025-03-12T10:15:00");
+        assert_eq!((march.uncertain, march.kind.as_str(), march.ext.as_str()), (false, "photo", "jpg"));
+    }
+
+    #[test]
+    fn items_left_out_stay_at_the_source_and_out_of_the_label() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let card = card(root);
+        let table = FormatTable::default();
+        let cancel = AtomicBool::new(false);
+        let (plan, _) = plan_folder(&db, root, card.path(), &[japan()]);
+        let march = plan
+            .groups
+            .iter()
+            .position(|g| g.files.iter().any(|f| f.to.ends_with("IMG_20250312_101500.jpg")))
+            .unwrap();
+
+        // An index past the end is ignored rather than failing the import.
+        let chosen = chosen_groups(&plan.groups, &[march, 99]);
+        assert_eq!(chosen.len(), plan.groups.len() - 1);
+        let files: usize = chosen.iter().map(|g| g.files.len()).sum();
+        assert_eq!(import_label(Transfer::Copy, files, "EOS_DIGITAL (E:)"), "Copied 3 files from EOS_DIGITAL (E:)");
+        assert_eq!(import_label(Transfer::Move, 1, "C:\\Old"), "Moved 1 file in from C:\\Old");
+
+        let summary = executor::import(&env(&db, root, &table, &cancel), &IMPORT_BATCH, &chosen, Transfer::Copy).unwrap();
+        assert_eq!((summary.moved, summary.failed), (3, 0));
+        assert!(!root.join("2025\\2025-03\\IMG_20250312_101500.jpg").exists());
+        assert!(!root.join("2025\\2025-03\\IMG_20250312_101500.aae").exists());
+
+        // The photo left out is still new on the next check, with its sidecar.
+        let (again, _) = plan_folder(&db, root, card.path(), &[japan()]);
+        assert_eq!(
+            destinations(&again, root),
+            ["2025\\2025-03\\IMG_20250312_101500.aae", "2025\\2025-03\\IMG_20250312_101500.jpg"]
+        );
     }
 
     #[test]

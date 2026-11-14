@@ -1,15 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
-import {
-  FolderList,
-  LeftAlone,
-  MoveList,
-  MovingProgress,
-  ResultBanner,
-} from "../components/PlanPreview";
+import { PhotoPicker } from "../components/PhotoPicker";
+import { FolderList, LeftAlone, MovingProgress, ResultBanner } from "../components/PlanPreview";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import {
   api,
@@ -20,9 +15,15 @@ import {
   type ImportDevice,
   type ImportPreview,
   type ImportSource,
+  type Tile,
 } from "../lib/api";
+import { tileSizeOf } from "../lib/display";
 import { count, formatBytes } from "../lib/format";
+import { importTiles, pickedFolders, pickTotals } from "../lib/picker";
 import { useJobDone, useJobs } from "../lib/useJobs";
+import { useSettings } from "../lib/useSettings";
+
+const NONE_LEFT: ReadonlySet<number> = new Set();
 
 /**
  * Bring photos in from a memory card, a phone or a folder. A check lists what's new first,
@@ -39,6 +40,12 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
   const [result, setResult] = useState<ApplySummary | null>(null);
   // Whether the import that ran last moved files in rather than copying them.
   const [movedIn, setMovedIn] = useState(false);
+  // Items unticked on the review screen, for the preview they were unticked on.
+  const [leftOut, setLeftOut] = useState<{ preview: number; items: ReadonlySet<number> } | null>(
+    null,
+  );
+  const left = preview !== null && leftOut?.preview === preview.id ? leftOut.items : NONE_LEFT;
+  const totals = useMemo(() => (preview ? pickTotals(preview.items, left) : null), [preview, left]);
 
   useEffect(() => {
     api.importSources().then(setDevices, (err) => setError(errorText(err)));
@@ -86,7 +93,7 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
 
   function bringIn(ready: ImportPreview) {
     setMovedIn(ready.moving);
-    run(() => api.applyImport(ready.id));
+    run(() => api.applyImport(ready.id, [...left]));
   }
 
   function otherSources() {
@@ -116,8 +123,12 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
                 <Icon name="refresh" size={16} />
                 Check again
               </Button>
-              <Button variant="primary" onClick={() => bringIn(preview)} disabled={busy}>
-                {preview.moving ? "Move" : "Copy"} {count(preview.files, "file", "files")} in
+              <Button
+                variant="primary"
+                onClick={() => bringIn(preview)}
+                disabled={busy || totals === null || totals.items === 0}
+              >
+                {preview.moving ? "Move" : "Copy"} {count(totals?.files ?? 0, "file", "files")} in
               </Button>
             </>
           )
@@ -148,7 +159,13 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
           onBack={otherSources}
         />
       )}
-      {ready && <IncomingView preview={preview} />}
+      {ready && (
+        <IncomingView
+          preview={preview}
+          left={left}
+          onLeftChange={(items) => setLeftOut({ preview: preview.id, items })}
+        />
+      )}
       {!working && preview === null && (
         <Sources
           devices={devices}
@@ -303,16 +320,30 @@ function Choice({
 }
 
 /**
- * What a check found: the headline, notes, destination folders and every incoming photo.
+ * What a check found: the headline, notes, and every incoming photo with a tick, so photos
+ * can be left out before anything comes in.
  * @param props.preview - the checked import
+ * @param props.left - indexes of the items unticked
+ * @param props.onLeftChange - called with the new unticked indexes
  * @returns the review view, filling the remaining height
  */
-function IncomingView({ preview }: { preview: ImportPreview }) {
-  const rows = preview.items.map((item) => ({
-    ...item,
-    key: item.thumb,
-    thumb: thumbUrl(item.thumb, item.version),
-  }));
+function IncomingView({
+  preview,
+  left,
+  onLeftChange,
+}: {
+  preview: ImportPreview;
+  left: ReadonlySet<number>;
+  onLeftChange: (left: ReadonlySet<number>) => void;
+}) {
+  const { settings } = useSettings();
+  const tiles = useMemo(() => importTiles(preview.items), [preview.items]);
+  const folders = useMemo(() => pickedFolders(preview.items, left), [preview.items, left]);
+  const totals = pickTotals(preview.items, left);
+  const thumbOf = (tile: Tile) => thumbUrl(preview.items[tile.id].thumb, tile.version);
+  const where = preview.moving
+    ? "in the folder"
+    : `${preview.spec.kind === "folder" ? "in" : "on"} ${preview.source}`;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <section className="px-8 pt-6 pb-5">
@@ -362,9 +393,40 @@ function IncomingView({ preview }: { preview: ImportPreview }) {
           </p>
         </div>
       </section>
-      <div className="flex min-h-0 flex-1 gap-6 border-t border-line">
-        <FolderList folders={preview.folders} />
-        <MoveList rows={rows} label="Files that will come in" origin={preview.source} />
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line px-8 py-3">
+        <div>
+          <p className="text-[18px]">
+            <strong>
+              {totals.items.toLocaleString()} of {count(preview.items.length, "photo", "photos")}{" "}
+              ticked
+            </strong>{" "}
+            <span className="text-muted">({formatBytes(totals.bytes)})</span>
+          </p>
+          <p className="text-muted">
+            Untick any you don&apos;t want. They stay {where} and show up again next time.
+          </p>
+        </div>
+        <div className="ml-auto flex gap-2">
+          <Button onClick={() => onLeftChange(new Set())} disabled={left.size === 0}>
+            Tick all
+          </Button>
+          <Button
+            onClick={() => onLeftChange(new Set(tiles.map((t) => t.id)))}
+            disabled={totals.items === 0}
+          >
+            Untick all
+          </Button>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 border-t border-line">
+        <FolderList folders={folders} />
+        <PhotoPicker
+          tiles={tiles}
+          left={left}
+          onChange={onLeftChange}
+          tileSize={tileSizeOf(settings)}
+          thumbOf={thumbOf}
+        />
       </div>
     </div>
   );

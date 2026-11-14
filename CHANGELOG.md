@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.14.0] - 2026-11-15
+
+### Added
+
+- Choose which photos to bring in. After a check, every new photo is shown with a tick; untick any
+  you don't want, or untick a whole month, and only the ticked ones are copied or moved in. Unticked
+  photos stay where they are and show up again on the next check.
+
 ## [0.13.0] - 2026-11-15
 
 ### Added

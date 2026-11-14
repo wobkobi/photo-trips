@@ -278,7 +278,10 @@ export interface ImportPreview {
   items: ImportItem[];
 }
 
-/** One incoming photo plus its companions. */
+/**
+ * One incoming photo plus its companions. Items are listed in plan order, so an item's index
+ * is what {@link api.applyImport} is told to leave out.
+ */
 export interface ImportItem {
   /** Thumbnail id, "i<preview id>-<n>". */
   thumb: string;
@@ -288,6 +291,13 @@ export interface ImportItem {
   /** Relative to the library folder. */
   to: string;
   extra: number;
+  /** Size of the photo and its companions together. */
+  bytes: number;
+  takenAt: string;
+  /** Date guessed from the file's modified time. */
+  uncertain: boolean;
+  kind: MediaKind;
+  ext: string;
   renamed: boolean;
 }
 
@@ -418,8 +428,11 @@ export const api = {
   scanImport: (source: ImportSource) => invoke<void>("scan_import", { source }),
   /** The latest import preview, if it hasn't been used. */
   importPreview: () => invoke<ImportPreview | null>("import_preview"),
-  /** Bring a previewed import in (job kind "import", result ApplySummary). */
-  applyImport: (id: number) => invoke<void>("apply_import", { id }),
+  /**
+   * Bring a previewed import in (job kind "import", result ApplySummary), leaving out the
+   * items at the `skip` indexes.
+   */
+  applyImport: (id: number, skip: number[]) => invoke<void>("apply_import", { id, skip }),
   /** Drop an import preview (and any phone files copied off for it). */
   discardImport: (id: number) => invoke<void>("discard_import", { id }),
   suggestTrips: () => invoke<Suggestions>("suggest_trips"),

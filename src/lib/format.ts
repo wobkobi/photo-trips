@@ -89,14 +89,15 @@ export function sourceText(source: DateSource): string {
 }
 
 export type TimelineRow =
-  | { type: "month"; key: string; label: string; count: number }
+  | { type: "month"; key: string; label: string; count: number; start: number; end: number }
   | { type: "tiles"; key: string; start: number; end: number };
 
 /**
  * Lay tiles (newest first) out as month headings followed by rows of `columns` tiles.
  * @param tiles - all tiles, newest first
  * @param columns - tiles per row
- * @returns rows for the virtual list; `start`/`end` index into `tiles`
+ * @returns rows for the virtual list; `start`/`end` index into `tiles` (for a month, the
+ * whole month)
  */
 export function timelineRows(tiles: Tile[], columns: number): TimelineRow[] {
   const rows: TimelineRow[] = [];
@@ -105,7 +106,7 @@ export function timelineRows(tiles: Tile[], columns: number): TimelineRow[] {
     const key = monthKey(tiles[i].takenAt);
     let end = i;
     while (end < tiles.length && monthKey(tiles[end].takenAt) === key) end += 1;
-    rows.push({ type: "month", key, label: monthLabel(key), count: end - i });
+    rows.push({ type: "month", key, label: monthLabel(key), count: end - i, start: i, end });
     for (let start = i; start < end; start += columns) {
       rows.push({
         type: "tiles",
