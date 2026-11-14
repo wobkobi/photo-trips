@@ -6,7 +6,7 @@ import { listen } from "@tauri-apps/api/event";
 import { api } from "./api";
 
 /** What the menu asks the page to do, on the "menu://action" event. */
-export type MenuRequest = "refresh" | "about";
+export type MenuRequest = "refresh" | "about" | "updates";
 
 /** Menu item ids by key combination, as written beside each item in menu.rs. */
 const SHORTCUTS: Record<string, string> = {

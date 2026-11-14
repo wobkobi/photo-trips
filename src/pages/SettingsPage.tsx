@@ -8,6 +8,7 @@ import { InboxSettings } from "../components/InboxSettings";
 import { Row, SavedText, Section, Toggle } from "../components/SettingParts";
 import { SuggestionSettings } from "../components/SuggestionSettings";
 import { Button, PageHeader } from "../components/ui";
+import { UpdateCheck } from "../components/UpdateCheck";
 import { api, AUTOSTART_CHANGED } from "../lib/api";
 import { normaliseExtensions } from "../lib/settingValues";
 import { useAction } from "../lib/useAction";
@@ -15,8 +16,9 @@ import { useSettings } from "../lib/useSettings";
 
 /**
  * App settings (library, inbox folders, suggestions, file types and window behaviour), then
- * the app's version and maker.
- * @param props.showAbout - Help > About was picked; scroll to the About section on opening
+ * the app's version, maker and updates.
+ * @param props.showAbout - Help > About or Check for updates was picked; scroll to the About
+ * section on opening
  * @param props.onAboutShown - called once About has been scrolled into view
  * @returns the page
  */
@@ -134,6 +136,7 @@ export function SettingsPage({
                 <p className="mt-0.5 text-[13px] text-muted">Made by To the Point Tech</p>
               </div>
             </div>
+            <UpdateCheck />
           </Section>
         </div>
       </div>
