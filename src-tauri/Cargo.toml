@@ -4,6 +4,9 @@ version = "0.0.0" # The app version lives in package.json (tauri.conf.json reads
 description = "Sort photos into year, month and trip folders"
 authors = ["Harrison"]
 edition = "2024"
+license-file = "../LICENSE"
+homepage = "https://www.tothepoint.co.nz"
+publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

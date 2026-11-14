@@ -58,6 +58,10 @@ if (!dryRun && !run("git", ["branch", "-r", "--contains", "HEAD"])) {
 }
 const notes = changelogSection(readFileSync(join(root, "CHANGELOG.md"), "utf8"), version);
 if (!notes) fail(`CHANGELOG.md has no section for ${version}.`);
+// The installer ships THIRD_PARTY_NOTICES.txt, so it must list this build's dependencies.
+if (run(process.execPath, [join(root, "scripts", "notices.mjs"), "--check"]) === null) {
+  fail("THIRD_PARTY_NOTICES.txt is out of date. Run npm run notices and commit it.");
+}
 if (!dryRun && run("gh", ["release", "view", tag, "--repo", RELEASES_REPO]) !== null) {
   fail(`${tag} is already published on ${RELEASES_REPO}. Bump the version first.`);
 }

@@ -4,7 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [0.11.1] - 2026-11-15
+## [0.12.0] - 2026-11-15
+
+### Added
+
+- A licence, privacy policy and third-party notices. The installer shows the licence and installs it
+  with the notices, and Settings > About links to all three. The README now describes what the app
+  does.
 
 ### Fixed
 
