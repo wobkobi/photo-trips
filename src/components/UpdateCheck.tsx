@@ -33,7 +33,7 @@ export function UpdateCheck() {
         </>
       ) : (
         <div className="flex items-center justify-between gap-6">
-          <p className="text-[13px] text-muted">
+          <p className="text-[15px] text-muted">
             {check === "latest"
               ? "You have the latest version."
               : "Pic Cabinet checks for updates once a day."}
@@ -44,7 +44,7 @@ export function UpdateCheck() {
         </div>
       )}
       {error && (
-        <p role="alert" className="mt-3 text-[13px] text-danger">
+        <p role="alert" className="mt-3 text-[15px] text-danger">
           {error}
         </p>
       )}
@@ -59,7 +59,7 @@ export function UpdateCheck() {
  */
 function Notes({ notes }: { notes: string }) {
   return (
-    <div className="selectable mt-3 space-y-3 text-[13px]">
+    <div className="selectable mt-3 space-y-3 text-[15px]">
       {parseReleaseNotes(notes).map((group, i) => (
         <div key={i}>
           {group.heading && <h4 className="font-semibold text-muted">{group.heading}</h4>}

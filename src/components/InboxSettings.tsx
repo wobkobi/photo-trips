@@ -70,11 +70,11 @@ export function InboxSettings() {
                 />
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{folderName(folder)}</p>
-                  <p className="selectable truncate text-[12px] text-muted" title={folder}>
+                  <p className="selectable truncate text-[14px] text-muted" title={folder}>
                     {folder}
                   </p>
                   {missing && (
-                    <p className="text-[12px] text-warn">
+                    <p className="text-[14px] text-warn">
                       Can't be found. Reconnect its drive, or remove it here.
                     </p>
                   )}

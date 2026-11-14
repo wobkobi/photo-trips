@@ -211,7 +211,7 @@ function Sources({
                 <Icon name={device.kind === "phone" ? "phone" : "card"} className="text-muted" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{device.name}</span>
-                  <span className="block text-[12px] text-muted">
+                  <span className="block text-[14px] text-muted">
                     {device.kind === "phone" ? "Phone or camera" : "Memory card"}
                   </span>
                 </span>
@@ -222,7 +222,7 @@ function Sources({
             ))}
           </ul>
         )}
-        <p className="mt-3 text-[13px] text-faint">
+        <p className="mt-3 text-[15px] text-faint">
           Nothing on a card or phone is ever changed or removed. A phone&apos;s photos are read onto
           this PC to compare them, so the first check of a phone takes a while.
         </p>
@@ -296,7 +296,7 @@ function Choice({
       />
       <span>
         <span className="block font-semibold">{title}</span>
-        <span className="mt-0.5 block text-[13px] text-muted">{detail}</span>
+        <span className="mt-0.5 block text-[15px] text-muted">{detail}</span>
       </span>
     </label>
   );
@@ -320,7 +320,7 @@ function IncomingView({ preview }: { preview: ImportPreview }) {
           {count(preview.files, "new file", "new files")} from {preview.source}
         </p>
         {preview.spec.kind === "folder" && (
-          <p className="mt-2 truncate text-[13px] text-faint" title={preview.spec.path}>
+          <p className="mt-2 truncate text-[15px] text-faint" title={preview.spec.path}>
             {preview.spec.path}
           </p>
         )}

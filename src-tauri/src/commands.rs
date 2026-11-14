@@ -27,7 +27,33 @@ const WRITABLE_SETTINGS: &[&str] = &[
     "extra_photo_exts",
     "extra_video_exts",
     "codec_hint_dismissed",
+    "text_size",
+    "photo_size",
 ];
+
+/// Text sizes offered in Settings, as page zoom percentages. Zoom scales the whole page, so
+/// buttons and spacing grow with the words and nothing gets cut off.
+const TEXT_SIZES: &[u32] = &[100, 115, 130, 150];
+
+/// Photo tile sizes offered in Settings; the grid turns each into a tile width.
+const PHOTO_SIZES: &[&str] = &["small", "medium", "large"];
+
+/// Page zoom for a stored text size. Anything not offered (or never set) is 100%.
+pub fn text_zoom(value: Option<&str>) -> f64 {
+    value
+        .and_then(|v| v.parse::<u32>().ok())
+        .filter(|percent| TEXT_SIZES.contains(percent))
+        .map_or(1.0, |percent| f64::from(percent) / 100.0)
+}
+
+/// Zoom the main window to the stored text size.
+pub fn apply_text_size(app: &AppHandle, value: Option<&str>) {
+    if let Some(window) = app.get_webview_window("main")
+        && let Err(err) = window.set_zoom(text_zoom(value))
+    {
+        log::warn!("Couldn't change the text size: {err}");
+    }
+}
 
 /// Let the webview load files from the library through the asset protocol (full-size photos,
 /// video playback with seeking).
@@ -87,6 +113,12 @@ pub fn set_setting(
             }
         }
         "extra_photo_exts" | "extra_video_exts" => check_extensions(&value)?,
+        "text_size" if !value.parse::<u32>().is_ok_and(|percent| TEXT_SIZES.contains(&percent)) => {
+            return Err(Error::msg("Choose one of the text sizes shown"));
+        }
+        "photo_size" if !PHOTO_SIZES.contains(&value.as_str()) => {
+            return Err(Error::msg("Choose one of the photo sizes shown"));
+        }
         _ => {}
     }
     db::set_setting(&*lock_db(&state)?, &key, &value)?;
@@ -97,6 +129,7 @@ pub fn set_setting(
         }
         "inbox_folders" => watch::reload(&app),
         "close_to_tray" => menu::show_close_to_tray(&app, value != "false"),
+        "text_size" => apply_text_size(&app, Some(&value)),
         "extra_photo_exts" | "extra_video_exts" => {
             watch::reload(&app);
             // Files of the new types show up once the library is read again. With another task
@@ -216,5 +249,15 @@ mod tests {
         assert!(check_extensions("my files").is_ok());
         assert!(check_extensions("*.jpg").is_err());
         assert!(check_extensions("verylongextension").is_err());
+    }
+
+    #[test]
+    fn text_size_zooms_only_to_offered_sizes() {
+        assert_eq!(text_zoom(None), 1.0);
+        assert_eq!(text_zoom(Some("100")), 1.0);
+        assert_eq!(text_zoom(Some("130")), 1.3);
+        assert_eq!(text_zoom(Some("150")), 1.5);
+        assert_eq!(text_zoom(Some("400")), 1.0);
+        assert_eq!(text_zoom(Some("large")), 1.0);
     }
 }

@@ -239,8 +239,8 @@ export function TripsPage({
         <EmptyState title="No trips yet">
           <p>
             Add a trip with the dates you were away, and every photo from those days moves into its
-            own folder. You can also select photos in the Library and right-click to make a trip
-            from them.
+            own folder. You can also use Pick photos for a trip in the Library to make one from the
+            photos you choose.
           </p>
           <Button variant="primary" onClick={() => setEditor({ trip: null, form: EMPTY_FORM })}>
             New trip
@@ -290,7 +290,7 @@ function TripRow({
             <p className="text-[22px] leading-tight font-bold tracking-tight text-brand">
               {trip.name}
             </p>
-            <p className="mt-1 flex flex-wrap gap-x-4 text-[13px] text-muted">
+            <p className="mt-1 flex flex-wrap gap-x-4 text-[15px] text-muted">
               <span>{rangeText(trip.startAt, trip.endAt)}</span>
               <span>{count(trip.files, "photo or video", "photos and videos")}</span>
               <span className="selectable truncate text-faint">Trips\{trip.folder}</span>
@@ -366,7 +366,7 @@ function TripEditor({
           onTime={set("endTime")}
         />
       </div>
-      <p className="-mt-3 text-[13px] text-muted">
+      <p className="-mt-3 text-[15px] text-muted">
         Leave the times empty to take in whole days. Add them for travel days, when the trip starts
         or ends partway through the day.
       </p>
@@ -400,7 +400,7 @@ function DateTime({
 }) {
   return (
     <fieldset className="flex flex-col gap-1.5">
-      <legend className="mb-1.5 text-[13px] font-semibold text-muted">{label}</legend>
+      <legend className="mb-1.5 text-[15px] font-semibold text-muted">{label}</legend>
       <div className="flex gap-2">
         <input
           type="date"

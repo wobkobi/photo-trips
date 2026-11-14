@@ -58,7 +58,7 @@ function Shell() {
     setTripDraft(range);
     setPage("trips");
   }, []);
-  // Menu requests waiting for their page to open: File > Refresh library, and Help > About or
+  // Menu requests waiting for their page to open: File > Look for new photos, and Help > About or
   // Check for updates (from Help or the tray), which both open Settings at About.
   const [refresh, setRefresh] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
@@ -89,12 +89,12 @@ function Shell() {
 
   return (
     <div className="flex h-full">
-      <nav className="on-brand flex w-56 shrink-0 flex-col px-3 pb-5">
+      <nav className="on-brand flex w-60 shrink-0 flex-col overflow-y-auto px-3 pb-5">
         <div className="mb-4 flex items-center gap-3 border-b border-line px-2 pt-5 pb-4">
           <BrandMark size={34} className="shrink-0" />
           <div className="min-w-0">
             <p className="text-[19px] leading-none font-extrabold tracking-tight">Pic Cabinet</p>
-            <p className="mt-1.5 text-[12px] leading-none font-semibold text-accent">
+            <p className="mt-1.5 text-[14px] leading-none font-semibold text-accent">
               To the Point Tech
             </p>
           </div>
@@ -108,7 +108,7 @@ function Shell() {
                 type="button"
                 onClick={() => setPage(item.id)}
                 aria-current={page === item.id ? "page" : undefined}
-                className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[15px] font-semibold transition-colors ${
+                className={`relative flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[18px] font-semibold transition-colors ${
                   page === item.id
                     ? "bg-raised text-ink before:absolute before:inset-y-2 before:left-0 before:w-0.75 before:rounded-r-sm before:bg-accent"
                     : "text-muted hover:bg-raised hover:text-ink"
@@ -123,7 +123,7 @@ function Shell() {
         <div className="mt-auto flex flex-col gap-3">
           <JobStatus />
           <p
-            className="selectable truncate px-3 text-[12px] text-faint"
+            className="selectable truncate px-3 text-[14px] text-faint"
             title={settings.library_root}
           >
             {settings.library_root}

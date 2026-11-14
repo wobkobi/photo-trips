@@ -84,6 +84,7 @@ pub fn run() {
                 log::error!("Couldn't settle unfinished file moves: {err}");
             }
             let library_root = db::get_setting(&conn, "library_root")?;
+            let text_size = db::get_setting(&conn, "text_size")?;
             if let Some(root) = &library_root {
                 commands::allow_library(app.handle(), root);
                 // Phone files left from an import that never finished; recovery is done with them.
@@ -112,6 +113,8 @@ pub fn run() {
             watch::start(app.handle());
             updater::start(app.handle());
 
+            // Zoomed before it first shows, so the page doesn't jump to the chosen text size.
+            commands::apply_text_size(app.handle(), text_size.as_deref());
             // The window starts hidden (see tauri.conf.json) to avoid a flash on a tray-only start.
             if !std::env::args().any(|arg| arg == HIDDEN_FLAG) {
                 tray::show_main(app.handle());

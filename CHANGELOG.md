@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.13.0] - 2026-11-15
+
+### Added
+
+- Bigger text, buttons and photos throughout, with stronger contrast. Settings > Display has a Text
+  size (Standard to Largest) and a Photo size (Small, Medium, Large). The Library has a Pick photos
+  for a trip button, so making a trip no longer needs right-click or Ctrl-click. Switches say On or
+  Off, and the photo viewer's buttons are labelled.
+
 ## [0.12.0] - 2026-11-15
 
 ### Added

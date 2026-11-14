@@ -90,7 +90,7 @@ export function DuplicatesPage({ onNavigate }: { onNavigate: (page: PageId) => v
           sets.length > 0 &&
           (confirming ? (
             <>
-              <span className="text-[13px]">
+              <span className="text-[15px]">
                 Move {count(plan.copies, "copy", "copies")} to the Recycle Bin?
               </span>
               <Button
@@ -282,7 +282,7 @@ function SetRow({
       style={{ top, height: SET_HEIGHT }}
     >
       <div className="flex items-center justify-between gap-4">
-        <p className="text-[13px] text-muted">
+        <p className="text-[15px] text-muted">
           {count(set.copies.length, `copy of the same ${one}`, `copies of the same ${one}`)},{" "}
           {formatBytes(set.size)} each
         </p>
@@ -345,7 +345,7 @@ function CopyCard({
           }`}
         >
           {failed ? (
-            <span className="flex h-full items-center justify-center text-[12px] text-faint">
+            <span className="flex h-full items-center justify-center text-[14px] text-faint">
               .{ext.toLowerCase()}
             </span>
           ) : (
@@ -362,7 +362,7 @@ function CopyCard({
             />
           )}
           <span
-            className={`absolute top-1.5 left-1.5 flex items-center gap-1 rounded-[3px] px-1.5 py-0.5 text-[11px] font-semibold ${
+            className={`absolute top-1.5 left-1.5 flex items-center gap-1 rounded-[3px] px-1.5 py-0.5 text-[13px] font-semibold ${
               going ? "on-dark bg-ground/85 text-muted" : "bg-accent text-white"
             }`}
           >
@@ -376,13 +376,13 @@ function CopyCard({
             )}
           </span>
         </span>
-        <span className={`selectable mt-2 block truncate text-[13px] ${going ? "text-muted" : ""}`}>
+        <span className={`selectable mt-2 block truncate text-[15px] ${going ? "text-muted" : ""}`}>
           {name}
         </span>
-        <span className="selectable block truncate text-[12px] text-muted" title={folder}>
+        <span className="selectable block truncate text-[14px] text-muted" title={folder}>
           {folder || "Library folder"}
         </span>
-        <span className="block h-[18px] truncate text-[12px] text-faint">{notes.join(", ")}</span>
+        <span className="block h-[18px] truncate text-[14px] text-faint">{notes.join(", ")}</span>
       </button>
     </li>
   );

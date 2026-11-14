@@ -27,16 +27,16 @@ export function SetupPage() {
         <h1 className="text-[52px] leading-[1.05] font-extrabold tracking-tight text-brand">
           Where do your photos live?
         </h1>
-        <p className="mt-5 text-[15px] leading-relaxed text-muted">
+        <p className="mt-5 text-[17px] leading-relaxed text-muted">
           Pick the folder you want Pic Cabinet to keep tidy. Photos inside it get sorted into year
           and month folders, and trips get folders of their own. Nothing moves until you review the
           plan and say so.
         </p>
-        <p className="mt-3 text-[15px] leading-relaxed text-muted">
+        <p className="mt-3 text-[17px] leading-relaxed text-muted">
           Photos kept somewhere else, like an old backup, a memory card or your phone, can be
           brought in from Import once the library is set up.
         </p>
-        <Button variant="primary" className="mt-8 px-5 py-2.5 text-[14px]" onClick={chooseFolder}>
+        <Button variant="primary" className="mt-8 px-5 py-2.5 text-[16px]" onClick={chooseFolder}>
           <Icon name="folder" />
           Choose library folder
         </Button>

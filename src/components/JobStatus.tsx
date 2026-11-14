@@ -11,15 +11,15 @@ export function JobStatus() {
     return (
       <div className="rounded-md border border-line bg-surface/60 p-3">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-[13px] font-semibold">
+          <span className="truncate text-[15px] font-semibold">
             {JOB_NAMES[running.kind] ?? "Working"}
           </span>
           <button
             type="button"
             onClick={() => api.cancelJob()}
-            className="shrink-0 text-[12px] text-muted hover:text-ink"
+            className="min-h-11 shrink-0 rounded-md px-2 text-[15px] text-ink underline underline-offset-4 hover:bg-raised"
           >
-            Cancel
+            Stop
           </button>
         </div>
         <div className="mt-2">
@@ -32,16 +32,17 @@ export function JobStatus() {
   const failed = lastDone && !lastDone.done.ok && !lastDone.done.cancelled;
   if (!failed) return null;
   return (
-    <div role="alert" className="flex gap-2 rounded-md border border-danger/40 bg-danger/10 p-3">
-      <Icon name="warn" size={16} className="mt-0.5 shrink-0 text-danger" />
-      <p className="min-w-0 flex-1 text-[12px] break-words text-ink">{lastDone.done.error}</p>
+    <div role="alert" className="rounded-md border border-danger/40 bg-danger/10 p-3">
+      <div className="flex gap-2">
+        <Icon name="warn" size={18} className="mt-0.5 shrink-0 text-danger" />
+        <p className="min-w-0 flex-1 text-[15px] break-words text-ink">{lastDone.done.error}</p>
+      </div>
       <button
         type="button"
         onClick={clearLastDone}
-        aria-label="Dismiss"
-        className="shrink-0 self-start text-muted hover:text-ink"
+        className="mt-2 min-h-11 rounded-md px-2 text-[15px] text-ink underline underline-offset-4 hover:bg-raised"
       >
-        <Icon name="close" size={14} />
+        Hide this message
       </button>
     </div>
   );

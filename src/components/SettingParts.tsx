@@ -1,7 +1,8 @@
 // Building blocks of the Settings page: sections, rows, switches and text boxes that save.
 
-import { useState, type ReactNode } from "react";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { INPUT } from "./Field";
+import { Icon } from "./Icon";
 
 /**
  * A group of related settings under a heading.
@@ -25,9 +26,9 @@ export function Section({
   return (
     <section className="mt-12 first:mt-0">
       <h2 className="text-[22px] font-bold tracking-tight text-brand">{title}</h2>
-      {detail && <div className="mt-1.5 space-y-2 text-[13px] text-muted">{detail}</div>}
+      {detail && <div className="mt-1.5 space-y-2 text-[15px] text-muted">{detail}</div>}
       {error && (
-        <p role="alert" className="mt-3 text-[13px] text-danger">
+        <p role="alert" className="mt-3 text-[15px] text-danger">
           {error}
         </p>
       )}
@@ -56,7 +57,7 @@ export function Row({
     <div className="flex items-center justify-between gap-6 border-t border-line py-4">
       <div className="min-w-0">
         <h3 className="font-semibold">{title}</h3>
-        {detail && <p className="mt-1 text-[13px] break-words text-muted">{detail}</p>}
+        {detail && <p className="mt-1 text-[15px] break-words text-muted">{detail}</p>}
       </div>
       <div className="shrink-0">{children}</div>
     </div>
@@ -64,7 +65,7 @@ export function Row({
 }
 
 /**
- * On/off switch.
+ * On/off switch with its state written beside it, so it doesn't rely on position or colour.
  * @param props.checked - current state
  * @param props.label - accessible name
  * @param props.disabled - greys the switch out
@@ -90,15 +91,22 @@ export function Toggle({
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative h-6 w-11 rounded-full border transition-colors disabled:opacity-40 ${
-        checked ? "border-accent bg-accent" : "border-line-strong bg-raised"
-      }`}
+      className="flex min-h-11 items-center gap-3 rounded-lg px-1 disabled:opacity-40"
     >
+      <span className="w-8 text-right text-[16px] font-semibold" aria-hidden="true">
+        {checked ? "On" : "Off"}
+      </span>
       <span
-        className={`absolute top-0.5 left-0.5 h-[18px] w-[18px] rounded-full transition-transform ${
-          checked ? "translate-x-5 bg-white" : "bg-muted"
+        className={`relative h-8 w-14 rounded-full border-2 transition-colors ${
+          checked ? "border-brand bg-brand" : "border-line-strong bg-raised"
         }`}
-      />
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full transition-transform ${
+            checked ? "translate-x-6 bg-white" : "bg-muted"
+          }`}
+        />
+      </span>
     </button>
   );
 }
@@ -158,5 +166,79 @@ export function SavedText({
       }}
       className={`${INPUT} ${className}`}
     />
+  );
+}
+
+/**
+ * A setting picked from a few named sizes, shown as a row of large buttons with the title and
+ * explanation above, so every option is visible without opening a list. Arrow keys move between
+ * options, as in any radio group.
+ * @param props.title - setting name
+ * @param props.detail - what it does
+ * @param props.value - the chosen option's value
+ * @param props.options - the options, each with a value, a label and an optional sample to show
+ * @param props.onChange - called with the newly chosen value
+ * @returns the row element
+ */
+export function Choices({
+  title,
+  detail,
+  value,
+  options,
+  onChange,
+}: {
+  title: string;
+  detail?: ReactNode;
+  value: string;
+  options: { value: string; label: string; sample?: ReactNode }[];
+  onChange: (value: string) => void;
+}) {
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+    if (!step) return;
+    event.preventDefault();
+    const at = options.findIndex((option) => option.value === value);
+    const next = options[(at + step + options.length) % options.length];
+    onChange(next.value);
+    const buttons = event.currentTarget.querySelectorAll<HTMLButtonElement>("button");
+    buttons[options.indexOf(next)]?.focus();
+  }
+
+  return (
+    <div className="border-t border-line py-4">
+      <h3 className="font-semibold">{title}</h3>
+      {detail && <p className="mt-1 text-[15px] text-muted">{detail}</p>}
+      <div
+        role="radiogroup"
+        aria-label={title}
+        onKeyDown={onKeyDown}
+        className="mt-3 flex flex-wrap gap-2"
+      >
+        {options.map((option) => {
+          const chosen = option.value === value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={chosen}
+              tabIndex={chosen ? 0 : -1}
+              onClick={() => onChange(option.value)}
+              className={`flex min-h-11 min-w-28 flex-col items-center justify-end gap-2 rounded-lg border-2 px-4 py-3 font-semibold transition-colors ${
+                chosen
+                  ? "border-brand bg-brand text-white"
+                  : "border-line-strong bg-surface text-ink hover:border-brand"
+              }`}
+            >
+              {option.sample}
+              <span className="flex items-center gap-1.5">
+                {chosen && <Icon name="check" size={16} />}
+                {option.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

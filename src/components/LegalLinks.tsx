@@ -16,7 +16,7 @@ const LINKS = [
  */
 export function LegalLinks() {
   return (
-    <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+    <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[15px]">
       {LINKS.map(({ label, href }) => (
         <button
           key={label}
