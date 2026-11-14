@@ -1,0 +1,76 @@
+Pic Cabinet
+Copyright (c) 2026 To the Point Tech. All rights reserved.
+
+END-USER LICENCE
+
+This licence is between you and To the Point Tech ("we", "us"). By installing or using Pic Cabinet
+(the "Software") you agree to it. If you don't agree, don't install or use the Software.
+
+1. What you may do
+
+   We grant you a free, non-exclusive, non-transferable licence to install and use the Software
+   on computers you own or control, for personal or business use.
+
+2. What you may not do
+
+   Except as this licence or the law allows, you may not:
+   a. copy, modify, adapt, translate or make derivative works of the Software or its source code,
+      other than copies made by installing, running and backing up the Software;
+   b. sell, rent, lend, sublicense, distribute or otherwise make the Software or its source code
+      available to anyone else;
+   c. remove or change any copyright, licence or other notice in the Software.
+
+   The source code is published so people can read and review it. Publishing it gives no rights
+   beyond those in this licence.
+
+3. Third-party components
+
+   The Software includes third-party software and data under their own licences, listed in
+   THIRD_PARTY_NOTICES.txt, which is installed with the Software. Those licences govern those
+   components, and nothing in this licence limits the rights they give you.
+
+4. Updates
+
+   The Software checks for updates and can install them. Updates are covered by this licence
+   unless they come with their own. How update checks handle your information is set out in the
+   privacy policy (PRIVACY.md).
+
+5. Your files
+
+   The Software moves and renames files in the folders you point it at and sends duplicate copies
+   to the Windows Recycle Bin. Changes are logged and can be undone from History, but you remain
+   responsible for keeping backups of anything you can't afford to lose.
+
+6. No warranty
+
+   The Software is provided "as is" and "as available", without warranties of any kind, express
+   or implied, including warranties of merchantability, fitness for a particular purpose,
+   accuracy and non-infringement. We don't promise that it will be error-free or uninterrupted.
+
+7. Limitation of liability
+
+   To the fullest extent the law allows, we are not liable for any loss of data, files, profit,
+   revenue or business, or any indirect or consequential loss, arising from your use of or
+   inability to use the Software, even if we were told such loss was possible. Where our
+   liability can't be excluded but can be limited, it is limited to NZD 100.
+
+8. Consumer law
+
+   Nothing in this licence excludes, restricts or changes any right or remedy you have under the
+   Consumer Guarantees Act 1993, the Fair Trading Act 1986 or any other law that can't be
+   excluded. If you acquire the Software for the purposes of a business, you agree that the
+   Consumer Guarantees Act 1993 does not apply, as section 43 of that Act allows.
+
+9. Ending this licence
+
+   This licence ends automatically if you break it. When it ends, you must stop using the
+   Software and delete every copy you have.
+
+10. Governing law
+
+   This licence is governed by the laws of New Zealand, and the courts of New Zealand have
+   non-exclusive jurisdiction over any dispute about it.
+
+11. Contact
+
+   To the Point Tech - https://www.tothepoint.co.nz - harrison@tothepoint.co.nz

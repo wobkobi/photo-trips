@@ -5,6 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { isEnabled } from "@tauri-apps/plugin-autostart";
 import { BrandMark } from "../components/BrandMark";
 import { InboxSettings } from "../components/InboxSettings";
+import { LegalLinks } from "../components/LegalLinks";
 import { Choices, Row, SavedText, Section, Toggle } from "../components/SettingParts";
 import { SuggestionSettings } from "../components/SuggestionSettings";
 import { Button, PageHeader } from "../components/ui";
@@ -176,7 +177,10 @@ export function SettingsPage({
               <div>
                 <p className="text-[17px] leading-tight font-extrabold">Pic Cabinet</p>
                 {version && <p className="mt-1 text-[15px] text-muted">Version {version}</p>}
-                <p className="mt-0.5 text-[15px] text-muted">Made by To the Point Tech</p>
+                <p className="mt-0.5 text-[15px] text-muted">
+                  © 2026 To the Point Tech. All rights reserved.
+                </p>
+                <LegalLinks />
               </div>
             </div>
             <UpdateCheck />
