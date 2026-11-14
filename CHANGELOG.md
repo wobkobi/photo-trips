@@ -40,6 +40,10 @@ All notable changes to this project are documented here. The format follows
   with the notices, and Settings > About links to all three. The README now describes what the app
   does.
 
+### Fixed
+
+- Updated a tool used to check the code, fixing a security alert. The app itself is unchanged.
+
 ## [0.11.0] - 2026-11-14
 
 ### Added
