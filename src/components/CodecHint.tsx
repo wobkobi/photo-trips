@@ -1,51 +1,57 @@
-import { api, type StoreProduct, type Tile } from "../lib/api";
+import { useEffect, useState } from "react";
+import { api, type Codec, type StoreProduct, type Tile } from "../lib/api";
+import { missingCodecs } from "../lib/codecs";
 import { Icon } from "./Icon";
 import { Button } from "./ui";
 
-interface Codec {
-  product: StoreProduct;
+interface Listing {
+  /** Store listing title, so the button matches the page it opens. */
   name: string;
   what: string;
-  matches: (tile: Tile) => boolean;
+  /** Another listing to try when the Store won't offer this one on the PC. */
+  fallback?: { product: StoreProduct; name: string; note: string };
 }
 
-/** Free Store extensions, and which failed thumbnails suggest each one is missing. */
-const CODECS: Codec[] = [
-  {
-    product: "heif",
-    name: "HEIF Image Extensions",
-    what: "iPhone and Samsung photos (HEIC)",
-    matches: (t) => ["heic", "heif", "hif"].includes(t.ext),
+const LISTINGS: Record<Codec, Listing> = {
+  heif: { name: "HEIF Image Extension", what: "iPhone and Samsung photos (HEIC)" },
+  hevc: {
+    name: "HEVC Video Extensions from the Device Manufacturer",
+    what: "phone videos and HEIC photos",
+    fallback: {
+      product: "hevc_paid",
+      name: "HEVC Video Extensions",
+      note: "The same extension for a small one-off charge.",
+    },
   },
-  {
-    product: "hevc",
-    name: "HEVC Video Extensions from Device Manufacturer",
-    what: "phone videos",
-    // HEVC lives in phone formats; an AVI or MTS without a preview needs some other codec.
-    matches: (t) => ["mov", "mp4", "m4v", "3gp"].includes(t.ext),
-  },
-  {
-    product: "raw",
-    name: "Raw Image Extension",
-    what: "camera RAW files",
-    matches: (t) => t.kind === "raw",
-  },
-  {
-    product: "av1",
-    name: "AV1 Video Extension",
-    what: "AVIF photos",
-    matches: (t) => t.ext === "avif",
-  },
-];
+  raw: { name: "Raw Image Extension", what: "camera RAW files" },
+  av1: { name: "AV1 Video Extension", what: "AVIF photos" },
+};
 
 /**
- * Banner shown when Windows couldn't draw thumbnails for formats a free extension would fix.
+ * Banner shown when Windows couldn't draw thumbnails and a Store extension that isn't installed
+ * would fix them.
  * @param props.failed - tiles whose thumbnails failed this session
  * @param props.onDismiss - hide the hint for good
- * @returns the banner, or nothing when no known codec is implicated
+ * @returns the banner, or nothing when no missing extension is implicated
  */
 export function CodecHint({ failed, onDismiss }: { failed: Tile[]; onDismiss: () => void }) {
-  const missing = CODECS.filter((codec) => failed.some(codec.matches));
+  const [installed, setInstalled] = useState<Codec[] | null>(null);
+  const anyFailed = failed.length > 0;
+
+  useEffect(() => {
+    if (!anyFailed) return;
+    const check = () => {
+      api.installedExtensions().then(setInstalled, () => setInstalled([]));
+    };
+    check();
+    // Checking again on return from the Store makes the hint go once the extension is in.
+    window.addEventListener("focus", check);
+    return () => window.removeEventListener("focus", check);
+  }, [anyFailed]);
+
+  // Until the check answers, any suggestion could be for something already installed.
+  if (installed === null) return null;
+  const missing = missingCodecs(failed, installed);
   if (missing.length === 0) return null;
 
   return (
@@ -53,19 +59,37 @@ export function CodecHint({ failed, onDismiss }: { failed: Tile[]; onDismiss: ()
       <Icon name="warn" className="mt-0.5 shrink-0 text-warn" />
       <div className="min-w-0 flex-1">
         <p>
-          Windows can&apos;t preview some of your files. They are still sorted normally. These free
+          Windows can&apos;t preview some of your files. They are still sorted normally. These
           extensions from the Microsoft Store add the missing previews:
         </p>
         <ul className="mt-3 flex flex-col gap-2">
-          {missing.map((codec) => (
-            <li key={codec.product} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <Button onClick={() => api.openStorePage(codec.product)}>
-                <Icon name="open" size={16} />
-                {codec.name}
-              </Button>
-              <span className="text-[13px] text-muted">for {codec.what}</span>
-            </li>
-          ))}
+          {missing.map((codec) => {
+            const listing = LISTINGS[codec];
+            const { fallback } = listing;
+            return (
+              <li key={codec} className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <Button onClick={() => api.openStorePage(codec)}>
+                    <Icon name="open" size={16} />
+                    {listing.name}
+                  </Button>
+                  <span className="text-[13px] text-muted">for {listing.what}. Free.</span>
+                </div>
+                {fallback && (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-4">
+                    <span className="text-[13px] text-muted">
+                      If the Store says it isn&apos;t available for this PC:
+                    </span>
+                    <Button onClick={() => api.openStorePage(fallback.product)}>
+                      <Icon name="open" size={16} />
+                      {fallback.name}
+                    </Button>
+                    <span className="text-[13px] text-muted">{fallback.note}</span>
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
       <button

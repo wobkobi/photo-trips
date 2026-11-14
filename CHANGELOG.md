@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.3] - 2026-11-14
+
+### Fixed
+
+- The Library's codec hint suggested extensions that were already installed, and linked only the
+  free HEVC listing, which the Store doesn't offer on every PC. It now suggests only missing
+  extensions, suggests HEVC for HEIC photos as well as HEIF, and links the paid HEVC listing for PCs
+  the free one isn't offered on.
+
 ## [0.9.1] - 2026-11-14
 
 ### Fixed
