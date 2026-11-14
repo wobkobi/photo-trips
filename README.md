@@ -35,16 +35,17 @@ Test fixtures are regenerated with `scripts/make-fixtures.sh` (needs ffmpeg).
 
 ## Releases
 
-Installed copies check
-[wobkobi/photo-trips-releases](https://github.com/wobkobi/photo-trips-releases) once a day and
-offer new versions in Settings > About. To publish the version in `package.json`:
+Installed copies check this repo's
+[releases](https://github.com/wobkobi/photo-trips/releases) once a day and offer new versions
+in Settings > About. To publish the version in `package.json`:
 
 ```
-npm run release              # build, sign and publish (needs a clean tree and gh signed in)
+npm run release              # build, sign and publish (needs a clean, pushed tree and gh signed in)
 npm run release -- --dry-run # build and sign only, into src-tauri/target/release/publish
 ```
 
-The notes come from that version's `CHANGELOG.md` section. Updates are signed with the private
-key at `~/.tauri/photo-trips-updater.key` (or the path in `PHOTO_TRIPS_UPDATER_KEY`), whose public
-half is in `tauri.conf.json`. Keep a backup of it somewhere safe and never commit it: without it
-no update can reach installed copies, and anyone holding it could sign one.
+The release is tagged `v<version>` on the current commit, and the notes come from that version's
+`CHANGELOG.md` section. Updates are signed with the private key at
+`~/.tauri/photo-trips-updater.key` (or the path in `PHOTO_TRIPS_UPDATER_KEY`), whose public half
+is in `tauri.conf.json`. Keep a backup of it somewhere safe and never commit it: without it no
+update can reach installed copies, and anyone holding it could sign one.

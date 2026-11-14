@@ -1,5 +1,6 @@
 // Build a signed installer for the version in package.json and publish it, with latest.json, as
-// a release on the public releases repo. Installed copies find it on their next update check.
+// a GitHub release tagged on the current commit. Installed copies find it on their next update
+// check.
 //
 //   npm run release             build, then publish
 //   npm run release -- --dry-run  build and stage the files, without publishing
@@ -47,9 +48,13 @@ function run(cmd, args, options = {}) {
 const version = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
 const tag = `v${version}`;
 
-// Preflight: a release must match a commit, have notes, and not exist yet.
+// Preflight: a release must match a pushed commit, have notes, and not exist yet.
+const head = run("git", ["rev-parse", "HEAD"]);
 if (!dryRun && run("git", ["status", "--porcelain"]) !== "") {
   fail("the working tree has uncommitted changes. Commit them first.");
+}
+if (!dryRun && !run("git", ["branch", "-r", "--contains", "HEAD"])) {
+  fail("this commit isn't pushed, and the release tag points at it. Push it first.");
 }
 const notes = changelogSection(readFileSync(join(root, "CHANGELOG.md"), "utf8"), version);
 if (!notes) fail(`CHANGELOG.md has no section for ${version}.`);
@@ -116,6 +121,8 @@ const published = spawnSync(
     `Photo Trips ${version}`,
     "--notes-file",
     notesFile,
+    "--target",
+    head,
     "--latest",
     installer,
     latest,

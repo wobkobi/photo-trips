@@ -45,7 +45,7 @@ describe("manifest", () => {
   it("announces the Windows installer", () => {
     const url = assetUrl("0.11.0", assetName("0.11.0"));
     expect(url).toBe(
-      "https://github.com/wobkobi/photo-trips-releases/releases/download/v0.11.0/Photo-Trips_0.11.0_x64-setup.exe",
+      "https://github.com/wobkobi/photo-trips/releases/download/v0.11.0/Photo-Trips_0.11.0_x64-setup.exe",
     );
     expect(
       manifest({

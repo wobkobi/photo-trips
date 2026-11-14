@@ -1,8 +1,8 @@
 // Pure helpers for release.mjs: the release notes from CHANGELOG.md and the latest.json the
 // app's updater reads.
 
-/** The public repo that hosts installers and latest.json (the app's code repo is private). */
-export const RELEASES_REPO = "wobkobi/photo-trips-releases";
+/** The repo whose GitHub releases host the installers and latest.json. */
+export const RELEASES_REPO = "wobkobi/photo-trips";
 
 /**
  * Installer name on the release. GitHub turns spaces in asset names into dots, so the name

@@ -1,4 +1,4 @@
-// Updates from the public releases repo (see tauri.conf.json for the address).
+// Updates from the app's GitHub releases (see tauri.conf.json for the address).
 //
 // Each installer is signed with a private key kept off the repo, and tauri.conf.json carries
 // the public half. The plugin refuses a download whose signature doesn't match, or whose
@@ -116,7 +116,7 @@ fn is_due(last: Option<SystemTime>, now: SystemTime) -> bool {
     }
 }
 
-/// Ask the releases repo for a newer version, and remember the answer.
+/// Ask GitHub releases for a newer version, and remember the answer.
 async fn check(app: &AppHandle) -> Result<Option<Available>> {
     let updates = app.state::<Updates>();
     let found = app
@@ -272,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn updates_come_signed_from_the_releases_repo() {
+    fn updates_come_signed_from_the_apps_releases() {
         let config: serde_json::Value =
             serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
         let updater = &config["plugins"]["updater"];
@@ -281,7 +281,7 @@ mod tests {
             updater["endpoints"][0]
                 .as_str()
                 .unwrap()
-                .starts_with("https://github.com/wobkobi/photo-trips-releases/")
+                .starts_with("https://github.com/wobkobi/photo-trips/releases/")
         );
         assert!(!updater["pubkey"].as_str().unwrap().is_empty());
     }
