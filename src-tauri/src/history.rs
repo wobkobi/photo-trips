@@ -11,6 +11,7 @@ use crate::commands::{format_table, library_root, lock_db};
 use crate::error::{Error, Result};
 use crate::executor::{self, Env, UndoSummary};
 use crate::jobs;
+use crate::naming;
 use crate::organise::relative;
 use crate::trips;
 
@@ -134,13 +135,14 @@ pub fn undo_batch(app: AppHandle, state: State<AppState>, batch_id: i64) -> Resu
     })
 }
 
-/// Undo a batch: its file moves, then any database change saved with it. A trip change is
-/// checked first, so a trip edited again since is refused before any file moves. The trip
-/// row only goes back once every file has, so a partly undone change can be retried.
+/// Undo a batch: its file moves, then any database change saved with it. A trip or folder
+/// naming change is checked first, so one changed again since is refused before any file
+/// moves. The database change only goes back once every file has, so a partly undone change
+/// can be retried.
 pub fn undo(env: &Env, batch_id: i64) -> Result<UndoSummary> {
     let undo_data = check(&*lock(env)?, batch_id)?;
     let summary = executor::undo(env, batch_id)?;
-    if let Some(data) = &undo_data {
+    if let Some((kind, data)) = &undo_data {
         let conn = lock(env)?;
         let status: String = conn.query_row(
             "SELECT status FROM batches WHERE id = ?1",
@@ -148,29 +150,36 @@ pub fn undo(env: &Env, batch_id: i64) -> Result<UndoSummary> {
             |r| r.get(0),
         )?;
         if status == "undone" {
-            trips::restore(&conn, data)?;
+            match kind.as_str() {
+                "naming" => naming::restore(&conn, data)?,
+                _ => trips::restore(&conn, data)?,
+            }
         }
     }
     Ok(summary)
 }
 
-/// Refuse an undo that can't go ahead. Returns the batch's undo data, if it has any.
-fn check(conn: &Connection, batch_id: i64) -> Result<Option<String>> {
-    let (status, data): (String, Option<String>) = conn
+/// Refuse an undo that can't go ahead. Returns the batch's kind and undo data, if it has any.
+fn check(conn: &Connection, batch_id: i64) -> Result<Option<(String, String)>> {
+    let (kind, status, data): (String, String, Option<String>) = conn
         .query_row(
-            "SELECT status, undo_data FROM batches WHERE id = ?1",
+            "SELECT kind, status, undo_data FROM batches WHERE id = ?1",
             [batch_id],
-            |r| Ok((r.get(0)?, r.get(1)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
         .optional()?
         .ok_or_else(|| Error::msg("That change is no longer in the history"))?;
     if status == "undone" {
         return Err(Error::msg("That change has already been undone"));
     }
-    if let Some(data) = &data {
-        trips::check_undo(conn, data)?;
+    let Some(data) = data else {
+        return Ok(None);
+    };
+    match kind.as_str() {
+        "naming" => naming::check_undo(conn, &data)?,
+        _ => trips::check_undo(conn, &data)?,
     }
-    Ok(data)
+    Ok(Some((kind, data)))
 }
 
 fn lock<'a>(env: &Env<'a>) -> Result<std::sync::MutexGuard<'a, Connection>> {

@@ -17,6 +17,7 @@ use crate::executor::{self, Env, NewBatch, OnBegin};
 use crate::groups;
 use crate::index;
 use crate::jobs;
+use crate::naming::Naming;
 use crate::planner::{self, Plan, Rules};
 use crate::trips;
 
@@ -130,13 +131,14 @@ pub struct PreviewItem {
 /// Work out the moves that would put every file in its trip or year and month folder.
 #[tauri::command(async)]
 pub fn plan_organise(state: State<'_, AppState>, previews: State<'_, Previews>) -> Result<Preview> {
-    let (root, table, rows, trips) = {
+    let (root, table, rows, trips, naming) = {
         let conn = lock_db(&state)?;
         (
             library_root(&conn)?,
             format_table(&conn)?,
             index::load_rows(&conn)?,
             trips::load(&conn)?,
+            Naming::load(&conn)?,
         )
     };
     let versions: HashMap<i64, i64> = rows.iter().map(|r| (r.id, r.mtime)).collect();
@@ -145,6 +147,7 @@ pub fn plan_organise(state: State<'_, AppState>, previews: State<'_, Previews>) 
         &Rules {
             root: &root,
             trips: &trips,
+            naming,
         },
         &groups,
         orphans.len(),

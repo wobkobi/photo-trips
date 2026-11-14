@@ -361,6 +361,14 @@ export type Codec = "heif" | "hevc" | "raw" | "av1";
 /** Store pages: one per codec, plus the paid HEVC listing for PCs the free one isn't offered on. */
 export type StoreProduct = Codec | "hevc_paid";
 
+/** How month and trip folders are named. Mirrors Naming in naming.rs. */
+export interface Naming {
+  /** "2026\2026-03", "2026\03 March" or "2026\March 2026". */
+  months: "year-month" | "number-name" | "name-year";
+  /** "2026-03-12 Japan", "Japan 2026" or "2026 Japan". */
+  trips: "date-name" | "name-year" | "year-name";
+}
+
 /** Sent with a {@link SettingChange} when the menu bar saves a setting. */
 export const SETTING_CHANGED = "settings://changed";
 
@@ -425,6 +433,8 @@ export const api = {
     invoke<TripMatches>("trip_matches", { startAt, endAt, editing }),
   /** Preview a trip change; apply it with {@link api.applyPlan}. */
   planTrip: (change: TripChange) => invoke<Preview>("plan_trip", { change }),
+  /** Preview renaming every sorted folder to new presets; apply it with {@link api.applyPlan}. */
+  planNaming: (naming: Naming) => invoke<Preview>("plan_naming", { naming }),
   /** Compare same-size files in the background (job kind "duplicates"). */
   findDuplicates: () => invoke<void>("find_duplicates"),
   listDuplicates: () => invoke<DupReport>("list_duplicates"),

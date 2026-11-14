@@ -17,6 +17,7 @@ mod jobs;
 mod library;
 mod menu;
 mod metadata;
+mod naming;
 mod mtp;
 mod organise;
 mod planner;
@@ -156,6 +157,7 @@ pub fn run() {
             trips::list_trips,
             trips::trip_matches,
             trips::plan_trip,
+            naming::plan_naming,
             duplicates::find_duplicates,
             duplicates::list_duplicates,
             duplicates::remove_duplicates,

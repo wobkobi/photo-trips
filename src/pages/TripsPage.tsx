@@ -18,6 +18,7 @@ import {
 } from "../lib/api";
 import { tileSizeOf } from "../lib/display";
 import { count } from "../lib/format";
+import { namingOf, tripFolder } from "../lib/naming";
 import {
   EMPTY_FORM,
   formFromTrip,
@@ -92,6 +93,7 @@ export function TripsPage({
   onNavigate: (page: PageId) => void;
 }) {
   const { running } = useJobs();
+  const { settings } = useSettings();
   const [trips, setTrips] = useState<TripInfo[] | null>(null);
   const [editor, setEditor] = useState<Editor | null>(() => (draft ? newEditor(draft) : null));
   const [review, setReview] = useState<Review | null>(null);
@@ -200,7 +202,10 @@ export function TripsPage({
         detail={
           <>
             Photos taken during a trip live together in its own folder, like{" "}
-            <span className="text-ink">Trips\2025-03-12 Japan</span>.
+            <span className="text-ink">
+              {tripFolder(namingOf(settings).trips, "2025-03-12", "Japan")}
+            </span>
+            .
           </>
         }
         actions={

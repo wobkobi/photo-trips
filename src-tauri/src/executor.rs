@@ -1189,7 +1189,11 @@ mod tests {
         let rows = index::load_rows(&db.lock().unwrap()).unwrap();
         let (groups, orphans) = groups::build(rows);
         planner::plan(
-            &Rules { root, trips: &[] },
+            &Rules {
+                root,
+                trips: &[],
+                naming: Default::default(),
+            },
             &groups,
             orphans.len(),
             &FormatTable::default(),

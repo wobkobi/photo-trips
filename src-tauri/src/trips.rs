@@ -22,6 +22,7 @@ use crate::formats::FormatTable;
 use crate::groups::{self, Group};
 use crate::index;
 use crate::library::{self, Tile};
+use crate::naming::Naming;
 use crate::organise::{self, PendingBatch, Preview, Previews};
 use crate::planner::{self, Plan, Rules, same_path};
 
@@ -167,9 +168,10 @@ pub fn clean_name(name: &str) -> String {
     short.trim_end_matches(['.', ' ']).to_string()
 }
 
-/// `<start date> <clean name>`, numbered when another trip already has that folder.
-fn folder_for(start: &NaiveDateTime, name: &str, others: &[&Trip]) -> String {
-    let base = format!("{} {}", start.format("%Y-%m-%d"), clean_name(name));
+/// The trip's folder name in the chosen style (`2025-03-12 Japan`, say), numbered " (2)",
+/// " (3)" and so on when another trip already has it.
+pub fn folder_for(start: &NaiveDateTime, name: &str, others: &[&Trip], naming: Naming) -> String {
+    let base = naming.trip_folder(start, &clean_name(name));
     let taken = |folder: &str| others.iter().any(|t| t.folder.eq_ignore_ascii_case(folder));
     if !taken(&base) {
         return base;
@@ -241,16 +243,17 @@ pub fn prepare(
             .cloned()
             .ok_or_else(|| Error::msg("That trip no longer exists"))
     };
+    let naming = Naming::load(conn)?;
     let (groups, _orphans) = groups::build(index::load_rows(conn)?);
     let (before, after) = match change {
         TripChange::Create { draft } => {
-            let mut new = draft_trip(draft, &trips, None)?;
+            let mut new = draft_trip(draft, &trips, None, naming)?;
             new.excluded = exclusions(&new, None, draft.excluded.as_deref(), &groups);
             (None, Some(new))
         }
         TripChange::Update { id, draft } => {
             let old = find(*id)?;
-            let mut new = draft_trip(draft, &trips, Some(*id))?;
+            let mut new = draft_trip(draft, &trips, Some(*id), naming)?;
             new.created_at = old.created_at;
             new.excluded = exclusions(&new, Some(&old), draft.excluded.as_deref(), &groups);
             (Some(old), Some(new))
@@ -284,6 +287,7 @@ pub fn prepare(
     let rules = Rules {
         root,
         trips: &new_trips,
+        naming,
     };
     let plan = planner::plan(&rules, &affected, 0, table, exists);
     let label = label_for(before.as_ref(), after.as_ref());
@@ -328,7 +332,12 @@ fn exclusions(
 
 /// A trip from a validated draft, with its folder name. The id is filled in when saved, and
 /// the exclusions by [`exclusions`].
-fn draft_trip(draft: &TripDraft, trips: &[Trip], editing: Option<i64>) -> Result<Trip> {
+fn draft_trip(
+    draft: &TripDraft,
+    trips: &[Trip],
+    editing: Option<i64>,
+    naming: Naming,
+) -> Result<Trip> {
     let others: Vec<&Trip> = trips.iter().filter(|t| Some(t.id) != editing).collect();
     validate(draft, &others)?;
     Ok(Trip {
@@ -336,7 +345,7 @@ fn draft_trip(draft: &TripDraft, trips: &[Trip], editing: Option<i64>) -> Result
         name: clean_name(&draft.name),
         start_at: draft.start_at,
         end_at: draft.end_at,
-        folder: folder_for(&draft.start_at, &draft.name, &others),
+        folder: folder_for(&draft.start_at, &draft.name, &others, naming),
         created_at: db::now(),
         excluded: BTreeSet::new(),
     })
@@ -703,10 +712,11 @@ mod tests {
     fn folders_are_numbered_when_taken() {
         let start = at("2025-03-12T00:00:00");
         let other = trip(1, "2025-03-12T00:00:00", "2025-03-12T11:59:59");
-        assert_eq!(folder_for(&start, "Japan", &[]), "2025-03-12 Japan");
+        let naming = Naming::default();
+        assert_eq!(folder_for(&start, "Japan", &[], naming), "2025-03-12 Japan");
         // Folder names compare without case, as Windows does.
         assert_eq!(
-            folder_for(&start, "trip 1", &[&other]),
+            folder_for(&start, "trip 1", &[&other], naming),
             "2025-03-12 trip 1 (2)"
         );
     }
