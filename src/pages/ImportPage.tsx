@@ -300,7 +300,7 @@ function Choice({
 }) {
   return (
     <label
-      className={`flex cursor-pointer gap-3 rounded-md border p-3.5 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent ${
+      className={`flex cursor-pointer gap-3 rounded-md border p-3.5 transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent ${
         checked ? "border-accent bg-accent/10" : "border-line bg-surface hover:bg-raised/60"
       }`}
     >

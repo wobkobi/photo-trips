@@ -220,7 +220,7 @@ function TileButton({
         </span>
       )}
       {(tile.kind === "video" || tile.kind === "raw" || tile.extra > 0) && (
-        <span className="on-dark absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-ground/80 to-transparent px-2 pt-5 pb-1.5 text-[13px] font-semibold text-ink">
+        <span className="on-dark absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-linear-to-t from-ground/80 to-transparent px-2 pt-5 pb-1.5 text-[13px] font-semibold text-ink">
           {tile.kind === "video" && <Icon name="play" size={18} />}
           {tile.kind === "raw" && <span>raw</span>}
           {tile.extra > 0 && (

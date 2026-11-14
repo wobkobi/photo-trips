@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assetName, assetUrl, changelogSection, manifest } from "./release-lib.mjs";
+import { assetName, assetUrl, changelogSection, manifest, releaseNotes } from "./release-lib.mjs";
 
 const CHANGELOG = `# Changelog
 
@@ -38,6 +38,51 @@ describe("changelogSection", () => {
     expect(changelogSection(CHANGELOG, "0.12.0")).toBeNull();
     // 0.1.0 must not match the 0.11.0 heading.
     expect(changelogSection(CHANGELOG, "0.1")).toBeNull();
+  });
+});
+
+describe("releaseNotes", () => {
+  const UNRELEASED = `# Changelog
+
+## [0.12.1] - 2026-11-16
+
+### Fixed
+
+- Newest fix.
+
+## [0.12.0] - 2026-11-16
+
+### Added
+
+- Never released.
+
+### Fixed
+
+- Older fix.
+${CHANGELOG.slice(CHANGELOG.indexOf("## [0.11.0]"))}`;
+
+  it("is just this version's section when the last release was the one before", () => {
+    expect(releaseNotes(CHANGELOG, "0.11.0", "0.10.1")).toBe(changelogSection(CHANGELOG, "0.11.0"));
+  });
+
+  it("is just this version's section when the last release isn't known", () => {
+    expect(releaseNotes(UNRELEASED, "0.12.1", null)).toBe("### Fixed\n\n- Newest fix.");
+  });
+
+  it("merges versions that were never released, by heading in the usual order", () => {
+    expect(releaseNotes(UNRELEASED, "0.12.1", "0.11.0")).toBe(
+      "### Added\n\n- Never released.\n\n### Fixed\n\n- Newest fix.\n- Older fix.",
+    );
+  });
+
+  it("compares versions by number, not text", () => {
+    const notes = releaseNotes(UNRELEASED, "0.12.1", "0.9.4");
+    expect(notes).toContain("- Updates: Settings > About");
+    expect(notes).toContain("- Older.");
+  });
+
+  it("is null when this version has no section", () => {
+    expect(releaseNotes(UNRELEASED, "0.13.0", "0.11.0")).toBeNull();
   });
 });
 

@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.16.1] - 2026-11-15
+
+### Fixed
+
+- If the window stays blank for 30 seconds after starting, Pic Cabinet restarts itself once. Overlay
+  or screen-recording software such as RivaTuner can crash the part of Windows that draws the window
+  as it opens, and a fresh start usually gets past it. If it's still blank after the restart, Pic
+  Cabinet stays open and names the likely cause in its log. Release notes now include every version
+  since the last release, so this one also lists the folder naming choices from 0.16.0, which was
+  never released.
+
 ## [0.16.0] - 2026-11-15
 
 ### Added

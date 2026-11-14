@@ -42,6 +42,60 @@ export function changelogSection(changelog, version) {
   return notes || null;
 }
 
+/** Keep a Changelog's heading order, used when sections from several versions are merged. */
+const HEADING_ORDER = ["Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"];
+
+/**
+ * Compare two x.y.z versions by number.
+ * @param {string} a - first version
+ * @param {string} b - second version
+ * @returns negative, zero or positive, as a is older than, equal to or newer than b
+ */
+function compareVersions(a, b) {
+  const [x, y] = [a, b].map((v) => v.split(".").map(Number));
+  for (let i = 0; i < 3; i++) {
+    if (x[i] !== y[i]) return (x[i] ?? 0) - (y[i] ?? 0);
+  }
+  return 0;
+}
+
+/**
+ * Notes for a release: every changelog section after the last published release up to this
+ * version, so changes from a version that was never released still reach installed copies.
+ * Sections are merged under one heading each ("### Added", "### Fixed"), newest first.
+ * @param {string} changelog - CHANGELOG.md text
+ * @param {string} version - version being released
+ * @param {string | null} since - last published version, or null to use this version's section alone
+ * @returns the notes, or null when the changelog has no section for this version
+ */
+export function releaseNotes(changelog, version, since) {
+  const own = changelogSection(changelog, version);
+  if (!own || !since) return own;
+  const versions = [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)]
+    .map((match) => match[1])
+    .filter((v) => compareVersions(v, since) > 0 && compareVersions(v, version) <= 0);
+  if (versions.length <= 1) return own;
+
+  /** @type {Map<string, string[]>} */
+  const groups = new Map();
+  for (const v of versions) {
+    let heading = "";
+    for (const line of (changelogSection(changelog, v) ?? "").split("\n")) {
+      if (line.startsWith("### ")) heading = line;
+      else if (line.trim()) groups.set(heading, [...(groups.get(heading) ?? []), line]);
+    }
+  }
+  /** @param {string} heading - "### Added" and the like */
+  const rank = (heading) => {
+    const i = HEADING_ORDER.indexOf(heading.slice(4));
+    return i === -1 ? HEADING_ORDER.length : i;
+  };
+  return [...groups]
+    .sort(([a], [b]) => rank(a) - rank(b))
+    .map(([heading, lines]) => (heading ? `${heading}\n\n${lines.join("\n")}` : lines.join("\n")))
+    .join("\n\n");
+}
+
 /**
  * The update manifest the app fetches from the latest release.
  * @param {object} release - what to announce
