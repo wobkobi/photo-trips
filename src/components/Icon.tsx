@@ -17,6 +17,10 @@ const PATHS = {
   check: "M4 10l4 4 8-8",
   chevron: "M8 5l5 5-5 5",
   open: "M11 3h6v6M17 3l-8 8M14 12v5H3V6h5",
+  refresh: "M16 10a6 6 0 1 1-1.8-4.3M16 3v3.5h-3.5",
+  back: "M12 5l-5 5 5 5",
+  layers: "M10 3l7 4-7 4-7-4zM3 11l7 4 7-4",
+  pin: "M10 18s-5-5.2-5-9a5 5 0 0 1 10 0c0 3.8-5 9-5 9zM10 7.5v2",
 } as const;
 
 export type IconName = keyof typeof PATHS;

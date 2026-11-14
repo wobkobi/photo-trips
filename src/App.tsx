@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Icon, type IconName } from "./components/Icon";
+import { JobStatus } from "./components/JobStatus";
+import { JobsProvider } from "./lib/jobs";
 import { SettingsProvider } from "./lib/settings";
 import { useSettings } from "./lib/useSettings";
+import { LibraryPage } from "./pages/LibraryPage";
 import { SetupPage } from "./pages/SetupPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
@@ -20,11 +23,13 @@ const NAV: { id: PageId; label: string; icon: IconName }[] = [
   { id: "settings", label: "Settings", icon: "settings" },
 ];
 
-/** Root component: settings provider around the shell. */
+/** Root component: settings and job providers around the shell. */
 export default function App() {
   return (
     <SettingsProvider>
-      <Shell />
+      <JobsProvider>
+        <Shell />
+      </JobsProvider>
     </SettingsProvider>
   );
 }
@@ -69,12 +74,15 @@ function Shell() {
             </li>
           ))}
         </ul>
-        <p
-          className="selectable mt-auto truncate px-3 text-[12px] text-faint"
-          title={settings.library_root}
-        >
-          {settings.library_root}
-        </p>
+        <div className="mt-auto flex flex-col gap-3">
+          <JobStatus />
+          <p
+            className="selectable truncate px-3 text-[12px] text-faint"
+            title={settings.library_root}
+          >
+            {settings.library_root}
+          </p>
+        </div>
       </nav>
       <main className="min-w-0 flex-1 overflow-y-auto">
         <CurrentPage page={page} />
@@ -85,6 +93,8 @@ function Shell() {
 
 function CurrentPage({ page }: { page: PageId }) {
   switch (page) {
+    case "library":
+      return <LibraryPage />;
     case "settings":
       return <SettingsPage />;
     default:
