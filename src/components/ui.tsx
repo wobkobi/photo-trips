@@ -9,7 +9,9 @@ const VARIANTS: Record<Variant, string> = {
   primary: "bg-brand text-white hover:bg-brand-hover disabled:bg-raised disabled:text-faint",
   secondary:
     "border border-line-strong bg-surface text-ink hover:border-brand disabled:text-faint disabled:hover:border-line-strong",
-  ghost: "text-muted hover:bg-raised hover:text-ink disabled:text-faint",
+  // Underlined so it still reads as something to click without a hover.
+  ghost:
+    "text-muted underline underline-offset-4 hover:bg-raised hover:text-ink hover:no-underline disabled:text-faint disabled:no-underline",
   danger: "border border-danger/40 bg-danger/10 text-danger hover:bg-danger/15",
 };
 
@@ -27,7 +29,7 @@ export function Button({
   return (
     <button
       type="button"
-      className={`inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-[16px] font-semibold transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
       {...rest}
     />
   );
@@ -99,13 +101,13 @@ export function Progress({
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : null;
   return (
     <div className="w-full">
-      <div className="h-1 overflow-hidden rounded-full bg-raised">
+      <div className="h-2 overflow-hidden rounded-full bg-raised">
         <div
           className={`h-full bg-accent transition-[width] ${pct === null ? "w-1/3 animate-pulse" : ""}`}
           style={pct === null ? undefined : { width: `${pct}%` }}
         />
       </div>
-      <p className="mt-2 text-[12px] text-muted">
+      <p className="mt-2 text-[14px] text-muted">
         {label}
         {count && pct !== null && ` - ${done.toLocaleString()} of ${total.toLocaleString()}`}
       </p>

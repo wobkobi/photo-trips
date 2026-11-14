@@ -210,7 +210,7 @@ export function SuggestionsPage({ onNavigate }: { onNavigate: (page: PageId) => 
               : "Every stretch of busy days is already a trip, or there aren't any yet."}{" "}
             New suggestions show up here as photos come in.
           </p>
-          <p className="mt-3 text-[13px]">{howFound(data)}</p>
+          <p className="mt-3 text-[15px]">{howFound(data)}</p>
           {data.dismissed > 0 && (
             <Button onClick={restore} disabled={busy}>
               Show {count(data.dismissed, "dismissed suggestion", "dismissed suggestions")} again
@@ -220,7 +220,7 @@ export function SuggestionsPage({ onNavigate }: { onNavigate: (page: PageId) => 
       )}
       {listing && data !== null && suggestions.length > 0 && (
         <div className="flex max-w-4xl flex-col gap-3 px-8 py-6">
-          <p className="max-w-2xl text-[13px] text-muted">{howFound(data)}</p>
+          <p className="max-w-2xl text-[15px] text-muted">{howFound(data)}</p>
           <ul className="mt-2 flex flex-col gap-3">
             {suggestions.map((suggestion) => {
               const key = suggestionKey(suggestion);
@@ -290,7 +290,7 @@ function SuggestionCard({
           <p className="text-[22px] leading-tight font-bold tracking-tight text-brand">
             {suggestion.name}
           </p>
-          <p className="mt-1 text-[13px] text-muted">
+          <p className="mt-1 text-[15px] text-muted">
             {/* A name made from the dates already says them. */}
             {suggestion.namedByPlace && (
               <span className="mr-4">{rangeText(suggestion.startDay, suggestion.endDay)}</span>

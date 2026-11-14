@@ -94,17 +94,13 @@ export function Viewer({
 
       <aside className="flex w-80 shrink-0 flex-col border-l border-line bg-surface">
         <div className="flex items-center justify-between px-5 pt-4">
-          <span className="text-[12px] text-faint">
+          <span className="text-[14px] text-faint">
             {(index + 1).toLocaleString()} of {tiles.length.toLocaleString()}
           </span>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close viewer"
-            className="rounded-md p-1.5 text-muted hover:bg-raised hover:text-ink"
-          >
-            <Icon name="close" />
-          </button>
+          <Button onClick={onClose}>
+            <Icon name="close" size={18} />
+            Close
+          </Button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 pt-3 pb-6">
@@ -118,7 +114,7 @@ export function Viewer({
               <Fact label="Taken">
                 <p>{formatTaken(detail.takenAt)}</p>
                 <p
-                  className={`mt-1 text-[12px] ${detail.dateSource === "modified" ? "text-warn" : "text-faint"}`}
+                  className={`mt-1 text-[14px] ${detail.dateSource === "modified" ? "text-warn" : "text-faint"}`}
                 >
                   {sourceText(detail.dateSource)}
                 </p>
@@ -136,14 +132,14 @@ export function Viewer({
                 <p>
                   {KIND_NAMES[detail.kind]}, {formatBytes(detail.size)}
                 </p>
-                <p className="selectable mt-1 text-[12px] break-all text-faint">{detail.folder}</p>
+                <p className="selectable mt-1 text-[14px] break-all text-faint">{detail.folder}</p>
               </Fact>
 
               {detail.members.length > 1 && (
                 <Fact label="Moves together with">
                   <ul className="flex flex-col gap-1">
                     {detail.members.slice(1).map((m) => (
-                      <li key={m.id} className="flex justify-between gap-3 text-[13px]">
+                      <li key={m.id} className="flex justify-between gap-3 text-[15px]">
                         <span className="selectable truncate">{m.name}</span>
                         <span className="shrink-0 text-faint">{KIND_NAMES[m.kind]}</span>
                       </li>
@@ -235,12 +231,13 @@ function NavButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      aria-label={side === "left" ? "Newer" : "Older"}
-      className={`absolute top-1/2 -translate-y-1/2 rounded-full bg-surface/80 p-2.5 text-muted hover:bg-raised hover:text-ink disabled:invisible ${
-        side === "left" ? "left-4" : "right-4"
+      className={`absolute top-1/2 flex min-h-12 -translate-y-1/2 items-center gap-2 rounded-full bg-surface/90 px-5 text-[17px] font-semibold text-ink hover:bg-raised disabled:invisible ${
+        side === "left" ? "left-6" : "right-6"
       }`}
     >
-      <Icon name={side === "left" ? "back" : "chevron"} />
+      {side === "left" && <Icon name="back" />}
+      {side === "left" ? "Newer" : "Older"}
+      {side === "right" && <Icon name="chevron" />}
     </button>
   );
 }
@@ -248,7 +245,7 @@ function NavButton({
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <section className="mt-5 border-t border-line pt-4">
-      <h3 className="mb-1.5 text-[12px] text-faint">{label}</h3>
+      <h3 className="mb-1.5 text-[14px] text-faint">{label}</h3>
       {children}
     </section>
   );

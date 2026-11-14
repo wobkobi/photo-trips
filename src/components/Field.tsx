@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 /** Classes shared by the text, date and time inputs on trip forms. */
 export const INPUT =
-  "rounded-md border border-line-strong bg-surface px-3 py-1.5 text-ink placeholder:text-faint focus:border-accent focus:outline-none";
+  "min-h-11 rounded-lg border border-line-strong bg-surface px-3 py-2 text-ink placeholder:text-faint focus:border-brand-hover focus:outline-none focus:ring-2 focus:ring-brand-hover/30";
 
 /**
  * A form control with its label above it.
@@ -13,7 +13,7 @@ export const INPUT =
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[13px] font-semibold text-muted">{label}</span>
+      <span className="text-[15px] font-semibold text-muted">{label}</span>
       {children}
     </label>
   );

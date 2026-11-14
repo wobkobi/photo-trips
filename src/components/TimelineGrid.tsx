@@ -12,9 +12,7 @@ import { timelineRows } from "../lib/format";
 import { tripBg } from "../lib/trips";
 import { Icon } from "./Icon";
 
-/** Preferred tile edge in CSS pixels; the real size stretches to fill the row. */
-const TARGET_TILE = 168;
-const GAP = 4;
+const GAP = 6;
 const SIDE_PADDING = 32;
 const HEADER_HEIGHT = 64;
 
@@ -24,6 +22,8 @@ export type TileEvent = ReactMouseEvent<HTMLButtonElement>;
 /**
  * Month-grouped photo grid that only renders the rows on screen.
  * @param props.tiles - tiles, newest first
+ * @param props.tileSize - preferred tile edge in CSS pixels; tiles stretch to fill each row
+ * @param props.selecting - picking photos, so tiles show a tick box and a click picks
  * @param props.selected - ids of selected tiles
  * @param props.onTileClick - called with a tile's index and the click
  * @param props.onTileMenu - called with a tile's index and the right-click
@@ -32,18 +32,21 @@ export type TileEvent = ReactMouseEvent<HTMLButtonElement>;
  */
 export function TimelineGrid({
   tiles,
+  tileSize: target,
+  selecting,
   selected,
   onTileClick,
   onTileMenu,
   onThumbError,
 }: {
   tiles: Tile[];
+  tileSize: number;
+  selecting: boolean;
   selected: ReadonlySet<number>;
   onTileClick: (index: number, event: TileEvent) => void;
   onTileMenu: (index: number, event: TileEvent) => void;
   onThumbError: (tile: Tile) => void;
 }) {
-  const selecting = selected.size > 0;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -56,7 +59,7 @@ export function TimelineGrid({
   }, []);
 
   const inner = Math.max(0, width - SIDE_PADDING * 2);
-  const columns = Math.max(2, Math.floor((inner + GAP) / (TARGET_TILE + GAP)));
+  const columns = Math.max(2, Math.floor((inner + GAP) / (target + GAP)));
   const tileSize = Math.floor((inner - GAP * (columns - 1)) / columns);
   const rows = useMemo(() => timelineRows(tiles, columns), [tiles, columns]);
 
@@ -96,7 +99,7 @@ export function TimelineGrid({
                     <span className="text-[26px] leading-none font-extrabold tracking-tight text-brand">
                       {row.label}
                     </span>
-                    <span className="pb-0.5 text-[13px] text-faint">
+                    <span className="pb-0.5 text-[15px] text-faint">
                       {row.count.toLocaleString()}
                     </span>
                   </h2>
@@ -136,7 +139,7 @@ function TileButton({
 }: {
   tile: Tile;
   size: number;
-  /** Some tile is selected, so a plain click selects instead of opening. */
+  /** Picking photos, so a plain click picks instead of opening. */
   selecting: boolean;
   selected: boolean;
   onClick: (event: TileEvent) => void;
@@ -178,14 +181,14 @@ function TileButton({
       {tile.uncertain && (
         <span
           title="Date uncertain: guessed from when the file was last changed"
-          className="on-dark absolute top-1.5 right-1.5 rounded-full bg-ground/80 p-1 text-warn"
+          className="on-dark absolute top-2 right-2 rounded-full bg-ground/80 p-1.5 text-warn"
         >
-          <Icon name="warn" size={12} />
+          <Icon name="warn" size={16} />
         </span>
       )}
       {(tile.kind === "video" || tile.kind === "raw" || tile.extra > 0) && (
-        <span className="on-dark absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-ground/80 to-transparent px-2 pt-5 pb-1.5 text-[11px] font-semibold text-ink">
-          {tile.kind === "video" && <Icon name="play" size={12} />}
+        <span className="on-dark absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-ground/80 to-transparent px-2 pt-5 pb-1.5 text-[13px] font-semibold text-ink">
+          {tile.kind === "video" && <Icon name="play" size={18} />}
           {tile.kind === "raw" && <span>raw</span>}
           {tile.extra > 0 && (
             <span className="ml-auto" title={`${tile.extra} more file(s) travel with this one`}>
@@ -197,19 +200,19 @@ function TileButton({
       {tile.trip && (
         <span
           title={tile.trip.name}
-          className={`absolute inset-x-0 bottom-0 h-1 ${tripBg(tile.trip.colour)}`}
+          className={`absolute inset-x-0 bottom-0 h-1.5 ${tripBg(tile.trip.colour)}`}
         />
       )}
       {selected && (
-        <span className="pointer-events-none absolute inset-0 rounded-[3px] ring-3 ring-accent ring-inset" />
+        <span className="pointer-events-none absolute inset-0 rounded-[3px] ring-4 ring-accent ring-inset" />
       )}
       {selecting && (
         <span
-          className={`absolute top-1.5 left-1.5 flex h-5 w-5 items-center justify-center rounded-full ${
-            selected ? "bg-accent text-white" : "on-dark border border-ink/70 bg-ground/40"
+          className={`absolute top-2 left-2 flex h-8 w-8 items-center justify-center rounded-full border-2 ${
+            selected ? "border-white bg-accent text-white" : "on-dark border-ink bg-ground/50"
           }`}
         >
-          {selected && <Icon name="check" size={14} />}
+          {selected && <Icon name="check" size={20} />}
         </span>
       )}
     </button>

@@ -5,18 +5,19 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { isEnabled } from "@tauri-apps/plugin-autostart";
 import { BrandMark } from "../components/BrandMark";
 import { InboxSettings } from "../components/InboxSettings";
-import { Row, SavedText, Section, Toggle } from "../components/SettingParts";
+import { Choices, Row, SavedText, Section, Toggle } from "../components/SettingParts";
 import { SuggestionSettings } from "../components/SuggestionSettings";
 import { Button, PageHeader } from "../components/ui";
 import { UpdateCheck } from "../components/UpdateCheck";
 import { api, AUTOSTART_CHANGED } from "../lib/api";
+import { PHOTO_SIZES, photoSizeOf, TEXT_SIZES, textSizeOf } from "../lib/display";
 import { normaliseExtensions } from "../lib/settingValues";
 import { useAction } from "../lib/useAction";
 import { useSettings } from "../lib/useSettings";
 
 /**
- * App settings (library, inbox folders, suggestions, file types and window behaviour), then
- * the app's version, maker and updates.
+ * App settings (text and photo sizes, library, inbox folders, suggestions, file types and window
+ * behaviour), then the app's version, maker and updates.
  * @param props.showAbout - Help > About or Check for updates was picked; scroll to the About
  * section on opening
  * @param props.onAboutShown - called once About has been scrolled into view
@@ -30,6 +31,7 @@ export function SettingsPage({
   onAboutShown: () => void;
 }) {
   const { settings, save } = useSettings();
+  const display = useAction();
   const library = useAction();
   const types = useAction();
   const windowing = useAction();
@@ -64,6 +66,47 @@ export function SettingsPage({
     <>
       <PageHeader title="Settings" />
       <div className="max-w-2xl px-8 py-8">
+        <Section
+          title="Display"
+          detail="Make the words and photos bigger if they're hard to see. Changes show straight away."
+          error={display.error}
+        >
+          <Choices
+            title="Text size"
+            detail="Buttons and spacing grow with the words."
+            value={textSizeOf(settings)}
+            options={TEXT_SIZES.map((size) => ({
+              ...size,
+              sample: (
+                <span
+                  aria-hidden="true"
+                  className="leading-none font-bold"
+                  style={{ fontSize: (18 * Number(size.value)) / 100 }}
+                >
+                  Aa
+                </span>
+              ),
+            }))}
+            onChange={(value) => display.run(() => save("text_size", value))}
+          />
+          <Choices
+            title="Photo size"
+            detail="How big photos are in the Library."
+            value={photoSizeOf(settings)}
+            options={PHOTO_SIZES.map((size) => ({
+              ...size,
+              sample: (
+                <span
+                  aria-hidden="true"
+                  className="rounded-[3px] border-2 border-current opacity-80"
+                  style={{ width: size.tile / 7, height: size.tile / 7 }}
+                />
+              ),
+            }))}
+            onChange={(value) => display.run(() => save("photo_size", value))}
+          />
+        </Section>
+
         <Section title="Library" error={library.error}>
           <Row
             title="Library folder"
@@ -132,8 +175,8 @@ export function SettingsPage({
               <BrandMark size={48} className="shrink-0 text-brand" />
               <div>
                 <p className="text-[17px] leading-tight font-extrabold">Pic Cabinet</p>
-                {version && <p className="mt-1 text-[13px] text-muted">Version {version}</p>}
-                <p className="mt-0.5 text-[13px] text-muted">Made by To the Point Tech</p>
+                {version && <p className="mt-1 text-[15px] text-muted">Version {version}</p>}
+                <p className="mt-0.5 text-[15px] text-muted">Made by To the Point Tech</p>
               </div>
             </div>
             <UpdateCheck />

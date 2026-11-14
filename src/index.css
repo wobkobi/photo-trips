@@ -10,12 +10,15 @@
   --color-surface: #ffffff;
   --color-raised: #e2e6e9; /* seasalt-100 */
   --color-line: #c6ccd2; /* seasalt-200 */
-  --color-line-strong: #a9b3bc; /* seasalt-300, the website's input border */
+  /* seasalt-600, so input and button edges stand out clearly (5.6:1 on white) for people who
+     can't pick out a pale outline. */
+  --color-line-strong: #5a6672;
   --color-ink: #001514; /* rich-black */
-  --color-muted: #434c56; /* seasalt-700 */
-  /* seasalt-600: the lightest grey that still reads at 4.5:1 on seasalt, and faint is
-     mostly small text (paths, counts, hints). */
-  --color-faint: #5a6672;
+  /* Secondary text is a step darker than the website's, since the app's people are mostly
+     older and read it at length: seasalt-800 for explanations, seasalt-700 for paths, counts
+     and hints (8:1 on seasalt). */
+  --color-muted: #2d3339;
+  --color-faint: #434c56;
   --color-brand: #0c0a3e; /* russian-violet */
   --color-brand-hover: #191584; /* russian-violet-700 */
   --color-accent: #2b93a1; /* moonstone-600, 3:1 on seasalt for rings and fills */
@@ -88,7 +91,7 @@ body {
   background: var(--color-ground);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   -webkit-font-smoothing: antialiased;
   user-select: none;
@@ -99,9 +102,14 @@ body {
   user-select: text;
 }
 
+/* A thick ring in the darker brand colour, so the keyboard position is easy to spot. */
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 3px solid var(--color-brand-hover);
   outline-offset: 2px;
+}
+.on-dark :focus-visible,
+.on-brand :focus-visible {
+  outline-color: var(--color-accent);
 }
 
 ::-webkit-scrollbar {

@@ -6,6 +6,7 @@ import { TimelineGrid, type TileEvent } from "../components/TimelineGrid";
 import { Viewer } from "../components/Viewer";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { api, errorText, type IndexSummary, type Tile } from "../lib/api";
+import { tileSizeOf } from "../lib/display";
 import { count as countOf } from "../lib/format";
 import { rangeOfTiles, type TripRange } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
@@ -13,10 +14,11 @@ import { useSettings } from "../lib/useSettings";
 
 /**
  * The whole library as a month-by-month timeline, with a viewer for single photos.
- * Ctrl-click, Shift-click or right-click selects photos to make a trip from.
+ * "Pick photos for a trip" turns clicks into picking, so the photos to make a trip from can be
+ * chosen without knowing any shortcuts; Ctrl-click, Shift-click and right-click pick too.
  * @param props.onCreateTrip - start a new trip covering the given days
  * @param props.onImport - open the Import page
- * @param props.refreshRequested - File > Refresh library (F5) was picked; refresh on opening
+ * @param props.refreshRequested - File > Look for new photos (F5) was picked; refresh on opening
  * @param props.onRefreshStarted - called once that refresh has been asked for
  * @returns the page
  */
@@ -39,6 +41,8 @@ export function LibraryPage({
   const [open, setOpen] = useState<number | null>(null);
   const [failedThumbs, setFailedThumbs] = useState<Tile[]>([]);
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
+  // Picking was turned on with the button, so plain clicks pick even before anything is picked.
+  const [picking, setPicking] = useState(false);
   const [anchor, setAnchor] = useState<number | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
@@ -65,6 +69,7 @@ export function LibraryPage({
   );
   const closeViewer = useCallback(() => setOpen(null), []);
   const clearSelection = useCallback(() => {
+    setPicking(false);
     setSelected(new Set());
     setAnchor(null);
     setMenu(null);
@@ -80,18 +85,21 @@ export function LibraryPage({
     api.indexLibrary().catch((err) => setError(errorText(err)));
   }, [refreshRequested, onRefreshStarted]);
 
+  const selecting = picking || selected.size > 0;
+
   useEffect(() => {
-    if (selected.size === 0) return;
+    if (!selecting) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") clearSelection();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, clearSelection]);
+  }, [selecting, clearSelection]);
 
   /**
    * Explorer-style selection: Ctrl toggles, Shift extends from the last clicked tile, and a
-   * plain click toggles while anything is selected. Otherwise a plain click opens the viewer.
+   * plain click toggles while picking or while anything is picked. Otherwise a plain click
+   * opens the viewer.
    */
   function onTileClick(index: number, event: TileEvent) {
     if (!tiles) return;
@@ -103,7 +111,7 @@ export function LibraryPage({
       setSelected(next);
       return;
     }
-    if (event.ctrlKey || event.metaKey || selected.size > 0) {
+    if (event.ctrlKey || event.metaKey || selecting) {
       const next = new Set(selected);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -143,24 +151,34 @@ export function LibraryPage({
         title="Library"
         detail={<Detail count={count} summary={summary} indexing={indexing && count === 0} />}
         actions={
-          selected.size > 0 ? (
+          selecting ? (
             <>
-              <span className="mr-2 text-[13px] text-muted">
-                {countOf(selected.size, "photo", "photos")} selected
+              <span className="mr-2 text-[16px] font-semibold" aria-live="polite">
+                {selected.size > 0
+                  ? `${countOf(selected.size, "photo", "photos")} picked`
+                  : "Click the photos to put in the trip"}
               </span>
               <Button variant="ghost" onClick={clearSelection}>
-                Clear
+                Cancel
               </Button>
-              <Button variant="primary" onClick={createTrip}>
-                <Icon name="trips" size={16} />
-                Create trip
+              <Button variant="primary" onClick={createTrip} disabled={selected.size === 0}>
+                <Icon name="trips" size={18} />
+                Make a trip from these
               </Button>
             </>
           ) : (
-            <Button onClick={refresh} disabled={running !== null}>
-              <Icon name="refresh" size={16} />
-              Refresh
-            </Button>
+            <>
+              {count > 0 && (
+                <Button onClick={() => setPicking(true)}>
+                  <Icon name="check" size={18} />
+                  Pick photos for a trip
+                </Button>
+              )}
+              <Button onClick={refresh} disabled={running !== null}>
+                <Icon name="refresh" size={18} />
+                Look for new photos
+              </Button>
+            </>
           )
         }
       />
@@ -190,6 +208,8 @@ export function LibraryPage({
       {tiles !== null && count > 0 && (
         <TimelineGrid
           tiles={tiles}
+          tileSize={tileSizeOf(settings)}
+          selecting={selecting}
           selected={selected}
           onTileClick={onTileClick}
           onTileMenu={onTileMenu}
@@ -203,10 +223,10 @@ export function LibraryPage({
           onClose={() => setMenu(null)}
           items={[
             {
-              label: `Create trip from ${countOf(selected.size, "photo", "photos")}`,
+              label: `Make a trip from ${countOf(selected.size, "photo", "photos")}`,
               onSelect: createTrip,
             },
-            { label: "Clear selection", onSelect: clearSelection },
+            { label: "Stop picking", onSelect: clearSelection },
           ]}
         />
       )}

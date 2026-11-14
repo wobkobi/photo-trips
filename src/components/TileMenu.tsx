@@ -91,7 +91,7 @@ export function TileMenu({
             onClose();
             item.onSelect();
           }}
-          className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
+          className="block min-h-11 w-full px-4 py-2.5 text-left text-[16px] hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
         >
           {item.label}
         </button>

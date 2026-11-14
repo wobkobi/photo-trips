@@ -73,18 +73,18 @@ export function CodecHint({ failed, onDismiss }: { failed: Tile[]; onDismiss: ()
                     <Icon name="open" size={16} />
                     {listing.name}
                   </Button>
-                  <span className="text-[13px] text-muted">for {listing.what}. Free.</span>
+                  <span className="text-[15px] text-muted">for {listing.what}. Free.</span>
                 </div>
                 {fallback && (
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-4">
-                    <span className="text-[13px] text-muted">
+                    <span className="text-[15px] text-muted">
                       If the Store says it isn&apos;t available for this PC:
                     </span>
                     <Button onClick={() => api.openStorePage(fallback.product)}>
                       <Icon name="open" size={16} />
                       {fallback.name}
                     </Button>
-                    <span className="text-[13px] text-muted">{fallback.note}</span>
+                    <span className="text-[15px] text-muted">{fallback.note}</span>
                   </div>
                 )}
               </li>
@@ -92,15 +92,9 @@ export function CodecHint({ failed, onDismiss }: { failed: Tile[]; onDismiss: ()
           })}
         </ul>
       </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Don't show this again"
-        title="Don't show this again"
-        className="shrink-0 self-start text-muted hover:text-ink"
-      >
-        <Icon name="close" size={16} />
-      </button>
+      <Button variant="ghost" onClick={onDismiss} className="shrink-0 self-start">
+        Don&apos;t show again
+      </Button>
     </div>
   );
 }

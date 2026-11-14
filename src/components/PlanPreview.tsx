@@ -114,7 +114,7 @@ export function MovingProgress({ job }: { job: JobProgress }) {
         {JOB_NAMES[job.kind] ?? "Working"}
       </p>
       <Progress done={job.done} total={job.total} label={job.stage} />
-      <p className="mt-4 text-[13px] text-muted">
+      <p className="mt-4 text-[15px] text-muted">
         You can close this window. Pic Cabinet keeps going in the tray.
       </p>
     </div>
@@ -210,9 +210,9 @@ export function FolderList({ folders }: { folders: Preview["folders"] }) {
                 <span className="block truncate">
                   {/^\d{4}-\d{2}$/.test(name) ? monthLabel(name) : name}
                 </span>
-                <span className="block truncate text-[12px] text-faint">{folder}</span>
+                <span className="block truncate text-[14px] text-faint">{folder}</span>
               </span>
-              <span className="shrink-0 text-[13px] text-muted">{files.toLocaleString()}</span>
+              <span className="shrink-0 text-[15px] text-muted">{files.toLocaleString()}</span>
             </li>
           );
         })}
@@ -276,7 +276,7 @@ function MoveRow({ item, origin, top }: { item: MoveRowData; origin: string; top
       className="absolute left-0 flex w-full items-center gap-3 px-6"
       style={{ top, height: ROW_HEIGHT }}
     >
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[3px] bg-raised text-[11px] text-faint">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[3px] bg-raised text-[13px] text-faint">
         {failed ? (
           `.${ext.toLowerCase()}`
         ) : (
@@ -296,17 +296,17 @@ function MoveRow({ item, origin, top }: { item: MoveRowData; origin: string; top
           <span className="selectable truncate">{to.name}</span>
           {item.extra > 0 && (
             <span
-              className="shrink-0 text-[12px] text-muted"
+              className="shrink-0 text-[14px] text-muted"
               title={`${count(item.extra, "file travels", "files travel")} with this one`}
             >
               +{item.extra}
             </span>
           )}
           {item.renamed && (
-            <span className="shrink-0 truncate text-[12px] text-faint">was {from.name}</span>
+            <span className="shrink-0 truncate text-[14px] text-faint">was {from.name}</span>
           )}
         </span>
-        <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted">
+        <span className="flex min-w-0 items-center gap-1.5 text-[14px] text-muted">
           <span className="selectable truncate">{from.folder || origin}</span>
           <Icon name="chevron" size={12} className="shrink-0 text-faint" />
           <span className="selectable shrink-0 text-ink">{to.folder}</span>

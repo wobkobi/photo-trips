@@ -102,14 +102,14 @@ function BatchRow({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4">
         <div className="min-w-0 flex-1">
           <p className="font-semibold">{batch.label}</p>
-          <p className="mt-1 flex flex-wrap gap-x-3 text-[13px] text-muted">
+          <p className="mt-1 flex flex-wrap gap-x-3 text-[15px] text-muted">
             <span>{formatWhen(batch.createdAt)}</span>
             <span className={trouble ? "text-warn" : undefined}>{statusText(batch)}</span>
           </p>
         </div>
         {confirming ? (
           <div className="flex items-center gap-2">
-            <span className="text-[13px]">{confirmText(batch)}</span>
+            <span className="text-[15px]">{confirmText(batch)}</span>
             <Button variant="primary" onClick={onUndo} disabled={busy}>
               Put back
             </Button>
@@ -248,7 +248,7 @@ function Entries({ batch }: { batch: BatchInfo }) {
     <div className="border-t border-line">
       <ul className="max-h-96 overflow-y-auto px-4 py-2">
         {entries.map((entry) => (
-          <li key={entry.seq} className="flex gap-3 py-1.5 text-[13px]">
+          <li key={entry.seq} className="flex gap-3 py-1.5 text-[15px]">
             <span
               className={`w-24 shrink-0 ${entry.error ? "text-warn" : "text-muted"}`}
               title={entry.error ?? undefined}
@@ -262,14 +262,14 @@ function Entries({ batch }: { batch: BatchInfo }) {
                 <span className="truncate">{entry.op === "trash" ? "Recycle Bin" : entry.to}</span>
               </span>
               {entry.error && (
-                <span className="selectable block text-[12px] text-warn">{entry.error}</span>
+                <span className="selectable block text-[14px] text-warn">{entry.error}</span>
               )}
             </span>
           </li>
         ))}
       </ul>
       {batch.total > ENTRY_LIMIT && (
-        <p className="border-t border-line px-4 py-2 text-[12px] text-faint">
+        <p className="border-t border-line px-4 py-2 text-[14px] text-faint">
           Showing the first {ENTRY_LIMIT.toLocaleString()} of {batch.total.toLocaleString()} files.
         </p>
       )}

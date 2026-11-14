@@ -11,8 +11,9 @@ use tauri::{Manager, Runtime, UriSchemeContext, UriSchemeResponder};
 
 use crate::AppState;
 
-/// Grid tiles: long edge in pixels (tiles are ~170 px, so this stays sharp at 150% scaling).
-pub const THUMB_SIZE: i32 = 320;
+/// Grid tiles: long edge in pixels. Large tiles are ~280 CSS px, so this stays sharp at 175%
+/// combined text size and Windows scaling.
+pub const THUMB_SIZE: i32 = 512;
 /// Full-size viewer for formats the webview can't draw itself.
 pub const PREVIEW_SIZE: i32 = 2048;
 
@@ -26,7 +27,7 @@ const VIEWER_BACKGROUND: [u8; 3] = rgb(0x001514);
 
 /// Cache folders carry this number. Raise it when renderings change (such as a background colour)
 /// so stale images aren't served; folders with other numbers are deleted at start.
-const CACHE_VERSION: u32 = 2;
+const CACHE_VERSION: u32 = 3;
 
 /// `0xRRGGBB` as bytes, so colours here read like the hex codes in index.css.
 const fn rgb(hex: u32) -> [u8; 3] {
@@ -419,7 +420,9 @@ mod tests {
             "previews",
             "thumbs-v1",
             "thumbs-v2",
+            "thumbs-v3",
             "previews-v2",
+            "previews-v3",
             "thumbsup",
             "logs",
         ];
@@ -432,7 +435,7 @@ mod tests {
             .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
             .collect();
         stale.sort();
-        assert_eq!(stale, ["previews", "thumbs", "thumbs-v1"]);
+        assert_eq!(stale, ["previews", "previews-v2", "thumbs", "thumbs-v1", "thumbs-v2"]);
     }
 
     #[cfg(windows)]
