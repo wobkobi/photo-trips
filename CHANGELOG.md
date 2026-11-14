@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.10.1] - 2026-11-14
+
+### Fixed
+
+- Importing from an iPhone found nothing. Its photos have no display name, only a file name, and the
+  phone reader stopped at the first one; there is also no DCIM folder, as an iPhone keeps its month
+  folders straight under its storage. Phones are now read through Windows directly, by file name,
+  from DCIM where a phone has it and the whole storage where it doesn't, and only ever read-only.
+
 ## [0.10.0] - 2026-11-14
 
 ### Added
