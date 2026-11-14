@@ -96,7 +96,7 @@ fn watch(app: &AppHandle) {
         };
         if found != previous {
             let arrived: Vec<&Device> = found.iter().filter(|d| !previous.contains(d)).collect();
-            // Whatever was plugged in before Photo Trips started isn't news.
+            // Whatever was plugged in before Pic Cabinet started isn't news.
             if !first {
                 for device in &arrived {
                     notify(app, device);
@@ -116,7 +116,7 @@ fn notify(app: &AppHandle, device: &Device) {
         .builder()
         .title(format!("Import photos from {}?", device.name))
         .body(format!(
-            "Choose Import from {} in the Photo Trips tray menu to see what's new.",
+            "Choose Import from {} in the Pic Cabinet tray menu to see what's new.",
             device.name
         ))
         .show();

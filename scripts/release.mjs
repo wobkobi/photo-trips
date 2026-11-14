@@ -68,7 +68,7 @@ if (!existsSync(keyPath)) fail(`no signing key at ${keyPath}.`);
 const configPath = join(root, "src-tauri", "target", "release-config.json");
 mkdirSync(join(root, "src-tauri", "target"), { recursive: true });
 writeFileSync(configPath, JSON.stringify({ bundle: { createUpdaterArtifacts: true } }));
-console.log(`release: building Photo Trips ${version}`);
+console.log(`release: building Pic Cabinet ${version}`);
 const cli = join(root, "node_modules", "@tauri-apps", "cli", "tauri.js");
 const build = spawnSync(process.execPath, [cli, "build", "--config", configPath], {
   cwd: root,
@@ -84,7 +84,7 @@ if (build.status !== 0) fail("the build failed.");
 
 // Stage the installer under a name without spaces, beside its manifest.
 const bundle = join(root, "src-tauri", "target", "release", "bundle", "nsis");
-const built = join(bundle, `Photo Trips_${version}_x64-setup.exe`);
+const built = join(bundle, `Pic Cabinet_${version}_x64-setup.exe`);
 if (!existsSync(built) || !existsSync(`${built}.sig`)) fail(`the build left no signed ${built}.`);
 const stage = join(root, "src-tauri", "target", "release", "publish", version);
 rmSync(stage, { recursive: true, force: true });
@@ -118,7 +118,7 @@ const published = spawnSync(
     "--repo",
     RELEASES_REPO,
     "--title",
-    `Photo Trips ${version}`,
+    `Pic Cabinet ${version}`,
     "--notes-file",
     notesFile,
     "--target",
@@ -137,4 +137,4 @@ const live = check.ok ? await check.json() : null;
 if (live?.version !== version) {
   fail(`published, but the latest release reads ${live?.version ?? `HTTP ${check.status}`}.`);
 }
-console.log(`release: published Photo Trips ${version}. Installed copies will offer it within a day.`);
+console.log(`release: published Pic Cabinet ${version}. Installed copies will offer it within a day.`);

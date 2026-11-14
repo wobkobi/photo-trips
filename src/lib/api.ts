@@ -355,7 +355,7 @@ export interface SettingChange {
 /** Sent with the new on/off state whenever Start with Windows changes. */
 export const AUTOSTART_CHANGED = "autostart://changed";
 
-/** A newer version of Photo Trips on offer. */
+/** A newer version of Pic Cabinet on offer. */
 export interface UpdateAvailable {
   version: string;
   /** Its changelog section, in the release script's markdown. */

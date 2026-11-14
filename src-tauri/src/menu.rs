@@ -95,7 +95,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
             &item(OPEN_LIBRARY, "&Open library folder", None)?,
             &PredefinedMenuItem::separator(app)?,
             &item(CLOSE, "&Close window", Some("Ctrl+W"))?,
-            &item(QUIT, "&Quit Photo Trips", Some("Ctrl+Q"))?,
+            &item(QUIT, "&Quit Pic Cabinet", Some("Ctrl+Q"))?,
         ],
     )?;
 
@@ -144,7 +144,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
             &item(OPEN_LOGS, "Open &log folder", None)?,
             &item(UPDATES, "Check for &updates...", None)?,
             &PredefinedMenuItem::separator(app)?,
-            &item(ABOUT, "&About Photo Trips", None)?,
+            &item(ABOUT, "&About Pic Cabinet", None)?,
         ],
     )?;
 

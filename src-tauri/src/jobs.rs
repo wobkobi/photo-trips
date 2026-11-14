@@ -136,10 +136,10 @@ where
             .lock()
             .map_err(|_| Error::msg("Job lock poisoned"))?;
         if jobs.closed.load(Ordering::Relaxed) {
-            return Err(Error::msg("Photo Trips is installing an update."));
+            return Err(Error::msg("Pic Cabinet is installing an update."));
         }
         if current.is_some() {
-            return Err(Error::msg("Photo Trips is busy with another task. Try again when it finishes."));
+            return Err(Error::msg("Pic Cabinet is busy with another task. Try again when it finishes."));
         }
         let ctx = JobCtx {
             app: app.clone(),

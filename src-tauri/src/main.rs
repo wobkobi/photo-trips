@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    photo_trips_lib::run()
+    pic_cabinet_lib::run()
 }

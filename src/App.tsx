@@ -93,7 +93,7 @@ function Shell() {
         <div className="mb-4 flex items-center gap-3 border-b border-line px-2 pt-5 pb-4">
           <BrandMark size={34} className="shrink-0" />
           <div className="min-w-0">
-            <p className="text-[19px] leading-none font-extrabold tracking-tight">Photo Trips</p>
+            <p className="text-[19px] leading-none font-extrabold tracking-tight">Pic Cabinet</p>
             <p className="mt-1.5 text-[12px] leading-none font-semibold text-accent">
               To the Point Tech
             </p>

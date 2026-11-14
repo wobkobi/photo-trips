@@ -8,7 +8,7 @@ import { useJobDone, useJobs } from "../lib/useJobs";
 /** Files listed per batch by the backend (history.rs ENTRY_LIMIT). */
 const ENTRY_LIMIT = 2000;
 
-/** Every change Photo Trips made to the library, newest first, each with undo. */
+/** Every change Pic Cabinet made to the library, newest first, each with undo. */
 export function HistoryPage() {
   const { running } = useJobs();
   const [batches, setBatches] = useState<BatchInfo[] | null>(null);
@@ -44,7 +44,7 @@ export function HistoryPage() {
     <>
       <PageHeader
         title="History"
-        detail="Every change Photo Trips makes to your files. Undo puts them back where they were."
+        detail="Every change Pic Cabinet makes to your files. Undo puts them back where they were."
       />
       {error && (
         <p role="alert" className="mx-8 mt-4 text-danger">
@@ -53,7 +53,7 @@ export function HistoryPage() {
       )}
       {batches !== null && batches.length === 0 && (
         <EmptyState title="No changes yet">
-          <p>When Photo Trips moves files, each change is listed here so you can undo it.</p>
+          <p>When Pic Cabinet moves files, each change is listed here so you can undo it.</p>
         </EmptyState>
       )}
       {batches !== null && batches.length > 0 && (
@@ -191,7 +191,7 @@ function statusText(batch: BatchInfo): string {
     case "cancelled":
       return `Stopped part-way, ${moved}`;
     case "interrupted":
-      return `Stopped when Photo Trips closed, ${moved}`;
+      return `Stopped when Pic Cabinet closed, ${moved}`;
     case "undone":
       return batch.undoneAt ? `Undone ${formatWhen(batch.undoneAt)}` : "Undone";
     case "partly_undone":

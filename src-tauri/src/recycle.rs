@@ -262,7 +262,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir
             .path()
-            .join(format!("phototrips-bin-test-{}.txt", std::process::id()));
+            .join(format!("piccabinet-bin-test-{}.txt", std::process::id()));
         fs::write(&path, "bin test").unwrap();
         system::delete(&path).unwrap();
         assert!(!path.exists());

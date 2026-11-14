@@ -783,7 +783,7 @@ pub fn recover(conn: &Connection, table: &FormatTable) -> Result<usize> {
                 set_media_path(conn, entry.media_id, &entry.dst, table)?;
                 set_entry(conn, entry.id, "done", None)?;
             } else if exists(&entry.src) {
-                let note = "Photo Trips closed before this file was moved";
+                let note = "Pic Cabinet closed before this file was moved";
                 set_entry(conn, entry.id, "skipped", Some(note))?;
             } else {
                 set_entry(conn, entry.id, "failed", Some("The file is missing"))?;
@@ -792,7 +792,7 @@ pub fn recover(conn: &Connection, table: &FormatTable) -> Result<usize> {
             set_media_path(conn, entry.media_id, &entry.src, table)?;
             set_entry(conn, entry.id, "undone", None)?;
         } else {
-            let note = "Photo Trips closed before this file was put back";
+            let note = "Pic Cabinet closed before this file was put back";
             set_entry(conn, entry.id, "done", Some(note))?;
         }
     }
@@ -822,7 +822,7 @@ fn settle_removal(conn: &Connection, entry: &Entry) -> Result<()> {
     let present = exists(&entry.src);
     match (entry.status.as_str(), present) {
         ("pending", true) => {
-            let note = "Photo Trips closed before this copy went to the Recycle Bin";
+            let note = "Pic Cabinet closed before this copy went to the Recycle Bin";
             set_entry(conn, entry.id, "skipped", Some(note))?;
         }
         ("pending", false) => {
@@ -836,7 +836,7 @@ fn settle_removal(conn: &Connection, entry: &Entry) -> Result<()> {
             set_entry(conn, entry.id, "undone", None)?;
         }
         (_, false) => {
-            let note = "Photo Trips closed before this copy came back";
+            let note = "Pic Cabinet closed before this copy came back";
             set_entry(conn, entry.id, "done", Some(note))?;
         }
     }
@@ -858,7 +858,7 @@ fn settle_import(conn: &Connection, entry: &Entry) -> Result<()> {
             add_media_row(conn, entry.id, hash.as_deref())?;
             set_entry(conn, entry.id, "done", None)?;
         } else {
-            let note = "Photo Trips closed before this file came in";
+            let note = "Pic Cabinet closed before this file came in";
             set_entry(conn, entry.id, "skipped", Some(note))?;
         }
         return Ok(());
@@ -873,7 +873,7 @@ fn settle_import(conn: &Connection, entry: &Entry) -> Result<()> {
         drop_media_row(conn, entry)?;
         set_entry(conn, entry.id, "undone", None)?;
     } else {
-        let note = "Photo Trips closed before this file was taken back out";
+        let note = "Pic Cabinet closed before this file was taken back out";
         set_entry(conn, entry.id, "done", Some(note))?;
     }
     Ok(())

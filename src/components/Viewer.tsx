@@ -186,7 +186,7 @@ function Media({ detail, onOpen }: { detail: MediaDetail; onOpen: () => void }) 
         />
         <p className="text-muted">
           {detail.kind === "video"
-            ? "This video's format can't play inside Photo Trips."
+            ? "This video's format can't play inside Pic Cabinet."
             : "Windows can't draw this file, so it can't be shown here. It is still sorted like any other photo."}
         </p>
         <Button variant="primary" className="mt-5" onClick={onOpen}>

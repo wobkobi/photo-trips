@@ -36,7 +36,7 @@ export function UpdateCheck() {
           <p className="text-[13px] text-muted">
             {check === "latest"
               ? "You have the latest version."
-              : "Photo Trips checks for updates once a day."}
+              : "Pic Cabinet checks for updates once a day."}
           </p>
           <Button disabled={check === "checking"} onClick={runCheck}>
             {check === "checking" ? "Checking..." : "Check for updates"}
@@ -106,7 +106,7 @@ function InstallProgress({ progress }: { progress: UpdateProgress }) {
     }
     case "installing":
       return (
-        <Progress done={1} total={1} count={false} label="Installing. Photo Trips will reopen." />
+        <Progress done={1} total={1} count={false} label="Installing. Pic Cabinet will reopen." />
       );
   }
 }

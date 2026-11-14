@@ -172,7 +172,7 @@ export function LibraryPage({
       {tiles !== null && count === 0 && !indexing && (
         <EmptyState title="No photos here yet">
           <p>
-            Photo Trips didn&apos;t find any photos or videos in your library folder. Bring some in
+            Pic Cabinet didn&apos;t find any photos or videos in your library folder. Bring some in
             from a memory card, a phone or another folder, or choose a different library folder in
             Settings.
           </p>

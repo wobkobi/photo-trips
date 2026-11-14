@@ -1,4 +1,4 @@
-# Photo Trips
+# Pic Cabinet
 
 A Windows tray app that keeps a photo library tidy. Photos and videos are sorted into
 `Year/Month` folders by the date they were taken. Set up a trip with a date range and everything
@@ -36,7 +36,7 @@ Test fixtures are regenerated with `scripts/make-fixtures.sh` (needs ffmpeg).
 ## Releases
 
 Installed copies check this repo's
-[releases](https://github.com/wobkobi/photo-trips/releases) once a day and offer new versions
+[releases](https://github.com/wobkobi/pic-cabinet/releases) once a day and offer new versions
 in Settings > About. To publish the version in `package.json`:
 
 ```

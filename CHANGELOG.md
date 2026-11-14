@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-11-15
+
+### Added
+
+- Renamed to Pic Cabinet. Installing it replaces an installed Photo Trips, keeps your library,
+  settings and history, and keeps Start with Windows on if it was.
+
 ## [0.11.0] - 2026-11-14
 
 ### Added

@@ -2,16 +2,16 @@
 // app's updater reads.
 
 /** The repo whose GitHub releases host the installers and latest.json. */
-export const RELEASES_REPO = "wobkobi/photo-trips";
+export const RELEASES_REPO = "wobkobi/pic-cabinet";
 
 /**
  * Installer name on the release. GitHub turns spaces in asset names into dots, so the name
- * the bundler gives ("Photo Trips_...") is replaced with one that has none.
+ * the bundler gives ("Pic Cabinet_...") is replaced with one that has none.
  * @param {string} version - app version, e.g. "0.11.0"
  * @returns the asset file name
  */
 export function assetName(version) {
-  return `Photo-Trips_${version}_x64-setup.exe`;
+  return `Pic-Cabinet_${version}_x64-setup.exe`;
 }
 
 /**

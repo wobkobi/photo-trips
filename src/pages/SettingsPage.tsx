@@ -108,7 +108,7 @@ export function SettingsPage({
         <Section title="Window" error={windowing.error}>
           <Row
             title="Keep running in the tray"
-            detail="Closing the window leaves Photo Trips in the system tray so it can watch for new photos and devices."
+            detail="Closing the window leaves Pic Cabinet in the system tray so it can watch for new photos and devices."
           >
             <Toggle
               checked={closeToTray}
@@ -131,7 +131,7 @@ export function SettingsPage({
             <div className="flex items-center gap-4">
               <BrandMark size={48} className="shrink-0 text-brand" />
               <div>
-                <p className="text-[17px] leading-tight font-extrabold">Photo Trips</p>
+                <p className="text-[17px] leading-tight font-extrabold">Pic Cabinet</p>
                 {version && <p className="mt-1 text-[13px] text-muted">Version {version}</p>}
                 <p className="mt-0.5 text-[13px] text-muted">Made by To the Point Tech</p>
               </div>

@@ -422,7 +422,7 @@ fn spread<T: Copy>(items: &[T], limit: usize) -> Vec<T> {
     items.iter().step_by(step).copied().collect()
 }
 
-/// Trips Photo Trips thinks you took, with their photo counts, names and sample photos.
+/// Trips Pic Cabinet thinks you took, with their photo counts, names and sample photos.
 #[tauri::command(async)]
 pub fn suggest_trips(state: State<'_, AppState>) -> Result<Suggestions> {
     let (rows, trips, dismissed, (min_photos, set_home)) = {
