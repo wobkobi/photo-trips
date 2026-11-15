@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { assetName, assetUrl, changelogSection, manifest, releaseNotes } from "./release-lib.mjs";
+import {
+  assetName,
+  assetUrl,
+  changeHistory,
+  changelogSection,
+  manifest,
+  releaseNotes,
+} from "./release-lib.mjs";
 
 const CHANGELOG = `# Changelog
 
@@ -92,10 +99,12 @@ describe("manifest", () => {
     expect(url).toBe(
       "https://github.com/wobkobi/pic-cabinet/releases/download/v0.11.0/Pic-Cabinet_0.11.0_x64-setup.exe",
     );
+    const changes = [{ version: "0.11.0", notes: "- A fix." }];
     expect(
       manifest({
         version: "0.11.0",
         notes: "- A fix.",
+        changes,
         signature: "sig\n",
         url,
         date: new Date("2026-11-15T01:02:03Z"),
@@ -103,8 +112,28 @@ describe("manifest", () => {
     ).toEqual({
       version: "0.11.0",
       notes: "- A fix.",
+      changes,
       pub_date: "2026-11-15T01:02:03.000Z",
       platforms: { "windows-x86_64": { signature: "sig", url } },
     });
+  });
+});
+
+describe("changeHistory", () => {
+  it("lists every version up to this one, newest first, by number", () => {
+    const changelog = `${CHANGELOG}\n## [0.9.0] - 2026-11-13\n\n### Added\n\n- First.\n`;
+    expect(changeHistory(changelog, "0.11.0")).toEqual([
+      {
+        version: "0.11.0",
+        notes:
+          "### Added\n\n- Updates: Settings > About checks for a new version and installs it.\n\n### Fixed\n\n- A fix.",
+      },
+      { version: "0.10.1", notes: "### Fixed\n\n- Older." },
+      { version: "0.9.0", notes: "### Added\n\n- First." },
+    ]);
+  });
+
+  it("leaves out sections newer than the release", () => {
+    expect(changeHistory(CHANGELOG, "0.10.1").map((c) => c.version)).toEqual(["0.10.1"]);
   });
 });

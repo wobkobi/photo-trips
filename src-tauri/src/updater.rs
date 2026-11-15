@@ -44,9 +44,13 @@ const NOTIFIED_KEY: &str = "update_notified";
 #[serde(rename_all = "camelCase")]
 pub struct Available {
     pub version: String,
-    /// The changelog section for that version.
+    /// Every change since the installed version, so an update that skips releases lists what
+    /// all of them brought. Falls back to the release's own notes.
     pub notes: Option<String>,
 }
+
+/// Keep a Changelog's heading order, used when notes from several versions are merged.
+const HEADING_ORDER: [&str; 6] = ["Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"];
 
 /// How far an install has got.
 #[derive(Debug, Clone, Serialize)]
@@ -73,9 +77,69 @@ impl Updates {
         let pending = self.pending.lock().ok()?;
         pending.as_ref().map(|update| Available {
             version: update.version.clone(),
-            notes: update.body.clone().filter(|notes| !notes.trim().is_empty()),
+            notes: notes_since(&update.raw_json, &update.current_version, &update.version)
+                .or_else(|| update.body.clone())
+                .filter(|notes| !notes.trim().is_empty()),
         })
     }
+}
+
+/// An x.y.z version as numbers, so 0.10.0 sorts after 0.9.0. Anything after `-` or `+` is
+/// ignored.
+fn version_key(version: &str) -> Option<(u64, u64, u64)> {
+    let core = version.trim().trim_start_matches('v').split(['-', '+']).next()?;
+    let mut parts = core.split('.').map(|part| part.parse::<u64>().ok());
+    Some((parts.next()??, parts.next()??, parts.next()??))
+}
+
+/// Every change after the installed version up to the new one, from the `changes` list the
+/// release script puts in latest.json (one changelog section per version). The sections merge
+/// under one heading each in the usual order, newest first within a heading, the same way the
+/// release notes cover versions that were never released. `None` when the manifest has no list
+/// or nothing in it falls in the range, so the caller uses the release's own notes.
+fn notes_since(manifest: &serde_json::Value, current: &str, new: &str) -> Option<String> {
+    let (current, new) = (version_key(current)?, version_key(new)?);
+    let mut changes: Vec<((u64, u64, u64), &str)> = manifest
+        .get("changes")?
+        .as_array()?
+        .iter()
+        .filter_map(|change| {
+            let version = version_key(change.get("version")?.as_str()?)?;
+            let notes = change.get("notes")?.as_str()?;
+            (version > current && version <= new).then_some((version, notes))
+        })
+        .collect();
+    if changes.is_empty() {
+        return None;
+    }
+    changes.sort_by_key(|(version, _)| std::cmp::Reverse(*version));
+
+    let mut groups: Vec<(&str, Vec<&str>)> = Vec::new();
+    for (_, notes) in &changes {
+        let mut heading = "";
+        for line in notes.lines() {
+            if let Some(name) = line.strip_prefix("### ") {
+                heading = name.trim();
+            } else if !line.trim().is_empty() {
+                match groups.iter_mut().find(|(name, _)| *name == heading) {
+                    Some((_, lines)) => lines.push(line),
+                    None => groups.push((heading, vec![line])),
+                }
+            }
+        }
+    }
+    // Stable, so headings outside the usual set keep their first-seen order at the end.
+    groups.sort_by_key(|(heading, _)| {
+        HEADING_ORDER.iter().position(|name| name == heading).unwrap_or(HEADING_ORDER.len())
+    });
+    let merged: Vec<String> = groups
+        .iter()
+        .map(|(heading, lines)| match *heading {
+            "" => lines.join("\n"),
+            name => format!("### {name}\n\n{}", lines.join("\n")),
+        })
+        .collect();
+    Some(merged.join("\n\n"))
 }
 
 /// Check in the background: once soon after starting, then daily.
@@ -246,6 +310,55 @@ async fn install(app: &AppHandle, update: &Update) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn manifest() -> serde_json::Value {
+        serde_json::json!({
+            "version": "0.20.1",
+            "notes": "### Changed\n\n- Only the newest.",
+            "changes": [
+                { "version": "0.20.1", "notes": "### Changed\n\n- Only the newest." },
+                {
+                    "version": "0.20.0",
+                    "notes": "### Changed\n\n- Whole days.\n\n### Fixed\n\n- Lists.",
+                },
+                {
+                    "version": "0.19.0",
+                    "notes": "### Added\n\n- Folder jump.\n\n### Fixed\n\n- Menu.",
+                },
+                { "version": "0.9.0", "notes": "### Added\n\n- Too old." },
+            ],
+        })
+    }
+
+    #[test]
+    fn a_skipped_release_brings_its_changes_along() {
+        // 0.9.0 is older than 0.18.0 by number, though it sorts later as text, so it stays out.
+        assert_eq!(
+            notes_since(&manifest(), "0.18.0", "0.20.1").as_deref(),
+            Some(
+                "### Added\n\n- Folder jump.\n\n\
+                 ### Changed\n\n- Only the newest.\n- Whole days.\n\n\
+                 ### Fixed\n\n- Lists.\n- Menu."
+            )
+        );
+    }
+
+    #[test]
+    fn only_versions_after_the_installed_one_count() {
+        assert_eq!(
+            notes_since(&manifest(), "0.20.0", "0.20.1").as_deref(),
+            Some("### Changed\n\n- Only the newest.")
+        );
+        assert_eq!(notes_since(&manifest(), "0.20.1", "0.20.1"), None);
+    }
+
+    #[test]
+    fn a_manifest_without_the_list_uses_the_release_notes() {
+        let old = serde_json::json!({ "version": "0.20.1", "notes": "- A fix." });
+        assert_eq!(notes_since(&old, "0.18.0", "0.20.1"), None);
+        assert_eq!(version_key("0.10.2-beta"), Some((0, 10, 2)));
+        assert_eq!(version_key("0.10"), None);
+    }
 
     #[test]
     fn a_day_must_pass_between_checks() {

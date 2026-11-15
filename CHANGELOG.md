@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.21.0] - 2026-11-16
+
+### Added
+
+- When an update skips versions, for example going from 0.18.0 straight to 0.21.0, Settings > About
+  lists the changes from every version in between, not just the newest. This starts with the update
+  after this one, since the copy already installed does the listing.
+
 ## [0.20.1] - 2026-11-16
 
 ### Changed

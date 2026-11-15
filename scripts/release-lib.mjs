@@ -101,19 +101,40 @@ export function releaseNotes(changelog, version, since) {
 }
 
 /**
- * The update manifest the app fetches from the latest release.
+ * Every changelog section up to this version, newest first. The app picks the ones newer than
+ * the copy it's running, so an update that skips releases still lists everything it brings.
+ * @param {string} changelog - CHANGELOG.md text
+ * @param {string} version - version being released; later sections are left out
+ * @returns {{ version: string, notes: string }[]} one entry per version that has notes
+ */
+export function changeHistory(changelog, version) {
+  return [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)]
+    .map((match) => match[1])
+    .filter((v) => compareVersions(v, version) <= 0)
+    .sort((a, b) => compareVersions(b, a))
+    .flatMap((v) => {
+      const notes = changelogSection(changelog, v);
+      return notes ? [{ version: v, notes }] : [];
+    });
+}
+
+/**
+ * The update manifest the app fetches from the latest release. `notes` is what the updater
+ * plugin reads; `changes` is extra, read by the app itself.
  * @param {object} release - what to announce
  * @param {string} release.version - the new version
  * @param {string} release.notes - its release notes
+ * @param {{ version: string, notes: string }[]} release.changes - from {@link changeHistory}
  * @param {string} release.signature - contents of the installer's .sig file
  * @param {string} release.url - where the installer downloads from
  * @param {Date} release.date - publish time
  * @returns the latest.json object
  */
-export function manifest({ version, notes, signature, url, date }) {
+export function manifest({ version, notes, changes, signature, url, date }) {
   return {
     version,
     notes,
+    changes,
     pub_date: date.toISOString(),
     platforms: { "windows-x86_64": { signature: signature.trim(), url } },
   };
