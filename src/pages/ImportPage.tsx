@@ -12,7 +12,7 @@ import {
   ResultBanner,
 } from "../components/PlanPreview";
 import type { TileJump } from "../components/TimelineGrid";
-import { Button, EmptyState, LIST_FILL, PageHeader } from "../components/ui";
+import { Button, EmptyState, LIST_FILL, PageHeader, ReviewHead } from "../components/ui";
 import { useImportSource } from "../components/viewSources";
 import {
   api,
@@ -242,12 +242,9 @@ function Sources({
   onChooseFolder: () => void;
 }): ReactElement {
   return (
-    <div className="flex max-w-3xl flex-col gap-10 px-8 py-7">
+    <div className="flex max-w-3xl flex-col gap-8 px-5 py-5">
       <section aria-labelledby="import-devices">
-        <h2
-          id="import-devices"
-          className="text-[24px] leading-none font-bold tracking-tight text-ink"
-        >
+        <h2 id="import-devices" className="text-[18px] font-semibold">
           Memory cards and phones
         </h2>
         {devices !== null && devices.length === 0 && (
@@ -283,10 +280,7 @@ function Sources({
       </section>
 
       <section aria-labelledby="import-folder">
-        <h2
-          id="import-folder"
-          className="text-[24px] leading-none font-bold tracking-tight text-ink"
-        >
+        <h2 id="import-folder" className="text-[18px] font-semibold">
           A folder on this PC
         </h2>
         <p className="mt-3 text-muted">
@@ -401,28 +395,25 @@ function IncomingView({
     : `${preview.spec.kind === "folder" ? "in" : "on"} ${preview.source}`;
   return (
     <div className="flex flex-1 flex-col">
-      {/* One line of totals; the fuller notes fold away, so the photos get the room. */}
-      <section className="px-5 pt-3 pb-2">
-        <p className="text-[18px] font-semibold">
-          {count(preview.files, "new file", "new files")} from {preview.source}
-        </p>
-        {preview.spec.kind === "folder" && (
-          <p className="selectable text-[14px] break-all text-faint">{preview.spec.path}</p>
-        )}
-        <p className="mt-0.5 text-[14px] text-muted">
-          {formatBytes(preview.bytes)} into {count(preview.folders.length, "folder", "folders")}
-          {preview.already > 0 && <> · {preview.already.toLocaleString()} already here</>}
-        </p>
-        <details className="group mt-1 text-[14px] text-muted">
-          <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1.5 rounded-md text-faint hover:text-ink">
-            <Icon
-              name="chevron"
-              size={14}
-              className="shrink-0 transition-transform group-open:rotate-90"
-            />
-            Details
-          </summary>
-          <div className="flex max-w-3xl flex-col gap-1 pb-1 pl-5">
+      <ReviewHead
+        title={
+          <>
+            {count(preview.files, "new file", "new files")} from {preview.source}
+          </>
+        }
+        summary={
+          <>
+            {preview.spec.kind === "folder" && (
+              <p className="selectable break-all text-faint">{preview.spec.path}</p>
+            )}
+            <p>
+              {formatBytes(preview.bytes)} into {count(preview.folders.length, "folder", "folders")}
+              {preview.already > 0 && <> · {preview.already.toLocaleString()} already here</>}
+            </p>
+          </>
+        }
+        notes={
+          <>
             <p>
               {formatBytes(preview.bytes)} into {count(preview.folders.length, "folder", "folders")}
               : each photo goes in its trip&apos;s folder, or the folder for the month it was taken.
@@ -458,9 +449,9 @@ function IncomingView({
               No file in your library is ever replaced, and the whole import can be undone from
               History.
             </p>
-          </div>
-        </details>
-      </section>
+          </>
+        }
+      />
       <PickBar
         ticked={totals.items}
         total={preview.items.length}

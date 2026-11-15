@@ -49,12 +49,9 @@ export function HistoryPage(): ReactElement {
 
   return (
     <>
-      <PageHeader
-        title="History"
-        detail="Every change Pic Cabinet makes to your files. Undo puts them back where they were."
-      />
+      <PageHeader title="History" />
       {error && (
-        <p role="alert" className="mx-8 mt-4 text-danger">
+        <p role="alert" className="mx-5 mt-3 text-danger">
           {error}
         </p>
       )}
@@ -64,7 +61,7 @@ export function HistoryPage(): ReactElement {
         </EmptyState>
       )}
       {batches !== null && batches.length > 0 && (
-        <ol className="flex max-w-3xl flex-col gap-3 px-8 py-6">
+        <ol className="flex flex-col divide-y divide-line border-b border-line">
           {batches.map((batch) => (
             <BatchRow
               key={batch.id}
@@ -118,12 +115,12 @@ function BatchRow({
 }): ReactElement {
   const trouble = batch.failed > 0 || batch.status === "interrupted";
   return (
-    <li className="rounded-md border border-line bg-surface">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4">
+    <li>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 hover:bg-surface">
         <div className="min-w-0 flex-1">
           {/* Labels can hold a whole folder path, which has nowhere else to break. */}
           <p className="font-semibold wrap-anywhere">{batch.label}</p>
-          <p className="mt-1 flex flex-wrap gap-x-3 text-[15px] text-muted">
+          <p className="mt-0.5 flex flex-wrap gap-x-3 text-[14px] text-muted">
             <span>{formatWhen(batch.createdAt)}</span>
             <span className={trouble ? "text-warn" : undefined}>{statusText(batch)}</span>
           </p>

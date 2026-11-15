@@ -1,6 +1,7 @@
 // Small shared building blocks: buttons, page header, empty state.
 
 import type { ComponentProps, ReactElement, ReactNode } from "react";
+import { Icon } from "./Icon";
 
 /**
  * For the photo grid or move list that fills the rest of a page. It grows into the space left
@@ -13,7 +14,7 @@ import type { ComponentProps, ReactElement, ReactNode } from "react";
  * virtual list; size containment makes the list count as empty there, so only its minimum height
  * reaches them.
  */
-export const LIST_FILL = "min-h-[max(18rem,calc(100vh_-_9rem))] flex-1 contain-size";
+export const LIST_FILL = "min-h-[max(18rem,calc(100vh-9rem))] flex-1 contain-size";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -75,6 +76,48 @@ export function PageHeader({
       {/* Buttons that don't fit move to the next line whole, rather than breaking their words. */}
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
+  );
+}
+
+/**
+ * The top of a review (an import, a sort, duplicates): a one-line headline and totals, with the
+ * fuller notes folded away under Details, so the photos or moves below get the room.
+ * @param props - Component props.
+ * @param props.title - the headline
+ * @param props.summary - a short line or two under it (totals, a folder path)
+ * @param props.notes - the fuller notes, one paragraph each, shown when Details is opened
+ * @param props.className - extra classes, such as a border
+ * @returns the summary section
+ */
+export function ReviewHead({
+  title,
+  summary,
+  notes,
+  className = "",
+}: {
+  title: ReactNode;
+  summary?: ReactNode;
+  notes?: ReactNode;
+  className?: string;
+}): ReactElement {
+  return (
+    <section className={`px-5 pt-3 pb-2 ${className}`}>
+      <p className="text-[18px] font-semibold">{title}</p>
+      {summary && <div className="mt-0.5 text-[14px] text-muted">{summary}</div>}
+      {notes && (
+        <details className="group mt-1 text-[14px] text-muted">
+          <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1.5 rounded-md text-faint hover:text-ink">
+            <Icon
+              name="chevron"
+              size={14}
+              className="shrink-0 transition-transform group-open:rotate-90"
+            />
+            Details
+          </summary>
+          <div className="flex max-w-3xl flex-col gap-1 pb-1 pl-5">{notes}</div>
+        </details>
+      )}
+    </section>
   );
 }
 

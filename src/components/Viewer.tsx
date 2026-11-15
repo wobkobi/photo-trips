@@ -196,7 +196,7 @@ export function Viewer({
           {error && <p className="mb-4 text-danger">{error}</p>}
           {item && (
             <>
-              <h2 className="selectable text-[24px] leading-tight font-bold tracking-tight break-all text-ink">
+              <h2 className="selectable text-[18px] leading-tight font-semibold break-all">
                 {item.name}
               </h2>
               {controls && <div className="mt-4">{controls}</div>}

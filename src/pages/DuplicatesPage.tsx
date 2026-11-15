@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
 import { MovingProgress, ResultBanner } from "../components/PlanPreview";
-import { Button, EmptyState, LIST_FILL, PageHeader } from "../components/ui";
+import { Button, EmptyState, LIST_FILL, PageHeader, ReviewHead } from "../components/ui";
 import { Viewer } from "../components/Viewer";
 import { useLibrarySource } from "../components/viewSources";
 import {
@@ -103,7 +103,6 @@ export function DuplicatesPage({
     <div className="flex h-full flex-col">
       <PageHeader
         title="Duplicates"
-        detail="Photos and videos that are exact copies of each other, byte for byte."
         actions={
           !showProgress &&
           sets.length > 0 &&
@@ -143,7 +142,7 @@ export function DuplicatesPage({
         }
       />
       {error && (
-        <p role="alert" className="mx-8 mt-4 text-danger">
+        <p role="alert" className="mx-5 mt-3 text-danger">
           {error}
         </p>
       )}
@@ -233,31 +232,42 @@ function Summary({
   plan: { copies: number; bytes: number };
 }): ReactElement {
   return (
-    <section className="border-b border-line px-8 pt-6 pb-5">
-      <p className="text-[30px] leading-none font-extrabold tracking-tight text-ink">
-        {count(report.extra, "extra copy", "extra copies")} taking up {formatBytes(report.bytes)}
-      </p>
-      <div className="mt-3 flex max-w-3xl flex-col gap-1 text-muted">
-        <p>
-          Each set keeps the copy marked Keep: the one already in its folder, otherwise the oldest.
-          Click another copy to keep that one instead, or Keep all to leave a set alone.
-        </p>
-        <p>
-          Sidecar files like .aae and .xmp that only belonged to a removed copy go with it. The
-          whole clean-up can be undone from History.
-        </p>
-        {plan.copies !== report.extra && (
-          <p className="text-ink">
-            {count(plan.copies, "copy goes", "copies go")}, freeing {formatBytes(plan.bytes)}.
-          </p>
-        )}
-        {report.unchecked > 0 && (
+    <ReviewHead
+      className="border-b border-line"
+      title={
+        <>
+          {count(report.extra, "extra copy", "extra copies")} taking up {formatBytes(report.bytes)}
+        </>
+      }
+      summary={
+        <>
+          {plan.copies !== report.extra && (
+            <p className="text-ink">
+              {count(plan.copies, "copy goes", "copies go")}, freeing {formatBytes(plan.bytes)}
+            </p>
+          )}
+          {report.unchecked > 0 && (
+            <p>
+              {count(report.unchecked, "newer file hasn't", "newer files haven't")} been compared
+              yet
+            </p>
+          )}
+          <p>Click a copy to keep it instead</p>
+        </>
+      }
+      notes={
+        <>
           <p>
-            {count(report.unchecked, "newer file hasn't", "newer files haven't")} been compared yet.
+            Each set keeps the copy marked Keep: the one already in its folder, otherwise the
+            oldest. Click another copy to keep that one instead, or Keep all to leave a set alone.
           </p>
-        )}
-      </div>
-    </section>
+          <p>
+            Sidecar files like .aae and .xmp that only belonged to a removed copy go with it. The
+            whole clean-up can be undone from History.
+          </p>
+        </>
+      }
+    />
   );
 }
 
@@ -445,7 +455,7 @@ function CopyCard({
   ].filter(Boolean);
 
   return (
-    <li className="relative w-40 shrink-0">
+    <li className="group relative w-40 shrink-0">
       <button
         type="button"
         onClick={onKeep}
@@ -507,9 +517,9 @@ function CopyCard({
         onClick={onZoom}
         aria-label={`Look at ${name}`}
         title="Look at this copy bigger"
-        className="on-dark absolute top-1.5 right-1.5 flex h-10 w-10 items-center justify-center rounded-full bg-ground/70 text-ink hover:bg-ground focus-visible:bg-ground"
+        className="on-dark absolute top-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-ground/70 text-ink opacity-0 group-hover:opacity-100 hover:bg-ground focus-visible:bg-ground focus-visible:opacity-100"
       >
-        <Icon name="zoom" size={22} />
+        <Icon name="zoom" size={18} />
       </button>
     </li>
   );

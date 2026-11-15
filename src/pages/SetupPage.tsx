@@ -30,7 +30,7 @@ export function SetupPage(): ReactElement {
     // text stays reachable when it's taller than the window.
     <div className="flex h-full overflow-y-auto px-8 py-8">
       <div className="m-auto max-w-lg">
-        <h1 className="text-[52px] leading-[1.05] font-extrabold tracking-tight text-ink">
+        <h1 className="font-brand text-[36px] leading-tight font-bold tracking-tight">
           Where do your photos live?
         </h1>
         <p className="mt-5 text-[17px] leading-relaxed text-muted">

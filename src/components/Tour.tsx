@@ -106,7 +106,7 @@ export function Tour({
         <p className="text-[14px] font-semibold text-faint">
           {index + 1} of {STEPS.length}
         </p>
-        <h2 id={titleId} className="mt-1 text-[24px] font-extrabold tracking-tight text-ink">
+        <h2 id={titleId} className="mt-1 text-[20px] font-semibold">
           {step.title}
         </h2>
         <p className="mt-2 text-muted">{step.text}</p>

@@ -310,7 +310,7 @@ function TileButton({
           <span
             title="Date uncertain: guessed from when the file was last changed"
             className={`on-dark absolute top-2 rounded-full bg-ground/80 p-1.5 text-warn ${
-              onZoom ? "right-14" : "right-2"
+              onZoom ? "right-11" : "right-2"
             }`}
           >
             <Icon name="warn" size={16} />
@@ -352,9 +352,9 @@ function TileButton({
           onClick={onZoom}
           aria-label={`Look at ${kind.toLowerCase()} taken ${tile.takenAt.replace("T", " ")}`}
           title="Look at this one bigger"
-          className="on-dark absolute top-2 right-2 flex h-10 w-10 items-center justify-center rounded-full bg-ground/70 text-ink hover:bg-ground focus-visible:bg-ground"
+          className="on-dark absolute top-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-ground/70 text-ink opacity-0 group-hover:opacity-100 hover:bg-ground focus-visible:bg-ground focus-visible:opacity-100"
         >
-          <Icon name="zoom" size={22} />
+          <Icon name="zoom" size={18} />
         </button>
       )}
     </div>

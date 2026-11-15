@@ -8,7 +8,7 @@ import { thumbUrl, type ApplySummary, type JobProgress, type Preview } from "../
 import { count, monthLabel, splitPath } from "../lib/format";
 import { JOB_NAMES } from "../lib/useJobs";
 import { Icon } from "./Icon";
-import { Button, LIST_FILL, Progress } from "./ui";
+import { Button, LIST_FILL, Progress, ReviewHead } from "./ui";
 
 const ROW_HEIGHT = 60;
 
@@ -41,38 +41,38 @@ const VERBS = {
 export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode }): ReactElement {
   return (
     <div className="flex flex-1 flex-col">
-      <section className="px-8 pt-6 pb-5">
-        <p className="text-[30px] leading-none font-extrabold tracking-tight text-ink">
-          {preview.files === 0
+      <ReviewHead
+        title={
+          preview.files === 0
             ? "No files move"
             : `${count(preview.files, "file moves", "files move")} into ${count(
                 preview.folders.length,
                 "folder",
                 "folders",
-              )}`}
-        </p>
-        <div className="mt-3 flex max-w-3xl flex-col gap-1 text-muted">
-          {note}
-          {preview.renamed > 0 && (
-            <p>
-              {count(preview.renamed, "photo gets", "photos get")} a number added to the name, like
-              IMG_1 (1).jpg, because a file with that name is already there.
-            </p>
-          )}
-          {preview.inPlace > 0 && (
-            <p>
-              {count(preview.inPlace, "photo is", "photos and videos are")} already in the right
-              folder.
-            </p>
-          )}
-          {preview.leftAlone > 0 && <LeftAlone files={preview.leftAlone} />}
-          {preview.files > 0 && (
-            <p>No file is ever replaced, and the whole move can be undone from History.</p>
-          )}
-        </div>
-      </section>
+              )}`
+        }
+        summary={
+          preview.inPlace > 0 &&
+          `${count(preview.inPlace, "photo is", "photos and videos are")} already in place`
+        }
+        notes={
+          <>
+            {note}
+            {preview.renamed > 0 && (
+              <p>
+                {count(preview.renamed, "photo gets", "photos get")} a number added to the name,
+                like IMG_1 (1).jpg, because a file with that name is already there.
+              </p>
+            )}
+            {preview.leftAlone > 0 && <LeftAlone files={preview.leftAlone} />}
+            {preview.files > 0 && (
+              <p>No file is ever replaced, and the whole move can be undone from History.</p>
+            )}
+          </>
+        }
+      />
       {preview.files > 0 && (
-        <div className={`flex gap-6 border-t border-line ${LIST_FILL}`}>
+        <div className={`flex border-t border-line ${LIST_FILL}`}>
           <FolderList folders={preview.folders} />
           <MoveList
             label="Files that will move"
@@ -112,10 +112,8 @@ export function LeftAlone({ files }: { files: number }): ReactElement {
  */
 export function MovingProgress({ job }: { job: JobProgress }): ReactElement {
   return (
-    <div className="max-w-xl px-8 py-8">
-      <p className="mb-4 text-[26px] leading-none font-bold tracking-tight text-ink">
-        {JOB_NAMES[job.kind] ?? "Working"}
-      </p>
+    <div className="max-w-xl px-5 py-5">
+      <p className="mb-3 text-[18px] font-semibold">{JOB_NAMES[job.kind] ?? "Working"}</p>
       <Progress done={job.done} total={job.total} label={job.stage} />
       <p className="mt-4 text-[15px] text-muted">
         You can close this window. Pic Cabinet keeps going in the tray.

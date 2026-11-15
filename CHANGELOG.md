@@ -18,6 +18,11 @@ All notable changes to this project are documented here. The format follows
 - The Library's filters sit in one slim row, and Look for new photos is the refresh button beside
   Make a trip.
 - Trips show as album cards, each with a cover made from its photos.
+- Settings are split into groups (Display, Library, Inbox, Suggestions, File types, Window, About),
+  picked from a list down the side.
+- Sort, Duplicates, History, Help and Import are quieter: short headings, a one-line summary with
+  the fuller notes under Details, and the job status in the menu with a plain Stop button.
+- The magnifier on a photo only shows when the mouse is over it.
 
 ### Fixed
 
