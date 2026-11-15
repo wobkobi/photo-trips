@@ -2,7 +2,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { lazy, Suspense, useEffect, useState, type ReactElement } from "react";
 import { api, errorText, type MapView } from "../lib/api";
 import { themeOf } from "../lib/display";
-import { googleMapsUrl } from "../lib/maps";
+import { googleMapsUrl, placeFromAddress, placeLookupUrl, type PhotonAddress } from "../lib/maps";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { useSettings } from "../lib/useSettings";
 import { Icon } from "./Icon";
@@ -27,12 +27,15 @@ const ZOOMS = [
 let lastZoom = 1;
 /** Once the online map fails, the drawn one is used until the app restarts. */
 let mapOffline = false;
+/** Suburb names already looked up, by spot, so stepping back to a photo doesn't ask again. */
+const places = new Map<string, string | null>();
 
 /**
  * Where a photo was taken: the nearest town's name and a map around it, with buttons to zoom
- * and to open the spot in Google Maps. The map comes from OpenFreeMap, so the area shown is
- * fetched from there; offline, the built-in drawn map stands in. The town name always comes
- * from data inside the app.
+ * and to open the spot in Google Maps. The map comes from OpenFreeMap and the suburb name from
+ * Photon (both OpenStreetMap data), so the spot is sent to them. The built-in town list only
+ * knows places of 1,000 people or more (a whole city like "Manukau City" for its suburbs), so
+ * it's the fallback offline or in open country, as is the built-in drawn map.
  * @param props - Component props.
  * @param props.lat - latitude in degrees
  * @param props.lon - longitude in degrees
@@ -49,6 +52,28 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactE
   const systemDark = useMediaQuery("(prefers-color-scheme: dark)");
   const theme = themeOf(settings);
   const dark = theme === "dark" || (theme === "system" && systemDark);
+  const [lookup, setLookup] = useState<{ spot: string; place: string | null } | null>(null);
+
+  // Photon only answers once per spot; a failed request (offline) isn't kept, so it's tried again.
+  useEffect(() => {
+    if (offline || places.has(spot)) return;
+    const abort = new AbortController();
+    fetch(placeLookupUrl(lat, lon), { signal: abort.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Photon answered ${res.status}`);
+        return res.json() as Promise<{ features?: { properties?: PhotonAddress }[] }>;
+      })
+      .then((body) => {
+        const address = body.features?.[0]?.properties;
+        const place = address ? placeFromAddress(address) : null;
+        places.set(spot, place);
+        setLookup({ spot, place });
+      })
+      .catch(() => {
+        if (!abort.signal.aborted) setLookup({ spot, place: null });
+      });
+    return () => abort.abort();
+  }, [lat, lon, spot, offline]);
 
   useEffect(() => {
     let active = true;
@@ -65,6 +90,10 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactE
   const view = loaded?.spot === spot ? loaded.view : null;
   const error = failure?.key === key ? failure.message : null;
   const coords = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  // Until the lookup answers, nothing shows, so the built-in name doesn't flash up first.
+  const answered = offline || places.has(spot) || lookup?.spot === spot;
+  const looked = places.get(spot) ?? null;
+  const place = answered ? (looked ?? view?.place ?? null) : null;
 
   /**
    * Switch to another zoom step, kept for the next photo.
@@ -89,7 +118,7 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactE
   return (
     <Fact label="Where it was taken">
       {/* A blank line while loading, so the map doesn't jump down when the name arrives. */}
-      <p className="selectable">{view?.place ?? (view ? coords : "\u00a0")}</p>
+      <p className="selectable">{place ?? (view && answered ? coords : "\u00a0")}</p>
       <div className="mt-2 overflow-hidden rounded-md border border-line bg-map-water">
         {!offline ? (
           <Suspense fallback={<div className="h-47.5" aria-hidden="true" />}>
@@ -98,7 +127,7 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactE
               lon={lon}
               zoom={ZOOMS[zoom].map}
               dark={dark}
-              label={view?.place ? `Map around ${view.place}` : "Map of where it was taken"}
+              label={place ? `Map around ${place}` : "Map of where it was taken"}
               onFail={goOffline}
             />
           </Suspense>
@@ -108,7 +137,7 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactE
           <div className="aspect-280/180" aria-hidden="true" />
         )}
       </div>
-      {view?.place && <p className="selectable mt-1 text-[14px] text-faint">{coords}</p>}
+      {place && <p className="selectable mt-1 text-[14px] text-faint">{coords}</p>}
       {error && (
         <p role="alert" className="mt-1 text-[15px] text-danger">
           {error}

@@ -4,7 +4,7 @@ import { Map as MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, type ReactElement } from "react";
-import { mapStyleUrl } from "../lib/maps";
+import { darkenStyle, MAP_STYLE } from "../lib/maps";
 
 // MapLibre finds its worker beside its own file, which Vite moves; point it at the bundled copy.
 setWorkerUrl(workerUrl);
@@ -21,7 +21,7 @@ const PIN = `<svg width="16" height="24" viewBox="-8 -24 16 24" style="display:b
  * @param props.lon - longitude in degrees
  * @param props.zoom - MapLibre zoom (512px tiles, so one step closer than the same number on
  * a 256px tile map)
- * @param props.dark - use the dark map style
+ * @param props.dark - recolour the map for the dark theme
  * @param props.label - what a screen reader says for the map
  * @param props.onFail - called when the map can't load
  * @returns the map
@@ -57,7 +57,8 @@ export function PhotoMap({
     const start = initial.current;
     const created = new MapLibreMap({
       container: box.current,
-      style: mapStyleUrl(start.dark),
+      style: MAP_STYLE,
+      transformStyle: start.dark ? (_, next) => darkenStyle(next) : undefined,
       center: [start.lon, start.lat],
       zoom: start.zoom,
       attributionControl: { compact: true },
@@ -101,7 +102,10 @@ export function PhotoMap({
 
   useEffect(() => {
     if (map.current && dark !== initial.current.dark) {
-      map.current.setStyle(mapStyleUrl(dark));
+      map.current.setStyle(MAP_STYLE, {
+        diff: false,
+        transformStyle: dark ? (_, next) => darkenStyle(next) : undefined,
+      });
       initial.current.dark = dark;
     }
   }, [dark]);

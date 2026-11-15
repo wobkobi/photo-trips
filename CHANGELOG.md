@@ -31,6 +31,11 @@ All notable changes to this project are documented here. The format follows
 
 - Checking an import with lots of notes left the photos in a short strip at the bottom. The notes
   now fold away under Details, and the photos fill the window once you scroll down to them.
+- The dark map in the photo viewer was too dim to read. It now has light labels and roads that
+  stand out.
+- Where a photo was taken now names the suburb, such as Flat Bush rather than Manukau City. The
+  name is looked up from OpenStreetMap; without an internet connection the nearest town is shown
+  as before.
 
 ## [0.22.0] - 2026-11-16
 
