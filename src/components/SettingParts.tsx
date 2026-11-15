@@ -59,7 +59,7 @@ export function Row({
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-line py-4">
       <div className="min-w-0 flex-1 basis-60">
         <h3 className="font-semibold">{title}</h3>
-        {detail && <p className="mt-1 text-[15px] break-words text-muted">{detail}</p>}
+        {detail && <p className="mt-1 text-[15px] wrap-break-word text-muted">{detail}</p>}
       </div>
       <div className="shrink-0">{children}</div>
     </div>

@@ -111,7 +111,7 @@ export function JobStatus({ narrow = false, onWiden }: { narrow?: boolean; onWid
     <div role="alert" className="rounded-md border border-danger/40 bg-danger/10 p-3">
       <div className="flex gap-2">
         <Icon name="warn" size={18} className="mt-0.5 shrink-0 text-danger" />
-        <p className="min-w-0 flex-1 text-[15px] break-words text-ink">{lastDone.done.error}</p>
+        <p className="min-w-0 flex-1 text-[15px] wrap-break-word text-ink">{lastDone.done.error}</p>
       </div>
       <button
         ref={hideRef}

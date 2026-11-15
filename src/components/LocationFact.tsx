@@ -66,7 +66,7 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }) {
         {view ? (
           <MapPicture view={view} />
         ) : (
-          <div className="aspect-[280/180]" aria-hidden="true" />
+          <div className="aspect-280/180" aria-hidden="true" />
         )}
       </div>
       {view?.place && <p className="selectable mt-1 text-[14px] text-faint">{coords}</p>}

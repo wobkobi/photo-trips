@@ -344,7 +344,7 @@ function TripRow({
               type="button"
               onClick={onShow}
               title="See this trip's photos in the Library"
-              className="max-w-full text-left text-[22px] leading-tight font-bold tracking-tight break-words text-brand hover:underline hover:underline-offset-4"
+              className="max-w-full text-left text-[22px] leading-tight font-bold tracking-tight wrap-break-word text-brand hover:underline hover:underline-offset-4"
             >
               {trip.name}
             </button>

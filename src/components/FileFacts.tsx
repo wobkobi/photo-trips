@@ -47,7 +47,7 @@ export function CameraFact({ details }: { details: FileDetails }) {
               {settings.map(([label, value]) => (
                 <div key={label} className="contents">
                   <dt className="text-faint">{label}</dt>
-                  <dd className="selectable break-words">{value}</dd>
+                  <dd className="selectable wrap-break-word">{value}</dd>
                 </div>
               ))}
             </dl>

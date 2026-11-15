@@ -382,7 +382,7 @@ function CopyCard({
         className="group block w-full rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         <span
-          className={`relative block aspect-[4/3] overflow-hidden rounded-[3px] bg-raised ${
+          className={`relative block aspect-4/3 overflow-hidden rounded-[3px] bg-raised ${
             state === "keep" ? "ring-3 ring-accent" : ""
           }`}
         >
