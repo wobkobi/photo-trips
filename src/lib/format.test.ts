@@ -5,6 +5,7 @@ import {
   folderName,
   formatBytes,
   formatTaken,
+  jumpRow,
   monthLabel,
   parseTaken,
   splitPath,
@@ -63,6 +64,21 @@ describe("timelineRows", () => {
       "3-4",
     ]);
     expect(rows[2]).toMatchObject({ type: "month", count: 3, start: 1, end: 4 });
+  });
+
+  it("jumps to a month's heading for its first row, and to the row itself after that", () => {
+    const tiles = [
+      tile(1, "2024-08-02T10:00:00"),
+      tile(2, "2024-07-30T10:00:00"),
+      tile(3, "2024-07-20T10:00:00"),
+      tile(4, "2024-07-01T10:00:00"),
+    ];
+    // August heading, 0-1, July heading, 1-3, 3-4
+    const rows = timelineRows(tiles, 2);
+    expect(jumpRow(rows, 0)).toBe(0);
+    expect(jumpRow(rows, 2)).toBe(2);
+    expect(jumpRow(rows, 3)).toBe(4);
+    expect(jumpRow(rows, 9)).toBe(-1);
   });
 
   it("returns nothing for an empty library", () => {

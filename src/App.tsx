@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { BrandMark } from "./components/BrandMark";
-import { Icon, type IconName } from "./components/Icon";
-import { JobStatus } from "./components/JobStatus";
-import { api } from "./lib/api";
-import { folderName } from "./lib/format";
+import { Sidebar } from "./components/Sidebar";
 import { NO_FILTER, type FilterTrip, type LibraryFilter } from "./lib/libraryFilter";
 import { JobsProvider } from "./lib/jobs";
 import { useMenuBar, type MenuRequest } from "./lib/menu";
@@ -27,17 +23,6 @@ import type { TripStart } from "./lib/trips";
 export type PageId =
   "library" | "sort" | "trips" | "suggestions" | "import" | "duplicates" | "history" | "settings";
 
-const NAV: { id: PageId; label: string; icon: IconName }[] = [
-  { id: "library", label: "Library", icon: "library" },
-  { id: "sort", label: "Sort", icon: "sort" },
-  { id: "trips", label: "Trips", icon: "trips" },
-  { id: "suggestions", label: "Suggestions", icon: "suggest" },
-  { id: "import", label: "Import", icon: "import" },
-  { id: "duplicates", label: "Duplicates", icon: "duplicates" },
-  { id: "history", label: "History", icon: "history" },
-  { id: "settings", label: "Settings", icon: "settings" },
-];
-
 /** Root component: settings and job providers around the shell. */
 export default function App() {
   return (
@@ -52,7 +37,7 @@ export default function App() {
 }
 
 function Shell() {
-  const { settings, reload } = useSettings();
+  const { settings, save, reload } = useSettings();
   // A folder name change saves its presets with the batch, and undoing it puts them back.
   useJobDone(["apply", "undo"], reload);
   const { runCheck } = useUpdates();
@@ -101,52 +86,13 @@ function Shell() {
 
   return (
     <div className="flex h-full">
-      <nav className="on-brand flex w-60 shrink-0 flex-col overflow-y-auto px-3 pb-5">
-        <div className="mb-4 flex items-center gap-3 border-b border-line px-2 pt-5 pb-4">
-          <BrandMark size={34} className="shrink-0" />
-          <div className="min-w-0">
-            <p className="text-[19px] leading-none font-extrabold tracking-tight">Pic Cabinet</p>
-            <p className="mt-1.5 text-[14px] leading-none font-semibold text-accent">
-              To the Point Tech
-            </p>
-          </div>
-        </div>
-        <ul className="flex flex-col gap-0.5">
-          {NAV.map((item) => (
-            <li key={item.id}>
-              {/* The active page gets a moonstone rule on its left edge, as on the website's
-                  admin sidebar; it's a pseudo-element so the label doesn't shift. */}
-              <button
-                type="button"
-                onClick={() => setPage(item.id)}
-                aria-current={page === item.id ? "page" : undefined}
-                className={`relative flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[18px] font-semibold transition-colors ${
-                  page === item.id
-                    ? "bg-raised text-ink before:absolute before:inset-y-2 before:left-0 before:w-0.75 before:rounded-r-sm before:bg-accent"
-                    : "text-muted hover:bg-raised hover:text-ink"
-                }`}
-              >
-                <Icon name={item.icon} />
-                {item.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-auto flex flex-col gap-3">
-          <JobStatus />
-          {/* The folder's own name, since the full path rarely fits; it opens in Explorer. */}
-          <button
-            type="button"
-            onClick={() => api.menuAction("menu-open-library").catch(() => undefined)}
-            title={`${settings.library_root}\nClick to open it in File Explorer.`}
-            aria-label={`Open the library folder, ${folderName(settings.library_root)}, in File Explorer`}
-            className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-left text-[14px] text-faint hover:bg-raised hover:text-ink"
-          >
-            <Icon name="folder" size={16} className="shrink-0" />
-            <span className="truncate">{folderName(settings.library_root)}</span>
-          </button>
-        </div>
-      </nav>
+      <Sidebar
+        page={page}
+        onPage={setPage}
+        libraryRoot={settings.library_root}
+        narrow={settings.menu_narrow === "true"}
+        onNarrow={(narrow) => void save("menu_narrow", String(narrow))}
+      />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <CurrentPage
           page={page}

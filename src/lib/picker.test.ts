@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ImportItem } from "./api";
-import { importTiles, pickedFolders, pickTotals, setPicked } from "./picker";
+import { firstInFolder, importTiles, pickedFolders, pickTotals, setPicked } from "./picker";
 
 function item(takenAt: string, to: string, extra = 0, bytes = 100): ImportItem {
   return {
@@ -26,6 +26,14 @@ const ITEMS = [
 ];
 
 describe("import picker", () => {
+  it("finds where a folder's ticked photos start in the grid", () => {
+    const tiles = importTiles(ITEMS);
+    expect(firstInFolder(ITEMS, tiles, String.raw`Trips\2025-05-01 Japan`, new Set())).toBe(0);
+    expect(firstInFolder(ITEMS, tiles, String.raw`2025\2025-03`, new Set())).toBe(2);
+    expect(firstInFolder(ITEMS, tiles, String.raw`2025\2025-03`, new Set([0]))).toBe(3);
+    expect(firstInFolder(ITEMS, tiles, String.raw`2024\2024-01`, new Set())).toBe(-1);
+  });
+
   it("lays items out newest first, keeping their plan index as the id", () => {
     expect(importTiles(ITEMS).map((t) => t.id)).toEqual([1, 3, 0, 2]);
     expect(importTiles(ITEMS)[2]).toMatchObject({ extra: 1, kind: "photo", trip: null });

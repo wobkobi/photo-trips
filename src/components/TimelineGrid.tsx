@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { thumbUrl, type Tile } from "../lib/api";
-import { timelineRows, type TimelineRow } from "../lib/format";
+import { jumpRow, timelineRows, type TimelineRow } from "../lib/format";
 import { tripBg } from "../lib/trips";
 import { Icon } from "./Icon";
 
@@ -22,6 +22,11 @@ export type TileEvent = ReactMouseEvent<HTMLButtonElement>;
 
 /** A month heading, with the tiles it covers (`start` to `end` index into the tiles). */
 export type MonthRow = Extract<TimelineRow, { type: "month" }>;
+
+/** A request to bring one tile into view. A new object each time, so a repeat click scrolls again. */
+export interface TileJump {
+  index: number;
+}
 
 /**
  * A library tile's thumbnail.
@@ -46,6 +51,8 @@ function libraryThumb(tile: Tile): string {
  * @param props.thumbOf - a tile's thumbnail URL (default: the library thumbnail for its id)
  * @param props.monthAction - something to show at the right of a month heading
  * @param props.fadeUnselected - fade tiles that aren't selected, for when most are
+ * @param props.jump - scroll to this tile, with its month heading when it's in the month's first
+ *   row, and move keyboard focus to it
  * @returns the scrolling grid
  */
 export function TimelineGrid({
@@ -60,6 +67,7 @@ export function TimelineGrid({
   thumbOf = libraryThumb,
   monthAction,
   fadeUnselected = false,
+  jump,
 }: {
   tiles: Tile[];
   tileSize: number;
@@ -72,6 +80,7 @@ export function TimelineGrid({
   thumbOf?: (tile: Tile) => string;
   monthAction?: (month: MonthRow) => ReactNode;
   fadeUnselected?: boolean;
+  jump?: TileJump | null;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -103,6 +112,27 @@ export function TimelineGrid({
   useEffect(() => {
     virtualizer.measure();
   }, [virtualizer, tileSize, rows]);
+
+  // Only the rows on screen exist, so the tile can be focused only once the scroll has drawn it:
+  // the first frame scrolls, the second renders the new rows. Focus is moved without scrolling
+  // again, so the month heading stays in view above it.
+  const laidOut = width > 0;
+  useEffect(() => {
+    if (!jump || !laidOut) return;
+    const row = jumpRow(rows, jump.index);
+    if (row < 0) return;
+    virtualizer.scrollToIndex(row, { align: "start" });
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        scrollRef.current
+          ?.querySelector<HTMLButtonElement>(`[data-tile="${jump.index}"]`)
+          ?.focus({ preventScroll: true });
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+    // Only a new request scrolls; a resize or new tiles shouldn't pull the view back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jump, laidOut]);
 
   return (
     <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
@@ -137,6 +167,7 @@ export function TimelineGrid({
                     {tiles.slice(row.start, row.end).map((tile, offset) => (
                       <TileButton
                         key={tile.id}
+                        index={row.start + offset}
                         tile={tile}
                         size={tileSize}
                         selecting={selecting}
@@ -161,6 +192,7 @@ export function TimelineGrid({
 }
 
 function TileButton({
+  index,
   tile,
   thumb,
   size,
@@ -172,6 +204,8 @@ function TileButton({
   onZoom,
   onThumbError,
 }: {
+  /** Position in the grid, for finding the tile to focus after a jump. */
+  index: number;
   tile: Tile;
   thumb: string;
   size: number;
@@ -198,6 +232,7 @@ function TileButton({
         type="button"
         onClick={onClick}
         onContextMenu={onMenu}
+        data-tile={index}
         aria-label={label}
         aria-pressed={selecting ? selected : undefined}
         className="relative h-full w-full overflow-hidden rounded-[3px] bg-raised focus-visible:outline-offset-0"

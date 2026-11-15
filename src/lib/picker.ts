@@ -91,3 +91,21 @@ export function setPicked(
   }
   return next;
 }
+
+/**
+ * Where a folder's photos start in the grid: the first tile, newest first, whose photo goes into
+ * that folder and is still ticked.
+ * @param items - the preview's items
+ * @param tiles - the grid's tiles, newest first
+ * @param folder - a folder from {@link pickedFolders}
+ * @param left - indexes of items left out
+ * @returns the tile's index in `tiles`, or -1 when none goes there
+ */
+export function firstInFolder(
+  items: ImportItem[],
+  tiles: Tile[],
+  folder: string,
+  left: ReadonlySet<number>,
+): number {
+  return tiles.findIndex((tile) => !left.has(tile.id) && splitPath(items[tile.id].to).folder === folder);
+}

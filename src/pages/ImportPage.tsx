@@ -5,6 +5,7 @@ import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
 import { FolderList, LeftAlone, MovingProgress, ResultBanner } from "../components/PlanPreview";
+import type { TileJump } from "../components/TimelineGrid";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { useImportSource } from "../components/viewSources";
 import {
@@ -20,7 +21,7 @@ import {
 } from "../lib/api";
 import { tileSizeOf } from "../lib/display";
 import { count, formatBytes } from "../lib/format";
-import { importTiles, pickedFolders, pickTotals } from "../lib/picker";
+import { firstInFolder, importTiles, pickedFolders, pickTotals } from "../lib/picker";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { useSettings } from "../lib/useSettings";
 
@@ -344,6 +345,11 @@ function IncomingView({
   const folders = useMemo(() => pickedFolders(preview.items, left), [preview.items, left]);
   const totals = pickTotals(preview.items, left);
   const thumbOf = (tile: Tile) => thumbUrl(preview.items[tile.id].thumb, tile.version);
+  const [jump, setJump] = useState<TileJump | null>(null);
+  function openFolder(folder: string) {
+    const index = firstInFolder(preview.items, tiles, folder, left);
+    if (index >= 0) setJump({ index });
+  }
   const where = preview.moving
     ? "in the folder"
     : `${preview.spec.kind === "folder" ? "in" : "on"} ${preview.source}`;
@@ -404,7 +410,7 @@ function IncomingView({
         onAll={(pick) => onLeftChange(pick ? new Set() : new Set(tiles.map((t) => t.id)))}
       />
       <div className="flex min-h-0 flex-1 border-t border-line">
-        <FolderList folders={folders} />
+        <FolderList folders={folders} onOpen={openFolder} />
         <PhotoPicker
           tiles={tiles}
           left={left}
@@ -413,6 +419,7 @@ function IncomingView({
           thumbOf={thumbOf}
           source={source}
           tickLabel="Bring this one in"
+          jump={jump}
         />
       </div>
     </div>

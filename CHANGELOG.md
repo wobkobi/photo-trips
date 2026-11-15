@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.19.0] - 2026-11-15
+
+### Added
+
+- The folder list beside an import's photos is clickable: clicking a month or trip scrolls to the
+  photos going into it.
+- The menu down the left can be narrowed to just its icons, giving the pages more room. The
+  button for it is at the bottom of the menu, and the choice is remembered.
+
 ## [0.18.0] - 2026-11-15
 
 ### Added

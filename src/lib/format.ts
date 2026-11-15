@@ -166,3 +166,18 @@ export function folderName(path: string): string {
   const { name } = splitPath(trimmed);
   return name && !/^[A-Za-z]:$/.test(trimmed) ? name : path;
 }
+
+/**
+ * The row to scroll to so a tile shows in context: its month heading when the tile is in the
+ * month's first row, otherwise the tile's own row.
+ * @param rows - rows from {@link timelineRows}
+ * @param tile - the tile's index
+ * @returns the row index, or -1 when no row holds the tile
+ */
+export function jumpRow(rows: TimelineRow[], tile: number): number {
+  const at = rows.findIndex((row) => row.type === "tiles" && tile >= row.start && tile < row.end);
+  if (at > 0 && rows[at - 1].type === "month" && rows[at - 1].start === rows[at].start) {
+    return at - 1;
+  }
+  return at;
+}
