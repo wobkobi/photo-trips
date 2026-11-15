@@ -9,6 +9,7 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::AppState;
 use crate::dates::{self, DateSource};
+use crate::details;
 use crate::error::{Error, Result};
 use crate::formats::{self, Kind};
 use crate::groups::{self, Group};
@@ -180,6 +181,13 @@ fn media_path(state: &AppState, id: i64) -> Result<PathBuf> {
 pub fn open_media(state: State<'_, AppState>, id: i64) -> Result<()> {
     let path = media_path(&state, id)?;
     tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| Error::msg(e.to_string()))
+}
+
+/// What an indexed file says about itself beyond what the index keeps: camera, size, settings.
+#[tauri::command(async)]
+pub fn media_details(app: AppHandle, state: State<'_, AppState>, id: i64) -> Result<details::Details> {
+    let path = media_path(&state, id)?;
+    Ok(details::read(&app, &path))
 }
 
 /// Show an indexed file selected in Explorer.

@@ -78,6 +78,12 @@ const exiftool = readFileSync(join(root, "scripts", "fetch-exiftool.mjs"), "utf8
 )?.[1];
 if (!exiftool) throw new Error("notices: couldn't find ExifTool's version in fetch-exiftool.mjs");
 const geocoder = crates.find((c) => c.name === "reverse_geocoder");
+// Likewise the map data's Natural Earth release, from the script that builds it.
+const naturalEarth = readFileSync(join(root, "scripts", "map-data.mjs"), "utf8").match(
+  /const TAG = "([^"]+)"/,
+)?.[1];
+if (!naturalEarth)
+  throw new Error("notices: couldn't find Natural Earth's version in map-data.mjs");
 
 const extras = `
 ExifTool ${exiftool}, by Phil Harvey - https://exiftool.org
@@ -92,8 +98,13 @@ Strawberry Perl, bundled with ExifTool - https://strawberryperl.com
   Licenses_Strawberry_Perl.zip). The ExifTool Windows launcher is released under CC0 1.0.
 
 GeoNames place data${geocoder ? `, bundled in reverse_geocoder ${geocoder.version}` : ""} - https://www.geonames.org
-  Names the places in suggested trips, offline. Place data by GeoNames, licensed under the Creative
-  Commons Attribution 4.0 licence: https://creativecommons.org/licenses/by/4.0/
+  Names the places in suggested trips and where a photo was taken, offline. Place data by
+  GeoNames, licensed under the Creative Commons Attribution 4.0 licence:
+  https://creativecommons.org/licenses/by/4.0/
+
+Natural Earth ${naturalEarth} - https://www.naturalearthdata.com
+  The coastlines, lakes, borders and towns on the photo viewer's map. Made with Natural Earth.
+  Free vector and raster map data @ naturalearthdata.com. Natural Earth is in the public domain.
 `;
 
 const text = renderNotices({ product: PRODUCT, extras, npm, crates });

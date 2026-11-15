@@ -3,6 +3,8 @@ import { listen } from "@tauri-apps/api/event";
 import { BrandMark } from "./components/BrandMark";
 import { Icon, type IconName } from "./components/Icon";
 import { JobStatus } from "./components/JobStatus";
+import { api } from "./lib/api";
+import { folderName } from "./lib/format";
 import { JobsProvider } from "./lib/jobs";
 import { useMenuBar, type MenuRequest } from "./lib/menu";
 import { SettingsProvider } from "./lib/settings";
@@ -125,12 +127,17 @@ function Shell() {
         </ul>
         <div className="mt-auto flex flex-col gap-3">
           <JobStatus />
-          <p
-            className="selectable truncate px-3 text-[14px] text-faint"
-            title={settings.library_root}
+          {/* The folder's own name, since the full path rarely fits; it opens in Explorer. */}
+          <button
+            type="button"
+            onClick={() => api.menuAction("menu-open-library").catch(() => undefined)}
+            title={`${settings.library_root}\nClick to open it in File Explorer.`}
+            aria-label={`Open the library folder, ${folderName(settings.library_root)}, in File Explorer`}
+            className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-left text-[14px] text-faint hover:bg-raised hover:text-ink"
           >
-            {settings.library_root}
-          </p>
+            <Icon name="folder" size={16} className="shrink-0" />
+            <span className="truncate">{folderName(settings.library_root)}</span>
+          </button>
         </div>
       </nav>
       <main className="min-w-0 flex-1 overflow-y-auto">

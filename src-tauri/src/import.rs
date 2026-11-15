@@ -21,6 +21,7 @@ use crate::AppState;
 use crate::commands::{format_table, library_root, lock_db};
 use crate::dates::{self, DateSource};
 use crate::db;
+use crate::details;
 use crate::error::{Error, Result};
 use crate::executor::{self, Env, Incoming, IncomingGroup, NewBatch, Transfer};
 use crate::exiftool;
@@ -871,6 +872,21 @@ pub fn open_import_file(
     let pending = previews.get(id)?;
     let (path, _) = preview_file(&pending, item)?;
     tauri_plugin_opener::open_path(path, None::<&str>).map_err(|e| Error::msg(e.to_string()))
+}
+
+/// What a file from an import preview says about itself: camera, size, settings and location.
+#[tauri::command(async)]
+pub fn import_file_details(
+    app: AppHandle,
+    previews: State<'_, Previews<PendingImport>>,
+    id: u64,
+    item: usize,
+) -> Result<details::Details> {
+    let path = {
+        let pending = previews.get(id)?;
+        preview_file(&pending, item)?.0.to_path_buf()
+    };
+    Ok(details::read(&app, &path))
 }
 
 /// Show a file from an import preview selected in Explorer.

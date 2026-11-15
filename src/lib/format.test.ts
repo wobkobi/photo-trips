@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Tile } from "./api";
 import {
   count,
+  folderName,
   formatBytes,
   formatTaken,
   monthLabel,
@@ -82,5 +83,18 @@ describe("text helpers", () => {
       name: "IMG_1.HEIC",
     });
     expect(splitPath("IMG_1.HEIC")).toEqual({ folder: "", name: "IMG_1.HEIC" });
+  });
+});
+
+describe("folderName", () => {
+  it("gives the last folder of a path", () => {
+    expect(folderName("C:\\Users\\Me\\Pictures\\Photos")).toBe("Photos");
+    expect(folderName("C:\\Users\\Me\\Photos\\")).toBe("Photos");
+    expect(folderName("\\\\nas\\family")).toBe("family");
+  });
+
+  it("keeps a whole drive as it is", () => {
+    expect(folderName("D:\\")).toBe("D:\\");
+    expect(folderName("D:")).toBe("D:");
   });
 });

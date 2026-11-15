@@ -1,0 +1,2 @@
+# The viewer map data is binary; keep line-ending conversion away from it.
+*.bin binary

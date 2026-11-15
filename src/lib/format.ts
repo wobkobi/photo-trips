@@ -155,3 +155,14 @@ export function splitPath(path: string): { folder: string; name: string } {
   const cut = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
   return { folder: path.slice(0, Math.max(cut, 0)), name: path.slice(cut + 1) };
 }
+
+/**
+ * A folder's own name, for showing a long path where there's little room.
+ * @param path - the folder's full path
+ * @returns e.g. "Photos" for C:\Users\Me\Photos, or the path itself for a drive such as D:\
+ */
+export function folderName(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const { name } = splitPath(trimmed);
+  return name && !/^[A-Za-z]:$/.test(trimmed) ? name : path;
+}

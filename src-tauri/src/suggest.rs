@@ -282,6 +282,11 @@ fn geocoder() -> &'static ReverseGeocoder {
 
 /// The town nearest `point`, with its region and country, unless it's too far to mean much.
 fn place_of(point: Point) -> Option<Place> {
+    town_near(point).map(|(place, _)| place)
+}
+
+/// The town nearest `point` and where that town is, unless it's too far to mean much.
+pub fn town_near(point: Point) -> Option<(Place, Point)> {
     let found = geocoder().search((point.lat, point.lon)).record;
     let town = Point {
         lat: found.lat,
@@ -290,11 +295,12 @@ fn place_of(point: Point) -> Option<Place> {
     if distance_km(point, town) > PLACE_MAX_KM {
         return None;
     }
-    Some(Place {
+    let place = Place {
         town: found.name.clone(),
         region: found.admin1.clone(),
         country: country_name(&found.cc).unwrap_or_else(|| found.cc.clone()),
-    })
+    };
+    Some((place, town))
 }
 
 /// A country's name from its two-letter code, in the language Windows is set to.

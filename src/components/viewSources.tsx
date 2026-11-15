@@ -1,6 +1,6 @@
 // What the viewer shows for library photos and for files waiting in an import preview.
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import {
   api,
   fileUrl,
@@ -11,6 +11,9 @@ import {
   type MediaDetail,
 } from "../lib/api";
 import { count, formatBytes, formatTaken, sourceText, splitPath } from "../lib/format";
+import { located, useFileDetails } from "../lib/useFileDetails";
+import { CameraFact, Measures } from "./FileFacts";
+import { LocationFact } from "./LocationFact";
 import { Fact, KIND_NAMES, type ViewItem, type ViewSource } from "./Viewer";
 
 /**
@@ -43,6 +46,13 @@ function libraryItem(detail: MediaDetail): ViewItem {
 }
 
 function LibraryFacts({ detail }: { detail: MediaDetail }) {
+  const load = useCallback(() => api.mediaDetails(detail.id), [detail.id]);
+  const details = useFileDetails(`m${detail.id}`, load);
+  // The index keeps the location; the file's own is used only when the index has none.
+  const spot =
+    detail.lat !== null && detail.lon !== null
+      ? { lat: detail.lat, lon: detail.lon }
+      : located(details);
   return (
     <>
       <Fact label="Taken">
@@ -54,18 +64,14 @@ function LibraryFacts({ detail }: { detail: MediaDetail }) {
         </p>
       </Fact>
 
-      {detail.lat !== null && detail.lon !== null && (
-        <Fact label="Location">
-          <p className="selectable">
-            {detail.lat.toFixed(4)}, {detail.lon.toFixed(4)}
-          </p>
-        </Fact>
-      )}
+      {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
+      {details && <CameraFact details={details} />}
 
       <Fact label="File">
         <p>
           {KIND_NAMES[detail.kind]}, {formatBytes(detail.size)}
         </p>
+        <Measures details={details} video={detail.kind === "video"} />
         <p className="selectable mt-1 text-[14px] break-all text-faint">{detail.folder}</p>
       </Fact>
 
@@ -99,25 +105,42 @@ export function useImportSource(preview: ImportPreview, order: number[]): ViewSo
     return {
       count: order.length,
       key: (index) => `i${id}-${at(index)}`,
-      load: async (index) => importItem(items[at(index)], await api.importFile(id, at(index))),
+      load: async (index) =>
+        importItem(id, at(index), items[at(index)], await api.importFile(id, at(index))),
       open: (index) => api.openImportFile(id, at(index)),
       reveal: spec.kind === "phone" ? undefined : (index) => api.revealImportFile(id, at(index)),
     };
   }, [preview, order]);
 }
 
-function importItem(item: ImportItem, file: ImportFile): ViewItem {
+function importItem(
+  previewId: number,
+  index: number,
+  item: ImportItem,
+  file: ImportFile,
+): ViewItem {
   const shown = item.kind === "video" ? file.playable : file.viewable;
   return {
     name: splitPath(item.from).name,
     kind: item.kind,
     original: shown ? fileUrl(file.path) : null,
     preview: thumbUrl(item.thumb, item.version, true),
-    facts: <ImportFacts item={item} />,
+    facts: <ImportFacts previewId={previewId} index={index} item={item} />,
   };
 }
 
-function ImportFacts({ item }: { item: ImportItem }) {
+function ImportFacts({
+  previewId,
+  index,
+  item,
+}: {
+  previewId: number;
+  index: number;
+  item: ImportItem;
+}) {
+  const load = useCallback(() => api.importFileDetails(previewId, index), [previewId, index]);
+  const details = useFileDetails(`i${previewId}-${index}`, load);
+  const spot = located(details);
   const { folder } = splitPath(item.to);
   return (
     <>
@@ -125,6 +148,9 @@ function ImportFacts({ item }: { item: ImportItem }) {
         <p>{formatTaken(item.takenAt)}</p>
         {item.uncertain && <p className="mt-1 text-[14px] text-warn">{sourceText("modified")}</p>}
       </Fact>
+
+      {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
+      {details && <CameraFact details={details} />}
 
       <Fact label="Goes into">
         <p className="selectable break-all">{folder || "The library folder"}</p>
@@ -140,6 +166,7 @@ function ImportFacts({ item }: { item: ImportItem }) {
         <p>
           {KIND_NAMES[item.kind]}, {formatBytes(item.bytes)}
         </p>
+        <Measures details={details} video={item.kind === "video"} />
         {item.extra > 0 && (
           <p className="mt-1 text-[14px] text-faint">
             Comes in with {count(item.extra, "other file", "other files")}, such as a Live Photo

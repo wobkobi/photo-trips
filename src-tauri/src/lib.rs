@@ -2,6 +2,7 @@ mod commands;
 mod dates;
 mod db;
 mod default_app;
+mod details;
 mod devices;
 mod duplicates;
 mod error;
@@ -16,6 +17,7 @@ mod import;
 mod index;
 mod jobs;
 mod library;
+mod map;
 mod menu;
 mod metadata;
 mod naming;
@@ -152,6 +154,7 @@ pub fn run() {
             library::media_detail,
             library::open_media,
             library::reveal_media,
+            library::media_details,
             library::open_notices,
             extensions::installed_extensions,
             extensions::open_store_page,
@@ -174,7 +177,9 @@ pub fn run() {
             import::import_file,
             import::open_import_file,
             import::reveal_import_file,
+            import::import_file_details,
             default_app::default_app,
+            map::location_map,
             devices::import_sources,
             suggest::suggest_trips,
             suggest::dismiss_suggestion,
