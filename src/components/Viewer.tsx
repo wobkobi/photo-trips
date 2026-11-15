@@ -15,12 +15,19 @@ export interface ViewItem {
    * poster or a failed file's stand-in.
    */
   preview: string;
+  /** The grid tile, usually cached already: shown scaled up until the full picture is ready. */
+  thumb: string;
   /** Details shown beside the photo, made with {@link Fact}. */
   facts: ReactNode;
 }
 
 /** How many loaded files the viewer keeps, so stepping back and forth doesn't load them again. */
-const KEEP = 8;
+const KEEP = 10;
+/**
+ * Files loaded ahead on each side. Two, because a HEIC's full picture takes Windows over a second
+ * to draw, longer than a step usually takes; the four render threads draw them side by side.
+ */
+const AHEAD = 2;
 
 /**
  * Start fetching a file's picture so it's already decoded when the viewer steps to it. Videos
@@ -105,8 +112,8 @@ export function Viewer({
   controls?: ReactNode;
 }): ReactElement {
   const key = source.key(index);
-  // Loaded files by key: the one on show and its neighbours, fetched ahead so the next file is
-  // ready the moment it's stepped to. Keys change when a file would load something else, so
+  // Loaded files by key: the one on show and up to AHEAD each side, fetched ahead so the
+  // next file is ready the moment it's stepped to. Keys change when a file would load something else, so
   // nothing stale is shown.
   const [items, setItems] = useState<ReadonlyMap<string, ViewItem>>(() => new Map());
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
@@ -116,7 +123,10 @@ export function Viewer({
   const dialog = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const near = [index, index + 1, index - 1].filter((i) => i >= 0 && i < source.count);
+    // The file on show first, then outwards, next before previous.
+    const order = [index];
+    for (let step = 1; step <= AHEAD; step++) order.push(index + step, index - step);
+    const near = order.filter((i) => i >= 0 && i < source.count);
     const nearKeys = new Set(near.map((i) => source.key(i)));
     for (const i of near) {
       const k = source.key(i);
@@ -275,6 +285,7 @@ function Media({
   onOpen: () => void;
 }): ReactElement {
   const [failed, setFailed] = useState(false);
+  const [sharp, setSharp] = useState(false);
   const mediaClass = "max-h-full max-w-full object-contain";
   const video = item.kind === "video";
 
@@ -313,14 +324,29 @@ function Media({
     );
   }
 
+  // The tile underneath is the same picture smaller, so the photo shows at once, a little soft,
+  // and sharpens when the full one has loaded. It goes once that's in, since a small or
+  // transparent full picture wouldn't cover it.
   return (
-    <img
-      src={item.original ?? item.preview}
-      alt={item.name}
-      draggable={false}
-      onError={() => setFailed(true)}
-      className={mediaClass}
-    />
+    <div className="relative flex size-full items-center justify-center">
+      {!sharp && (
+        <img
+          src={item.thumb}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="absolute inset-0 size-full object-contain"
+        />
+      )}
+      <img
+        src={item.original ?? item.preview}
+        alt={item.name}
+        draggable={false}
+        onLoad={() => setSharp(true)}
+        onError={() => setFailed(true)}
+        className={`relative ${mediaClass}`}
+      />
+    </div>
   );
 }
 

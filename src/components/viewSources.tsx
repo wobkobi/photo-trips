@@ -11,6 +11,7 @@ import {
   type MediaDetail,
 } from "../lib/api";
 import { splitPath } from "../lib/format";
+import { warmPlace } from "../lib/places";
 import type { ViewItem, ViewSource } from "./Viewer";
 import { ImportFacts, LibraryFacts } from "./ViewerFacts";
 
@@ -54,17 +55,20 @@ export function useLibrarySource(ids: number[]): ViewSource {
 
 /**
  * What the viewer shows for a library file. Videos and photos the webview can't handle get no
- * original, so the viewer falls back to the large thumbnail.
+ * original, so the viewer falls back to the large thumbnail. The viewer loads the next files
+ * ahead, so their suburb lookups start here too.
  * @param detail - the file's indexed details
  * @returns the viewer item
  */
 function libraryItem(detail: MediaDetail): ViewItem {
   const shown = detail.kind === "video" ? detail.playable : detail.viewable;
+  if (detail.lat !== null && detail.lon !== null) warmPlace(detail.lat, detail.lon);
   return {
     name: detail.name,
     kind: detail.kind,
     original: shown ? fileUrl(detail.path) : null,
     preview: thumbUrl(detail.id, detail.version, true),
+    thumb: thumbUrl(detail.id, detail.version),
     facts: <LibraryFacts detail={detail} />,
   };
 }
@@ -132,6 +136,7 @@ function importItem(
     kind: item.kind,
     original: shown ? fileUrl(file.path) : null,
     preview: thumbUrl(item.thumb, item.version, true),
+    thumb: thumbUrl(item.thumb, item.version),
     facts: <ImportFacts previewId={previewId} index={index} item={item} />,
   };
 }

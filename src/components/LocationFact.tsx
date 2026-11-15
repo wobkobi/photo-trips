@@ -2,7 +2,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { lazy, Suspense, useEffect, useState, type ReactElement } from "react";
 import { api, errorText, type MapView } from "../lib/api";
 import { themeOf } from "../lib/display";
-import { googleMapsUrl, placeFromAddress, placeLookupUrl, type PhotonAddress } from "../lib/maps";
+import { googleMapsUrl } from "../lib/maps";
+import { knownPlace, lookUpPlace } from "../lib/places";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { useSettings } from "../lib/useSettings";
 import { Icon } from "./Icon";
@@ -27,8 +28,6 @@ const ZOOMS = [
 let lastZoom = 1;
 /** Once the online map fails, the drawn one is used until the app restarts. */
 let mapOffline = false;
-/** Suburb names already looked up, by spot, so stepping back to a photo doesn't ask again. */
-const places = new Map<string, string | null>();
 
 /**
  * Where a photo was taken: the nearest town's name and a map around it, with buttons to zoom
@@ -54,25 +53,18 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactE
   const dark = theme === "dark" || (theme === "system" && systemDark);
   const [lookup, setLookup] = useState<{ spot: string; place: string | null } | null>(null);
 
-  // Photon only answers once per spot; a failed request (offline) isn't kept, so it's tried again.
+  // Usually already answered by the viewer's look-ahead. A lookup left running when the viewer
+  // steps on isn't cancelled: it fills the cache for stepping back.
   useEffect(() => {
-    if (offline || places.has(spot)) return;
-    const abort = new AbortController();
-    fetch(placeLookupUrl(lat, lon), { signal: abort.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error(`Photon answered ${res.status}`);
-        return res.json() as Promise<{ features?: { properties?: PhotonAddress }[] }>;
-      })
-      .then((body) => {
-        const address = body.features?.[0]?.properties;
-        const place = address ? placeFromAddress(address) : null;
-        places.set(spot, place);
-        setLookup({ spot, place });
-      })
-      .catch(() => {
-        if (!abort.signal.aborted) setLookup({ spot, place: null });
-      });
-    return () => abort.abort();
+    if (offline || knownPlace(lat, lon) !== undefined) return;
+    let active = true;
+    lookUpPlace(lat, lon).then(
+      (place) => active && setLookup({ spot, place }),
+      () => active && setLookup({ spot, place: null }),
+    );
+    return () => {
+      active = false;
+    };
   }, [lat, lon, spot, offline]);
 
   useEffect(() => {
@@ -91,8 +83,9 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactE
   const error = failure?.key === key ? failure.message : null;
   const coords = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
   // Until the lookup answers, nothing shows, so the built-in name doesn't flash up first.
-  const answered = offline || places.has(spot) || lookup?.spot === spot;
-  const looked = places.get(spot) ?? null;
+  const cached = knownPlace(lat, lon);
+  const answered = offline || cached !== undefined || lookup?.spot === spot;
+  const looked = cached ?? null;
   const place = answered ? (looked ?? view?.place ?? null) : null;
 
   /**

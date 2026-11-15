@@ -29,6 +29,8 @@ All notable changes to this project are documented here. The format follows
 - The photo viewer's side panel is shorter: where a date came from shows on hover, folders read from
   the library folder, and the map has its own zoom buttons. Stepping between photos is quicker,
   since the next and previous ones load ahead and the map stays put.
+- Photos in the viewer show at once: the grid thumbnail fills in while the full picture loads, and
+  the next two photos each way, with their suburb names, load ahead.
 
 ### Fixed
 
