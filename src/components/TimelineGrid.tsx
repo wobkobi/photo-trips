@@ -16,6 +16,8 @@ import { Icon } from "./Icon";
 const GAP = 6;
 const SIDE_PADDING = 32;
 const HEADER_HEIGHT = 64;
+/** Frames to wait for a jumped-to tile to be drawn before giving up on focusing it. */
+const JUMP_FRAMES = 6;
 
 /** Click or right-click on a tile, with the modifier keys that decide what it does. */
 export type TileEvent = ReactMouseEvent<HTMLButtonElement>;
@@ -113,23 +115,34 @@ export function TimelineGrid({
     virtualizer.measure();
   }, [virtualizer, tileSize, rows]);
 
-  // Only the rows on screen exist, so the tile can be focused only once the scroll has drawn it:
-  // the first frame scrolls, the second renders the new rows. Focus is moved without scrolling
-  // again, so the month heading stays in view above it.
+  // Only the rows on screen exist, so the tile can be focused only once the scroll has drawn it,
+  // usually a frame or two later; it's looked for each frame, up to JUMP_FRAMES. Focus is moved
+  // without scrolling again, so the month heading stays in view above it. Each request is handled
+  // once, so a later re-layout (the grid hidden and shown again) doesn't replay an old jump.
   const laidOut = width > 0;
+  const handledJump = useRef<TileJump | null>(null);
   useEffect(() => {
-    if (!jump || !laidOut) return;
+    if (!jump || !laidOut || handledJump.current === jump) return;
+    handledJump.current = jump;
     const row = jumpRow(rows, jump.index);
     if (row < 0) return;
     virtualizer.scrollToIndex(row, { align: "start" });
-    let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => {
-        scrollRef.current
-          ?.querySelector<HTMLButtonElement>(`[data-tile="${jump.index}"]`)
-          ?.focus({ preventScroll: true });
-      });
-    });
-    return () => cancelAnimationFrame(frame);
+    let tries = 0;
+    let done = false;
+    const focusTile = () => {
+      const tile = scrollRef.current?.querySelector<HTMLButtonElement>(
+        `[data-tile="${jump.index}"]`,
+      );
+      if (tile) tile.focus({ preventScroll: true });
+      else if (++tries < JUMP_FRAMES) frame = requestAnimationFrame(focusTile);
+      done = tile != null || tries >= JUMP_FRAMES;
+    };
+    let frame = requestAnimationFrame(focusTile);
+    return () => {
+      cancelAnimationFrame(frame);
+      // Cut short before the tile was found (as in Strict Mode's double run), so let it run again.
+      if (!done) handledJump.current = null;
+    };
     // Only a new request scrolls; a resize or new tiles shouldn't pull the view back.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jump, laidOut]);

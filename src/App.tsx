@@ -91,7 +91,8 @@ function Shell() {
         onPage={setPage}
         libraryRoot={settings.library_root}
         narrow={settings.menu_narrow === "true"}
-        onNarrow={(narrow) => void save("menu_narrow", String(narrow))}
+        // A failed save leaves the menu as it was; there's nothing more useful to say about it.
+        onNarrow={(narrow) => void save("menu_narrow", String(narrow)).catch(() => undefined)}
       />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <CurrentPage

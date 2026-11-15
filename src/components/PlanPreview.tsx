@@ -195,7 +195,7 @@ export function ResultBanner({
  * for jumping to its photos in a grid beside the list.
  * @param props.folders - folders relative to the library, with file counts
  * @param props.onOpen - called with the folder that was clicked
- * @returns the side list (hidden on narrow windows)
+ * @returns the side list (hidden on narrow windows; see {@link FolderJumpList})
  */
 export function FolderList({
   folders,
@@ -212,15 +212,62 @@ export function FolderList({
       }`}
     >
       {onOpen && <p className="mb-1 pl-3 text-[14px] text-faint">Click one to go to its photos.</p>}
-      <ul className="flex flex-col">
+      <FolderEntries folders={folders} onOpen={onOpen} />
+    </aside>
+  );
+}
+
+/**
+ * {@link FolderList} for windows too narrow for the side list (including any window at a large
+ * text size): a closed "Where they go" line above the grid that opens to the same buttons.
+ * @param props.folders - folders relative to the library, with file counts
+ * @param props.onOpen - called with the folder that was clicked
+ * @returns the fold-out list (hidden where the side list shows)
+ */
+export function FolderJumpList({
+  folders,
+  onOpen,
+}: {
+  folders: Preview["folders"];
+  onOpen: (folder: string) => void;
+}) {
+  return (
+    <details className="group shrink-0 border-t border-line px-5 lg:hidden">
+      {/* A flex summary loses the browser's marker, so the chevron stands in for it. */}
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-[16px] font-semibold">
+        <Icon name="chevron" size={16} className="shrink-0 transition-transform group-open:rotate-90" />
+        Where they go: {folders.length.toLocaleString()}{" "}
+        {folders.length === 1 ? "folder" : "folders"}
+      </summary>
+      <p className="mb-1 pl-3 text-[14px] text-faint">Click one to go to its photos.</p>
+      <div className="max-h-[40vh] overflow-y-auto pb-3">
+        <FolderEntries folders={folders} onOpen={onOpen} />
+      </div>
+    </details>
+  );
+}
+
+function FolderEntries({
+  folders,
+  onOpen,
+}: {
+  folders: Preview["folders"];
+  onOpen?: (folder: string) => void;
+}) {
+  return (
+    <ul className="flex flex-col">
         {folders.map(({ folder, files }) => {
           const name = splitPath(folder).name;
           const title = /^\d{4}-\d{2}$/.test(name) ? monthLabel(name) : name;
           const body = (
             <>
               <span className="min-w-0">
-                <span className="block truncate">{title}</span>
-                <span className="block truncate text-[14px] text-faint">{folder}</span>
+                <span className="block truncate" title={title}>
+                  {title}
+                </span>
+                <span className="block truncate text-[14px] text-faint" title={folder}>
+                  {folder}
+                </span>
               </span>
               <span className="shrink-0 text-[15px] text-muted">{files.toLocaleString()}</span>
             </>
@@ -231,7 +278,9 @@ export function FolderList({
                 <button
                   type="button"
                   onClick={() => onOpen(folder)}
-                  aria-label={`Go to the ${files === 1 ? "photo" : "photos"} going into ${title}`}
+                  aria-label={`Go to the ${files.toLocaleString()} ${
+                    files === 1 ? "photo" : "photos"
+                  } going into ${title}`}
                   className="flex min-h-11 w-full items-baseline justify-between gap-3 rounded-lg px-3 py-1.5 text-left hover:bg-raised"
                 >
                   {body}
@@ -243,7 +292,6 @@ export function FolderList({
           );
         })}
       </ul>
-    </aside>
   );
 }
 

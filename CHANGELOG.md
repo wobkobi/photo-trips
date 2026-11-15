@@ -9,9 +9,16 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - The folder list beside an import's photos is clickable: clicking a month or trip scrolls to the
-  photos going into it.
+  photos going into it. On a narrower window, or at a large text size, the list folds away above
+  the photos under "Where they go".
 - The menu down the left can be narrowed to just its icons, giving the pages more room. The
-  button for it is at the bottom of the menu, and the choice is remembered.
+  button for it is at the bottom of the menu, and the choice is remembered. On a small window, or
+  at a large text size, the menu narrows by itself.
+
+### Fixed
+
+- The job progress and its Stop button at the bottom of the menu stay in view on a short window;
+  only the list of pages scrolls.
 
 ## [0.18.0] - 2026-11-15
 

@@ -4,7 +4,13 @@ import { open } from "@tauri-apps/plugin-dialog";
 import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
-import { FolderList, LeftAlone, MovingProgress, ResultBanner } from "../components/PlanPreview";
+import {
+  FolderJumpList,
+  FolderList,
+  LeftAlone,
+  MovingProgress,
+  ResultBanner,
+} from "../components/PlanPreview";
 import type { TileJump } from "../components/TimelineGrid";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { useImportSource } from "../components/viewSources";
@@ -409,6 +415,7 @@ function IncomingView({
         hint={<>Untick any you don&apos;t want. They stay {where} and show up again next time.</>}
         onAll={(pick) => onLeftChange(pick ? new Set() : new Set(tiles.map((t) => t.id)))}
       />
+      <FolderJumpList folders={folders} onOpen={openFolder} />
       <div className="flex min-h-0 flex-1 border-t border-line">
         <FolderList folders={folders} onOpen={openFolder} />
         <PhotoPicker
