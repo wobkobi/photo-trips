@@ -6,6 +6,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useRef, useState, type ReactElement, type ReactNode } from "react";
 import { thumbUrl, type ApplySummary, type JobProgress, type Preview } from "../lib/api";
 import { count, monthLabel, splitPath } from "../lib/format";
+import type { FolderCount } from "../lib/picker";
 import { JOB_NAMES } from "../lib/useJobs";
 import { Icon } from "./Icon";
 import { Button, LIST_FILL, Progress, ReviewHead } from "./ui";
@@ -73,7 +74,9 @@ export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode
       />
       {preview.files > 0 && (
         <div className={`flex border-t border-line ${LIST_FILL}`}>
-          <FolderList folders={preview.folders} />
+          <FolderList
+            folders={preview.folders.map(({ folder, files }) => ({ folder, count: files }))}
+          />
           <MoveList
             label="Files that will move"
             rows={preview.items.map((item) => ({
@@ -196,7 +199,8 @@ export function ResultBanner({
  * The folders receiving files, with how many each gets. Given `onOpen`, each folder is a button,
  * for jumping to its photos in a grid beside the list.
  * @param props - Component props.
- * @param props.folders - folders relative to the library, with file counts
+ * @param props.folders - folders relative to the library, with file counts (photo counts when
+ *   `onOpen` is given, to match the grid)
  * @param props.onOpen - called with the folder that was clicked
  * @returns the side list (hidden on narrow windows; see {@link FolderJumpList})
  */
@@ -204,7 +208,7 @@ export function FolderList({
   folders,
   onOpen,
 }: {
-  folders: Preview["folders"];
+  folders: FolderCount[];
   onOpen?: (folder: string) => void;
 }): ReactElement {
   return (
@@ -222,7 +226,7 @@ export function FolderList({
  * {@link FolderList} for windows too narrow for the side list (including any window at a large
  * text size): a closed "Where they go" line above the grid that opens to the same buttons.
  * @param props - Component props.
- * @param props.folders - folders relative to the library, with file counts
+ * @param props.folders - folders relative to the library, with photo counts
  * @param props.onOpen - called with the folder that was clicked
  * @returns the fold-out list (hidden where the side list shows)
  */
@@ -230,7 +234,7 @@ export function FolderJumpList({
   folders,
   onOpen,
 }: {
-  folders: Preview["folders"];
+  folders: FolderCount[];
   onOpen: (folder: string) => void;
 }): ReactElement {
   return (
@@ -256,7 +260,7 @@ export function FolderJumpList({
  * The folder rows shared by {@link FolderList} and {@link FolderJumpList}: month folders show
  * their month name, and each row is a button when `onOpen` is given.
  * @param props - Component props.
- * @param props.folders - folders relative to the library, with file counts
+ * @param props.folders - folders relative to the library, with photo or file counts
  * @param props.onOpen - called with the folder that was clicked; plain rows without it
  * @returns the list of folders
  */
@@ -264,12 +268,12 @@ function FolderEntries({
   folders,
   onOpen,
 }: {
-  folders: Preview["folders"];
+  folders: FolderCount[];
   onOpen?: (folder: string) => void;
 }): ReactElement {
   return (
     <ul className="flex flex-col">
-      {folders.map(({ folder, files }) => {
+      {folders.map(({ folder, count: n }) => {
         const name = splitPath(folder).name;
         const title = /^\d{4}-\d{2}$/.test(name) ? monthLabel(name) : name;
         const body = (
@@ -282,7 +286,7 @@ function FolderEntries({
                 {folder}
               </span>
             </span>
-            <span className="shrink-0 text-[13px] text-faint">{files.toLocaleString()}</span>
+            <span className="shrink-0 text-[13px] text-faint">{n.toLocaleString()}</span>
           </>
         );
         return (
@@ -291,9 +295,7 @@ function FolderEntries({
               <button
                 type="button"
                 onClick={() => onOpen(folder)}
-                aria-label={`Go to the ${files.toLocaleString()} ${
-                  files === 1 ? "photo" : "photos"
-                } going into ${title}`}
+                aria-label={`Go to the ${count(n, "photo", "photos")} going into ${title}`}
                 className="flex min-h-10 w-full items-baseline justify-between gap-3 rounded-md px-2.5 py-1 text-left text-[14px] hover:bg-raised"
               >
                 {body}

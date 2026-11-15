@@ -54,6 +54,9 @@ All notable changes to this project are documented here. The format follows
 - A photo or video deleted or moved while the viewer is open says so instead of showing a broken
   picture.
 - Checking a locked phone says to unlock it instead of reporting nothing new.
+- The Import review counts photos everywhere: the button, the title and the folder list now match
+  the tick count and the month headings. The total of files, with the videos and edits that go with
+  them, shows when you hover over the button.
 
 ## [0.22.0] - 2026-11-16
 

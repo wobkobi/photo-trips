@@ -150,8 +150,13 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
                 variant="primary"
                 onClick={() => bringIn(preview)}
                 disabled={busy || totals === null || totals.items === 0}
+                title={
+                  totals && totals.files > totals.items
+                    ? `${count(totals.files, "file", "files")}, with the videos and edits that go with them`
+                    : undefined
+                }
               >
-                {preview.moving ? "Move" : "Copy"} {count(totals?.files ?? 0, "file", "files")} in
+                {preview.moving ? "Move" : "Copy"} {count(totals?.items ?? 0, "photo", "photos")} in
               </Button>
             </>
           )
@@ -398,7 +403,7 @@ function IncomingView({
       <ReviewHead
         title={
           <>
-            {count(preview.files, "new file", "new files")} from {preview.source}
+            {count(preview.items.length, "new photo", "new photos")} from {preview.source}
           </>
         }
         summary={
@@ -408,7 +413,9 @@ function IncomingView({
             )}
             <p>
               {formatBytes(preview.bytes)} into {count(preview.folders.length, "folder", "folders")}
-              {preview.already > 0 && <> · {preview.already.toLocaleString()} already here</>}
+              {preview.already > 0 && (
+                <> · {count(preview.already, "file", "files")} already here</>
+              )}
             </p>
           </>
         }

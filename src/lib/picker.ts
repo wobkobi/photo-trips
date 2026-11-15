@@ -50,26 +50,29 @@ export function pickTotals(items: ImportItem[], left: ReadonlySet<number>): Pick
   return totals;
 }
 
+/** A folder relative to the library and how many photos or files it receives. */
+export interface FolderCount {
+  folder: string;
+  count: number;
+}
+
 /**
- * Destination folders of the items still ticked, with how many files each receives. A photo's
- * companions always land in its folder.
+ * Destination folders of the items still ticked, with how many photos each receives, counted
+ * the way the grid shows them: a photo and its companions are one.
  * @param items - the preview's items
  * @param left - indexes of items left out
  * @returns folders relative to the library, sorted by name
  */
-export function pickedFolders(
-  items: ImportItem[],
-  left: ReadonlySet<number>,
-): { folder: string; files: number }[] {
+export function pickedFolders(items: ImportItem[], left: ReadonlySet<number>): FolderCount[] {
   const folders = new Map<string, number>();
   items.forEach((item, index) => {
     if (left.has(index)) return;
     const { folder } = splitPath(item.to);
-    folders.set(folder, (folders.get(folder) ?? 0) + 1 + item.extra);
+    folders.set(folder, (folders.get(folder) ?? 0) + 1);
   });
   return [...folders]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([folder, files]) => ({ folder, files }));
+    .map(([folder, count]) => ({ folder, count }));
 }
 
 /**

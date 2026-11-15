@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { thumbUrl, type Tile } from "../lib/api";
-import { jumpRow, timelineRows, type TimelineRow } from "../lib/format";
+import { count, jumpRow, timelineRows, type TimelineRow } from "../lib/format";
 import { tripBg } from "../lib/trips";
 import { Icon } from "./Icon";
 import { LIST_FILL } from "./ui";
@@ -321,7 +321,10 @@ function TileButton({
             {tile.kind === "video" && <Icon name="play" size={18} />}
             {tile.kind === "raw" && <span>raw</span>}
             {tile.extra > 0 && (
-              <span className="ml-auto" title={`${tile.extra} more file(s) travel with this one`}>
+              <span
+                className="ml-auto"
+                title={`${count(tile.extra, "more file goes", "more files go")} with this one`}
+              >
                 +{tile.extra}
               </span>
             )}
