@@ -443,25 +443,25 @@ function TripEditor({
               className={`${INPUT} w-72 max-w-full`}
             />
           </Field>
-          <DateTime
-            label="Starts"
-            date={form.startDate}
-            time={form.startTime}
-            onDate={set("startDate")}
-            onTime={set("startTime")}
-          />
-          <DateTime
-            label="Ends"
-            date={form.endDate}
-            time={form.endTime}
-            onDate={set("endDate")}
-            onTime={set("endTime")}
-          />
+          <Field label="Starts">
+            <input
+              type="date"
+              value={form.startDate}
+              onChange={(e) => set("startDate")(e.target.value)}
+              required
+              className={INPUT}
+            />
+          </Field>
+          <Field label="Ends">
+            <input
+              type="date"
+              value={form.endDate}
+              onChange={(e) => set("endDate")(e.target.value)}
+              required
+              className={INPUT}
+            />
+          </Field>
         </div>
-        <p className="-mt-2 max-w-3xl text-[15px] text-muted">
-          Leave the times empty to take in whole days. Add them for travel days, when the trip
-          starts or ends partway through the day.
-        </p>
 
         <MatchSummary form={form} matches={matches} />
 
@@ -498,42 +498,6 @@ function TripEditor({
   );
 }
 
-function DateTime({
-  label,
-  date,
-  time,
-  onDate,
-  onTime,
-}: {
-  label: string;
-  date: string;
-  time: string;
-  onDate: (value: string) => void;
-  onTime: (value: string) => void;
-}) {
-  return (
-    <fieldset className="flex flex-col gap-1.5">
-      <legend className="mb-1.5 text-[15px] font-semibold text-muted">{label}</legend>
-      <div className="flex gap-2">
-        <input
-          type="date"
-          aria-label={`${label} on`}
-          value={date}
-          onChange={(e) => onDate(e.target.value)}
-          required
-          className={INPUT}
-        />
-        <input
-          type="time"
-          aria-label={`${label} at (optional)`}
-          value={time}
-          onChange={(e) => onTime(e.target.value)}
-          className={INPUT}
-        />
-      </div>
-    </fieldset>
-  );
-}
 
 /**
  * What the dates take in, when there's no photo grid to show it: why the dates can't be used

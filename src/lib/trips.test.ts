@@ -16,7 +16,7 @@ describe("rangeText", () => {
 describe("trip form", () => {
   const form = { ...EMPTY_FORM, name: "  Japan ", startDate: "2025-03-12", endDate: "2025-03-18" };
 
-  it("takes in whole days when no times are set", () => {
+  it("takes in whole days", () => {
     expect(toDraft(form)).toEqual({
       name: "Japan",
       startAt: "2025-03-12T00:00:00",
@@ -24,15 +24,7 @@ describe("trip form", () => {
     });
   });
 
-  it("takes in the whole end minute when an end time is set", () => {
-    const flights = { ...form, startTime: "14:30", endTime: "09:15" };
-    expect(toDraft(flights)).toMatchObject({
-      startAt: "2025-03-12T14:30:00",
-      endAt: "2025-03-18T09:15:59",
-    });
-  });
-
-  it("round-trips a saved trip, showing whole-day bounds as empty times", () => {
+  it("loads a saved trip as its days, widening one saved with times to whole days", () => {
     const trip: TripInfo = {
       id: 1,
       name: "Japan",
@@ -45,16 +37,17 @@ describe("trip form", () => {
       excluded: [],
     };
     const loaded = formFromTrip(trip);
-    expect(loaded).toMatchObject({ startTime: "", endTime: "09:15" });
-    expect(toDraft(loaded)).toMatchObject({ startAt: trip.startAt, endAt: trip.endAt });
+    expect(loaded).toEqual({ name: "Japan", startDate: "2025-03-12", endDate: "2025-03-18" });
+    expect(toDraft(loaded)).toMatchObject({
+      startAt: "2025-03-12T00:00:00",
+      endAt: "2025-03-18T23:59:59",
+    });
   });
 
   it("only checks a range once both dates are set and in order", () => {
     expect(hasValidRange({ ...form, endDate: "" })).toBe(false);
     expect(hasValidRange({ ...form, endDate: "2025-03-11" })).toBe(false);
-    expect(
-      hasValidRange({ ...form, endDate: "2025-03-12", startTime: "10:00", endTime: "09:00" }),
-    ).toBe(false);
+    expect(hasValidRange({ ...form, endDate: "2025-03-12" })).toBe(true);
     expect(hasValidRange(form)).toBe(true);
   });
 });

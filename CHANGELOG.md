@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.20.0] - 2026-11-16
+
+### Changed
+
+- Trips always cover whole days: the start and end times are gone from the trip editor. A trip saved
+  with times takes in the whole of its first and last days the next time it's saved.
+
 ## [0.19.1] - 2026-11-16
 
 ### Fixed
