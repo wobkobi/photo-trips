@@ -308,6 +308,15 @@ export interface ImportItem {
   renamed: boolean;
 }
 
+/** A file in an import preview, for the viewer. Mirrors ImportFile in import.rs. */
+export interface ImportFile {
+  path: string;
+  /** A photo the webview can show as it is. */
+  viewable: boolean;
+  /** A video the webview can play. */
+  playable: boolean;
+}
+
 /** A stretch of days that looks like a trip. Mirrors Suggestion in suggest.rs. */
 export interface Suggestion {
   /** First and last day, "YYYY-MM-DD". */
@@ -455,6 +464,9 @@ export const api = {
   applyImport: (id: number, skip: number[]) => invoke<void>("apply_import", { id, skip }),
   /** Drop an import preview (and any phone files copied off for it). */
   discardImport: (id: number) => invoke<void>("discard_import", { id }),
+  importFile: (id: number, item: number) => invoke<ImportFile>("import_file", { id, item }),
+  openImportFile: (id: number, item: number) => invoke<void>("open_import_file", { id, item }),
+  revealImportFile: (id: number, item: number) => invoke<void>("reveal_import_file", { id, item }),
   suggestTrips: () => invoke<Suggestions>("suggest_trips"),
   /** Hide a suggestion while its dates overlap these. */
   dismissSuggestion: (startDay: string, endDay: string) =>

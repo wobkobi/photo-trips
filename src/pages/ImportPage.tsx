@@ -6,6 +6,7 @@ import { Icon } from "../components/Icon";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
 import { FolderList, LeftAlone, MovingProgress, ResultBanner } from "../components/PlanPreview";
 import { Button, EmptyState, PageHeader } from "../components/ui";
+import { useImportSource } from "../components/viewSources";
 import {
   api,
   DEVICES_CHANGED,
@@ -338,6 +339,8 @@ function IncomingView({
 }) {
   const { settings } = useSettings();
   const tiles = useMemo(() => importTiles(preview.items), [preview.items]);
+  const order = useMemo(() => tiles.map((t) => t.id), [tiles]);
+  const source = useImportSource(preview, order);
   const folders = useMemo(() => pickedFolders(preview.items, left), [preview.items, left]);
   const totals = pickTotals(preview.items, left);
   const thumbOf = (tile: Tile) => thumbUrl(preview.items[tile.id].thumb, tile.version);
@@ -408,6 +411,8 @@ function IncomingView({
           onChange={onLeftChange}
           tileSize={tileSizeOf(settings)}
           thumbOf={thumbOf}
+          source={source}
+          tickLabel="Bring this one in"
         />
       </div>
     </div>

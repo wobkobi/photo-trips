@@ -40,6 +40,8 @@ function libraryThumb(tile: Tile): string {
  * @param props.selected - ids of selected tiles
  * @param props.onTileClick - called with a tile's index and the click
  * @param props.onTileMenu - called with a tile's index and the right-click
+ * @param props.onTileZoom - called with a tile's index from its magnifier button; tiles only get
+ * one when this is given
  * @param props.onThumbError - called when Windows has no thumbnail for a tile
  * @param props.thumbOf - a tile's thumbnail URL (default: the library thumbnail for its id)
  * @param props.monthAction - something to show at the right of a month heading
@@ -53,6 +55,7 @@ export function TimelineGrid({
   selected,
   onTileClick,
   onTileMenu,
+  onTileZoom,
   onThumbError,
   thumbOf = libraryThumb,
   monthAction,
@@ -64,6 +67,7 @@ export function TimelineGrid({
   selected: ReadonlySet<number>;
   onTileClick: (index: number, event: TileEvent) => void;
   onTileMenu: (index: number, event: TileEvent) => void;
+  onTileZoom?: (index: number) => void;
   onThumbError: (tile: Tile) => void;
   thumbOf?: (tile: Tile) => string;
   monthAction?: (month: MonthRow) => ReactNode;
@@ -141,6 +145,7 @@ export function TimelineGrid({
                         faded={fadeUnselected && !selected.has(tile.id)}
                         onClick={(event) => onTileClick(row.start + offset, event)}
                         onMenu={(event) => onTileMenu(row.start + offset, event)}
+                        onZoom={onTileZoom && (() => onTileZoom(row.start + offset))}
                         onThumbError={onThumbError}
                       />
                     ))}
@@ -164,6 +169,7 @@ function TileButton({
   faded,
   onClick,
   onMenu,
+  onZoom,
   onThumbError,
 }: {
   tile: Tile;
@@ -175,6 +181,8 @@ function TileButton({
   faded: boolean;
   onClick: (event: TileEvent) => void;
   onMenu: (event: TileEvent) => void;
+  /** Open the tile in the viewer from a magnifier button, for when a click picks instead. */
+  onZoom?: () => void;
   onThumbError: (tile: Tile) => void;
 }) {
   const [failed, setFailed] = useState(false);
@@ -182,72 +190,88 @@ function TileButton({
   const trip = tile.trip ? `, ${tile.trip.name} trip` : "";
   const label = `${kind} taken ${tile.takenAt.replace("T", " ")}${trip}`;
 
+  // The magnifier sits beside the tile's button rather than in it, since a button can't hold
+  // another button.
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      onContextMenu={onMenu}
-      aria-label={label}
-      aria-pressed={selecting ? selected : undefined}
-      className="group relative shrink-0 overflow-hidden rounded-[3px] bg-raised focus-visible:outline-offset-0"
-      style={{ width: size, height: size }}
-    >
-      {failed ? (
-        <span className="flex h-full w-full items-center justify-center text-[20px] font-bold text-faint">
-          .{tile.ext}
-        </span>
-      ) : (
-        <img
-          src={thumb}
-          alt=""
-          decoding="async"
-          draggable={false}
-          onError={() => {
-            setFailed(true);
-            onThumbError(tile);
-          }}
-          className={`h-full w-full object-cover transition-opacity ${
-            faded ? "opacity-35 grayscale group-hover:opacity-60" : "group-hover:opacity-90"
-          }`}
-        />
-      )}
-      {tile.uncertain && (
-        <span
-          title="Date uncertain: guessed from when the file was last changed"
-          className="on-dark absolute top-2 right-2 rounded-full bg-ground/80 p-1.5 text-warn"
+    <div className="group relative shrink-0" style={{ width: size, height: size }}>
+      <button
+        type="button"
+        onClick={onClick}
+        onContextMenu={onMenu}
+        aria-label={label}
+        aria-pressed={selecting ? selected : undefined}
+        className="relative h-full w-full overflow-hidden rounded-[3px] bg-raised focus-visible:outline-offset-0"
+      >
+        {failed ? (
+          <span className="flex h-full w-full items-center justify-center text-[20px] font-bold text-faint">
+            .{tile.ext}
+          </span>
+        ) : (
+          <img
+            src={thumb}
+            alt=""
+            decoding="async"
+            draggable={false}
+            onError={() => {
+              setFailed(true);
+              onThumbError(tile);
+            }}
+            className={`h-full w-full object-cover transition-opacity ${
+              faded ? "opacity-35 grayscale group-hover:opacity-60" : "group-hover:opacity-90"
+            }`}
+          />
+        )}
+        {tile.uncertain && (
+          <span
+            title="Date uncertain: guessed from when the file was last changed"
+            className={`on-dark absolute top-2 rounded-full bg-ground/80 p-1.5 text-warn ${
+              onZoom ? "right-14" : "right-2"
+            }`}
+          >
+            <Icon name="warn" size={16} />
+          </span>
+        )}
+        {(tile.kind === "video" || tile.kind === "raw" || tile.extra > 0) && (
+          <span className="on-dark absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-linear-to-t from-ground/80 to-transparent px-2 pt-5 pb-1.5 text-[13px] font-semibold text-ink">
+            {tile.kind === "video" && <Icon name="play" size={18} />}
+            {tile.kind === "raw" && <span>raw</span>}
+            {tile.extra > 0 && (
+              <span className="ml-auto" title={`${tile.extra} more file(s) travel with this one`}>
+                +{tile.extra}
+              </span>
+            )}
+          </span>
+        )}
+        {tile.trip && (
+          <span
+            title={tile.trip.name}
+            className={`absolute inset-x-0 bottom-0 h-1.5 ${tripBg(tile.trip.colour)}`}
+          />
+        )}
+        {selected && (
+          <span className="pointer-events-none absolute inset-0 rounded-[3px] ring-4 ring-accent ring-inset" />
+        )}
+        {selecting && (
+          <span
+            className={`absolute top-2 left-2 flex h-8 w-8 items-center justify-center rounded-full border-2 ${
+              selected ? "border-white bg-accent text-white" : "on-dark border-ink bg-ground/50"
+            }`}
+          >
+            {selected && <Icon name="check" size={20} />}
+          </span>
+        )}
+      </button>
+      {onZoom && (
+        <button
+          type="button"
+          onClick={onZoom}
+          aria-label={`Look at ${kind.toLowerCase()} taken ${tile.takenAt.replace("T", " ")}`}
+          title="Look at this one bigger"
+          className="on-dark absolute top-2 right-2 flex h-10 w-10 items-center justify-center rounded-full bg-ground/70 text-ink hover:bg-ground focus-visible:bg-ground"
         >
-          <Icon name="warn" size={16} />
-        </span>
+          <Icon name="zoom" size={22} />
+        </button>
       )}
-      {(tile.kind === "video" || tile.kind === "raw" || tile.extra > 0) && (
-        <span className="on-dark absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-linear-to-t from-ground/80 to-transparent px-2 pt-5 pb-1.5 text-[13px] font-semibold text-ink">
-          {tile.kind === "video" && <Icon name="play" size={18} />}
-          {tile.kind === "raw" && <span>raw</span>}
-          {tile.extra > 0 && (
-            <span className="ml-auto" title={`${tile.extra} more file(s) travel with this one`}>
-              +{tile.extra}
-            </span>
-          )}
-        </span>
-      )}
-      {tile.trip && (
-        <span
-          title={tile.trip.name}
-          className={`absolute inset-x-0 bottom-0 h-1.5 ${tripBg(tile.trip.colour)}`}
-        />
-      )}
-      {selected && (
-        <span className="pointer-events-none absolute inset-0 rounded-[3px] ring-4 ring-accent ring-inset" />
-      )}
-      {selecting && (
-        <span
-          className={`absolute top-2 left-2 flex h-8 w-8 items-center justify-center rounded-full border-2 ${
-            selected ? "border-white bg-accent text-white" : "on-dark border-ink bg-ground/50"
-          }`}
-        >
-          {selected && <Icon name="check" size={20} />}
-        </span>
-      )}
-    </button>
+    </div>
   );
 }

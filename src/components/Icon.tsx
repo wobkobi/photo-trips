@@ -24,6 +24,7 @@ const PATHS = {
   sort: "M3 5h14M3 10h10M3 15h6M15 12v6M12.5 15.5L15 18l2.5-2.5",
   card: "M6 2.5h6.5L15 5v12.5H6zM8.5 5v2.5M10.5 5v2.5M12.5 5.5v2",
   phone: "M6.5 2.5h7v15h-7zM9.25 15h1.5",
+  zoom: "M8.5 3a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM12.5 12.5L17 17M8.5 6.5v4M6.5 8.5h4",
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -1,7 +1,7 @@
 {
   "name": "pic-cabinet",
   "private": true,
-  "version": "0.16.2",
+  "version": "0.17.0",
   "license": "SEE LICENSE IN LICENSE",
   "author": "To the Point Tech <harrison@tothepoint.co.nz> (https://www.tothepoint.co.nz)",
   "type": "module",

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CodecHint } from "../components/CodecHint";
 import { Icon } from "../components/Icon";
 import { TileMenu } from "../components/TileMenu";
 import { TimelineGrid, type TileEvent } from "../components/TimelineGrid";
 import { Viewer } from "../components/Viewer";
 import { Button, EmptyState, PageHeader } from "../components/ui";
+import { useLibrarySource } from "../components/viewSources";
 import { api, errorText, type IndexSummary, type Tile } from "../lib/api";
 import { tileSizeOf } from "../lib/display";
 import { count as countOf } from "../lib/format";
@@ -69,6 +70,8 @@ export function LibraryPage({
     [],
   );
   const closeViewer = useCallback(() => setOpen(null), []);
+  const ids = useMemo(() => tiles?.map((t) => t.id) ?? [], [tiles]);
+  const source = useLibrarySource(ids);
   const clearSelection = useCallback(() => {
     setPicking(false);
     setSelected(new Set());
@@ -145,7 +148,6 @@ export function LibraryPage({
     });
   }
 
-
   const indexing = running?.kind === "index";
   const count = tiles?.length ?? 0;
 
@@ -217,6 +219,8 @@ export function LibraryPage({
           selected={selected}
           onTileClick={onTileClick}
           onTileMenu={onTileMenu}
+          // While picking, a click picks, so the magnifier is the way to look at a photo.
+          onTileZoom={selecting ? setOpen : undefined}
           onThumbError={onThumbError}
         />
       )}
@@ -236,7 +240,13 @@ export function LibraryPage({
       )}
 
       {tiles && open !== null && open < tiles.length && (
-        <Viewer tiles={tiles} index={open} onIndex={setOpen} onClose={closeViewer} />
+        <Viewer
+          source={source}
+          index={open}
+          onIndex={setOpen}
+          onClose={closeViewer}
+          steps={["Newer", "Older"]}
+        />
       )}
     </div>
   );
