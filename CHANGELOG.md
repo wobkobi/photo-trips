@@ -35,22 +35,21 @@ All notable changes to this project are documented here. The format follows
   longer cover the photo, and the details panel gives the photo more room.
 - The Tick all and Untick all buttons beside each month are shorter ("Tick month"), so a long
   month name can't push them over the photos above.
+- On a small window, or at a large text size, the menu down the left narrows to just its icons by
+  itself.
+- On a narrower window, or at a large text size, the folder list beside an import's photos folds
+  away above the photos under "Where they go", instead of disappearing.
+- The job progress and its Stop button at the bottom of the menu stay in view on a short window;
+  only the list of pages scrolls.
 
 ## [0.19.0] - 2026-11-15
 
 ### Added
 
 - The folder list beside an import's photos is clickable: clicking a month or trip scrolls to the
-  photos going into it. On a narrower window, or at a large text size, the list folds away above
-  the photos under "Where they go".
+  photos going into it.
 - The menu down the left can be narrowed to just its icons, giving the pages more room. The
-  button for it is at the bottom of the menu, and the choice is remembered. On a small window, or
-  at a large text size, the menu narrows by itself.
-
-### Fixed
-
-- The job progress and its Stop button at the bottom of the menu stay in view on a short window;
-  only the list of pages scrolls.
+  button for it is at the bottom of the menu, and the choice is remembered.
 
 ## [0.18.0] - 2026-11-15
 
