@@ -23,6 +23,9 @@ All notable changes to this project are documented here. The format follows
 - Sort, Duplicates, History, Help and Import are quieter: short headings, a one-line summary with
   the fuller notes under Details, and the job status in the menu with a plain Stop button.
 - The magnifier on a photo only shows when the mouse is over it.
+- The map in the photo viewer is a real street map from OpenFreeMap, light or dark to match the
+  theme, and it can be dragged. Open in Google Maps replaces Open in OpenStreetMap. Without an
+  internet connection the drawn map is shown instead.
 
 ### Fixed
 
