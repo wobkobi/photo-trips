@@ -19,6 +19,7 @@ import {
 } from "../lib/api";
 import { tileSizeOf } from "../lib/display";
 import { count } from "../lib/format";
+import type { FilterTrip } from "../lib/libraryFilter";
 import { namingOf, tripFolder } from "../lib/naming";
 import {
   EMPTY_FORM,
@@ -82,16 +83,19 @@ interface Review {
  * @param props.draft - a trip started elsewhere (a Library selection or a suggestion) to open
  * @param props.onDraftUsed - called once the draft has opened in the editor
  * @param props.onNavigate - switch to another page
+ * @param props.onShowTrip - open the Library showing only one trip's photos
  * @returns the page
  */
 export function TripsPage({
   draft,
   onDraftUsed,
   onNavigate,
+  onShowTrip,
 }: {
   draft: TripStart | null;
   onDraftUsed: () => void;
   onNavigate: (page: PageId) => void;
+  onShowTrip: (trip: FilterTrip) => void;
 }) {
   const { running } = useJobs();
   const { settings } = useSettings();
@@ -286,6 +290,7 @@ export function TripsPage({
               key={trip.id}
               trip={trip}
               busy={busy}
+              onShow={() => onShowTrip({ id: trip.id, name: trip.name })}
               onEdit={() => {
                 setResult(null);
                 setEditor({
@@ -307,14 +312,25 @@ export function TripsPage({
   );
 }
 
+/**
+ * One trip in the list. Its name opens the Library at the trip's photos, as does the button.
+ * @param props.trip - the trip
+ * @param props.busy - a job or check is running, so editing waits
+ * @param props.onShow - open the Library showing only this trip
+ * @param props.onEdit - open the trip in the editor
+ * @param props.onDelete - preview deleting the trip
+ * @returns the row
+ */
 function TripRow({
   trip,
   busy,
+  onShow,
   onEdit,
   onDelete,
 }: {
   trip: TripInfo;
   busy: boolean;
+  onShow: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -324,9 +340,14 @@ function TripRow({
       <div className="flex min-w-0 flex-1 flex-col gap-3 p-4">
         <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
           <div className="min-w-0 flex-1">
-            <p className="text-[22px] leading-tight font-bold tracking-tight text-brand">
+            <button
+              type="button"
+              onClick={onShow}
+              title="See this trip's photos in the Library"
+              className="text-left text-[22px] leading-tight font-bold tracking-tight text-brand hover:underline hover:underline-offset-4"
+            >
               {trip.name}
-            </p>
+            </button>
             <p className="mt-1 flex flex-wrap gap-x-4 text-[15px] text-muted">
               <span>{rangeText(trip.startAt, trip.endAt)}</span>
               <span>{count(trip.files, "photo or video", "photos and videos")}</span>
@@ -334,6 +355,10 @@ function TripRow({
             </p>
           </div>
           <div className="flex items-center gap-1">
+            <Button onClick={onShow} className="mr-1">
+              <Icon name="library" size={18} />
+              See in Library
+            </Button>
             <Button variant="ghost" onClick={onEdit} disabled={busy}>
               Edit
             </Button>

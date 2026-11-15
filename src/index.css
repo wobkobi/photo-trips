@@ -36,6 +36,11 @@
   --color-tag-5: #206f79; /* moonstone-700 */
   --color-tag-6: #aaa7f1; /* russian-violet-200 */
 
+  /* The viewer's location map: pale moonstone water, seasalt land, coquelicot pin. */
+  --color-map-water: #c9ecf1; /* moonstone-100 */
+  --color-map-land: #f6f7f8; /* seasalt */
+  --color-map-pin: #d63a10; /* coquelicot-600 */
+
   --font-sans: "Exo Variable", "Exo", "Segoe UI", system-ui, sans-serif;
 }
 

@@ -317,6 +317,58 @@ export interface ImportFile {
   playable: boolean;
 }
 
+/**
+ * What a file says about itself, read when the viewer shows it. Mirrors Details in details.rs;
+ * each field is null when the file doesn't record it.
+ */
+export interface FileDetails {
+  make: string | null;
+  model: string | null;
+  lens: string | null;
+  /** Pixels as the photo is shown, so a portrait photo is taller than wide. */
+  width: number | null;
+  height: number | null;
+  /** A video's length in seconds. */
+  duration: number | null;
+  fNumber: number | null;
+  /** Seconds. */
+  exposure: number | null;
+  iso: number | null;
+  /** Millimetres, as fitted and as the full-frame equivalent. */
+  focalLength: number | null;
+  focal35: number | null;
+  lat: number | null;
+  lon: number | null;
+}
+
+/** A town named on a location map. Mirrors Label in map.rs. */
+export interface MapLabel {
+  name: string;
+  x: number;
+  y: number;
+  /** The name goes left of the dot, since it would run off the right edge. */
+  left: boolean;
+  /** False for the town under the pin: the name sits beside the pin and there's no dot. */
+  dot: boolean;
+  /** The town nearest the photo. */
+  nearest: boolean;
+}
+
+/** The offline map around a photo's location, the photo at the centre. Mirrors MapView in map.rs. */
+export interface MapView {
+  width: number;
+  height: number;
+  /** SVG path data. */
+  land: string;
+  lakes: string;
+  borders: string;
+  labels: MapLabel[];
+  scaleLength: number;
+  scaleLabel: string;
+  /** "Rotorua, Bay of Plenty, New Zealand", or null when no town is near enough to name. */
+  place: string | null;
+}
+
 /** A stretch of days that looks like a trip. Mirrors Suggestion in suggest.rs. */
 export interface Suggestion {
   /** First and last day, "YYYY-MM-DD". */
@@ -430,6 +482,11 @@ export const api = {
   cancelJob: () => invoke<void>("cancel_job"),
   libraryTiles: () => invoke<Tile[]>("library_tiles"),
   mediaDetail: (id: number) => invoke<MediaDetail>("media_detail", { id }),
+  /** Camera, size and settings, read from the file itself. */
+  mediaDetails: (id: number) => invoke<FileDetails>("media_details", { id }),
+  /** The offline map around a location, `spanKm` from top to bottom. */
+  locationMap: (lat: number, lon: number, spanKm: number) =>
+    invoke<MapView>("location_map", { lat, lon, spanKm }),
   openMedia: (id: number) => invoke<void>("open_media", { id }),
   revealMedia: (id: number) => invoke<void>("reveal_media", { id }),
   openNotices: () => invoke<void>("open_notices"),
@@ -467,6 +524,8 @@ export const api = {
   /** Drop an import preview (and any phone files copied off for it). */
   discardImport: (id: number) => invoke<void>("discard_import", { id }),
   importFile: (id: number, item: number) => invoke<ImportFile>("import_file", { id, item }),
+  importFileDetails: (id: number, item: number) =>
+    invoke<FileDetails>("import_file_details", { id, item }),
   openImportFile: (id: number, item: number) => invoke<void>("open_import_file", { id, item }),
   revealImportFile: (id: number, item: number) => invoke<void>("reveal_import_file", { id, item }),
   suggestTrips: () => invoke<Suggestions>("suggest_trips"),

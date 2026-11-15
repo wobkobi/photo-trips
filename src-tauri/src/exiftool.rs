@@ -53,14 +53,22 @@ impl ExifTool {
 
     /// Read the capture date and GPS of one file. `Ok(None)` means ExifTool found no date.
     pub fn read(&mut self, path: &Path) -> Result<Option<Embedded>> {
+        let tags: Vec<&str> =
+            DATE_TAGS.iter().copied().chain(["OffsetTimeOriginal", "GPSLatitude", "GPSLongitude"]).collect();
+        Ok(parse_output(&self.tags(path, &tags)?))
+    }
+
+    /// ExifTool's JSON for `tags` of one file: an array with one object, holding the tags it
+    /// found. Values are numbers where ExifTool has one (-n), so GPS comes as signed decimals.
+    pub fn tags(&mut self, path: &Path, tags: &[&str]) -> Result<String> {
         let mut request = String::new();
-        // -n: GPS as signed decimals. QuickTimeUTC: QuickTime times are UTC, shift them to the
-        // PC's zone. charset: let non-ASCII Windows paths through.
+        // QuickTimeUTC: QuickTime times are UTC, shift them to the PC's zone. charset: let
+        // non-ASCII Windows paths through.
         for arg in ["-json", "-n", "-api", "QuickTimeUTC=1", "-charset", "filename=utf8"] {
             request.push_str(arg);
             request.push('\n');
         }
-        for tag in DATE_TAGS.iter().chain(&["OffsetTimeOriginal", "GPSLatitude", "GPSLongitude"]) {
+        for tag in tags {
             request.push_str(&format!("-{tag}\n"));
         }
         request.push_str(&path.to_string_lossy());
@@ -79,7 +87,7 @@ impl ExifTool {
             }
             output.push_str(&line);
         }
-        Ok(parse_output(&output))
+        Ok(output)
     }
 }
 

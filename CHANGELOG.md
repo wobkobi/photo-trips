@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.18.0] - 2026-11-15
+
+### Added
+
+- The Library can show just one trip, one year, photos or videos, or the photos whose dates may be
+  wrong. Clicking a trip on the Trips page, or its See in Library button, opens the Library at that
+  trip.
+- The viewer shows where a photo was taken on a built-in map with the town's name, the camera or
+  phone, the picture's size or video's length, and the camera settings under More details. Open in
+  OpenStreetMap shows the spot online, only when clicked.
+
+### Changed
+
+- The library folder at the bottom of the sidebar shows just its name, and clicking it opens it in
+  File Explorer.
+
 ## [0.17.0] - 2026-11-15
 
 ### Added

@@ -7,7 +7,7 @@ with your information.
 
 **In short:** your photos, and everything Pic Cabinet works out about them, stay on your PC. We
 don't collect, receive, store or sell any of it. The app has no accounts, analytics, advertising
-or tracking. The only thing it does online is check for updates.
+or tracking. The only thing it does online on its own is check for updates.
 
 ## What the app reads
 
@@ -21,8 +21,14 @@ ever read, never written to. From each file it reads:
 
 It also works out a fingerprint (a hash) of each file's contents, to spot identical copies.
 
-Locations are used only to suggest trips and name the places in them. Place names come from a
-world list built into the app, so locations are never looked up online and never leave your PC.
+When you look at a photo or video full size, the app also reads the camera or phone it was taken
+with, its size in pixels, and the camera's settings, to show beside it. These are read again
+each time and not kept.
+
+Locations are used to suggest trips, to name the places in them, and to show on a map where a
+photo was taken. Place names and the map come from data built into the app, so locations are
+never looked up online and never leave your PC, unless you choose "Open in OpenStreetMap" (see
+below).
 
 ## What the app stores
 
@@ -51,6 +57,11 @@ We don't receive this information.
 **Links you choose to open.** Some buttons open a page outside the app, such as a Microsoft Store
 page for a Windows image extension, or this policy. Those open in the Store app or your web
 browser, and that service's own privacy policy applies.
+
+**Open in OpenStreetMap.** Beside a photo that has a location, this button opens
+openstreetmap.org in your web browser at the spot where the photo was taken, so OpenStreetMap
+receives that location. It's sent only when you click the button, and only for that one photo.
+The [OpenStreetMap privacy policy](https://osmfoundation.org/wiki/Privacy_Policy) applies.
 
 Nothing else is sent anywhere.
 

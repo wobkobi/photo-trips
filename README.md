@@ -69,9 +69,14 @@ are read in full, so checking a large library is quick.
 
 ### Lets you look through it all
 
-The Library page shows the whole collection as a timeline of thumbnails, with a full-size viewer
-for photos and videos. HEIC, RAW and AVIF thumbnails use the Windows image extensions; if one is
-missing, Pic Cabinet says which one and links to it in the Microsoft Store.
+The Library page shows the whole collection as a timeline of thumbnails, which can be narrowed to
+one trip, one year, photos or videos, or the photos whose dates may be wrong. A trip's name on the
+Trips page opens the Library at just that trip. Any photo or video opens
+full size, and so do photos waiting to be imported, picked for a trip or chosen from a set of
+duplicates. Beside it are when it was taken, where (on a map built into the app), the camera or
+phone and its settings, and buttons to show the file in its folder or open it in the app Windows
+uses for it. HEIC, RAW and AVIF thumbnails use the Windows image extensions; if one is missing,
+Pic Cabinet says which one and links to it in the Microsoft Store.
 
 ## Safe by design
 
@@ -98,7 +103,8 @@ refuses any that aren't.
 ## Privacy
 
 Your photos, and everything Pic Cabinet works out about them, stay on your PC. The app has no
-accounts, analytics or tracking; the only thing it does online is check GitHub for updates. The
+accounts, analytics or tracking; the only thing it does online on its own is check GitHub for
+updates. The
 [privacy policy](PRIVACY.md) has the details. To report a security problem, see the
 [security policy](SECURITY.md).
 
@@ -125,6 +131,9 @@ Checks: `npm run typecheck`, `npm run lint` (ESLint + clippy), `npm test` (Vites
 Test fixtures are regenerated with `scripts/make-fixtures.sh` (needs ffmpeg).
 `THIRD_PARTY_NOTICES.txt` is generated into `src-tauri/resources/` before every dev start and
 build (`npm run notices` runs it on its own), so it always matches the dependencies being built.
+The viewer's offline map, `src-tauri/map/world.bin`, is built from pinned
+[Natural Earth](https://www.naturalearthdata.com) layers by `npm run map-data`. It's committed,
+so that only needs running to change the map.
 
 ### Releases
 
