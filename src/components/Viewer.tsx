@@ -19,6 +19,20 @@ export interface ViewItem {
   facts: ReactNode;
 }
 
+/** How many loaded files the viewer keeps, so stepping back and forth doesn't load them again. */
+const KEEP = 8;
+
+/**
+ * Start fetching a file's picture so it's already decoded when the viewer steps to it. Videos
+ * are left alone; they stream when shown.
+ * @param item - a neighbouring file
+ */
+function preload(item: ViewItem): void {
+  if (item.kind === "video") return;
+  const image = new Image();
+  image.src = item.original ?? item.preview;
+}
+
 /** Default app names by extension, looked up once each. Null: Windows has no default. */
 const defaultApps = new Map<string, string | null>();
 
@@ -91,24 +105,45 @@ export function Viewer({
   controls?: ReactNode;
 }): ReactElement {
   const key = source.key(index);
-  // Results are tagged with the file they belong to, so stepping to another file shows nothing
-  // stale while it loads.
-  const [loaded, setLoaded] = useState<{ key: string; item: ViewItem } | null>(null);
+  // Loaded files by key: the one on show and its neighbours, fetched ahead so the next file is
+  // ready the moment it's stepped to. Keys change when a file would load something else, so
+  // nothing stale is shown.
+  const [items, setItems] = useState<ReadonlyMap<string, ViewItem>>(() => new Map());
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
-  const item = loaded?.key === key ? loaded.item : null;
+  const pending = useRef(new Set<string>());
+  const item = items.get(key) ?? null;
   const error = failure?.key === key ? failure.message : null;
   const dialog = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let active = true;
-    source.load(index).then(
-      (loadedItem) => active && setLoaded({ key, item: loadedItem }),
-      (err) => active && setFailure({ key, message: errorText(err) }),
-    );
-    return () => {
-      active = false;
-    };
-  }, [source, index, key]);
+    const near = [index, index + 1, index - 1].filter((i) => i >= 0 && i < source.count);
+    const nearKeys = new Set(near.map((i) => source.key(i)));
+    for (const i of near) {
+      const k = source.key(i);
+      if (items.has(k) || pending.current.has(k)) continue;
+      pending.current.add(k);
+      source.load(i).then(
+        (loadedItem) => {
+          pending.current.delete(k);
+          setItems((prev) => {
+            const next = new Map(prev);
+            next.set(k, loadedItem);
+            // Oldest first, never the file on show or its neighbours.
+            for (const old of next.keys()) {
+              if (next.size <= KEEP) break;
+              if (!nearKeys.has(old)) next.delete(old);
+            }
+            return next;
+          });
+          if (i !== index) preload(loadedItem);
+        },
+        (err) => {
+          pending.current.delete(k);
+          if (i === index) setFailure({ key: k, message: errorText(err) });
+        },
+      );
+    }
+  }, [source, index, items]);
 
   // Capture phase, so Escape closes only the viewer, not the selection or menu of the page behind.
   useEffect(() => {

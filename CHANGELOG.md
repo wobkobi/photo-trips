@@ -26,6 +26,9 @@ All notable changes to this project are documented here. The format follows
 - The map in the photo viewer is a real street map from OpenFreeMap, light or dark to match the
   theme, and it can be dragged. Open in Google Maps replaces Open in OpenStreetMap. Without an
   internet connection the drawn map is shown instead.
+- The photo viewer's side panel is shorter: where a date came from shows on hover, folders read from
+  the library folder, and the map has its own zoom buttons. Stepping between photos is quicker,
+  since the next and previous ones load ahead and the map stays put.
 
 ### Fixed
 

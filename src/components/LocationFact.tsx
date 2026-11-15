@@ -116,10 +116,12 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactE
   }
 
   return (
-    <Fact label="Where it was taken">
+    <Fact label="Place">
       {/* A blank line while loading, so the map doesn't jump down when the name arrives. */}
-      <p className="selectable">{place ?? (view && answered ? coords : "\u00a0")}</p>
-      <div className="mt-2 overflow-hidden rounded-md border border-line bg-map-water">
+      <p className="selectable" title={place ? coords : undefined}>
+        {place ?? (view && answered ? coords : "\u00a0")}
+      </p>
+      <div className="relative mt-2 overflow-hidden rounded-md border border-line bg-map-water">
         {!offline ? (
           <Suspense fallback={<div className="h-47.5" aria-hidden="true" />}>
             <PhotoMap
@@ -136,28 +138,69 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactE
         ) : (
           <div className="aspect-280/180" aria-hidden="true" />
         )}
+        <div className="absolute top-2 right-2 flex flex-col overflow-hidden rounded-md border border-line bg-surface/90 shadow-sm">
+          <MapZoom
+            label="Zoom in"
+            glyph="+"
+            disabled={zoom === 0}
+            onClick={() => changeZoom(zoom - 1)}
+          />
+          <MapZoom
+            label="Zoom out"
+            glyph="−"
+            disabled={zoom === ZOOMS.length - 1}
+            onClick={() => changeZoom(zoom + 1)}
+            divided
+          />
+        </div>
       </div>
-      {place && <p className="selectable mt-1 text-[14px] text-faint">{coords}</p>}
       {error && (
         <p role="alert" className="mt-1 text-[15px] text-danger">
           {error}
         </p>
       )}
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button onClick={() => changeZoom(zoom - 1)} disabled={zoom === 0}>
-          <Icon name="zoom" size={16} />
-          Zoom in
-        </Button>
-        <Button onClick={() => changeZoom(zoom + 1)} disabled={zoom === ZOOMS.length - 1}>
-          <Icon name="zoomOut" size={16} />
-          Zoom out
-        </Button>
-        <Button onClick={openMap}>
-          <Icon name="map" size={16} />
-          Open in Google Maps
-        </Button>
-      </div>
+      <Button variant="ghost" className="mt-1 -ml-2" onClick={openMap}>
+        <Icon name="map" size={16} />
+        Open in Google Maps
+      </Button>
     </Fact>
+  );
+}
+
+/**
+ * One of the zoom buttons in the map's corner.
+ * @param props - Component props.
+ * @param props.label - what a screen reader and the tooltip say
+ * @param props.glyph - the plus or minus shown
+ * @param props.disabled - already at the closest or furthest zoom
+ * @param props.onClick - zoom one step
+ * @param props.divided - draw a line above it, between the pair
+ * @returns the button
+ */
+function MapZoom({
+  label,
+  glyph,
+  disabled,
+  onClick,
+  divided = false,
+}: {
+  label: string;
+  glyph: string;
+  disabled: boolean;
+  onClick: () => void;
+  divided?: boolean;
+}): ReactElement {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex size-8 items-center justify-center text-[18px] leading-none text-ink hover:bg-raised disabled:text-faint disabled:hover:bg-transparent ${divided ? "border-t border-line" : ""}`}
+    >
+      {glyph}
+    </button>
   );
 }
 

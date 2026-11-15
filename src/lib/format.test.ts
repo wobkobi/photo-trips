@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { Tile } from "./api";
 import {
   count,
+  dateNote,
   folderName,
   formatBytes,
   formatTaken,
   jumpRow,
+  libraryFolder,
   monthLabel,
   parseTaken,
   splitPath,
@@ -118,5 +120,39 @@ describe("folderName", () => {
   it("keeps a whole drive as it is", () => {
     expect(folderName("D:\\")).toBe("D:\\");
     expect(folderName("D:")).toBe("D:");
+  });
+});
+
+describe("libraryFolder", () => {
+  const root = String.raw`C:\Users\Me\Pictures\Library`;
+
+  it("reads from the library folder", () => {
+    expect(libraryFolder(String.raw`C:\Users\Me\Pictures\Library\2025\2025-03`, root)).toBe(
+      String.raw`2025\2025-03`,
+    );
+    expect(libraryFolder(String.raw`c:\users\me\pictures\library\Camera`, `${root}\\`)).toBe(
+      "Camera",
+    );
+  });
+
+  it("names the library folder itself", () => {
+    expect(libraryFolder(root, root)).toBe("Library folder");
+  });
+
+  it("keeps a folder outside the library, or a near-miss name, whole", () => {
+    expect(libraryFolder(String.raw`D:\Photos`, root)).toBe(String.raw`D:\Photos`);
+    expect(libraryFolder(String.raw`C:\Users\Me\Pictures\Library2\x`, root)).toBe(
+      String.raw`C:\Users\Me\Pictures\Library2\x`,
+    );
+    expect(libraryFolder("anything", null)).toBe("anything");
+  });
+});
+
+describe("dateNote", () => {
+  it("notes only the less sure dates", () => {
+    expect(dateNote("exif")).toBeNull();
+    expect(dateNote("video")).toBeNull();
+    expect(dateNote("filename")).toBe("From the file name");
+    expect(dateNote("modified")).toBe("Guessed from when the file last changed");
   });
 });

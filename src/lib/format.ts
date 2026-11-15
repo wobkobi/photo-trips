@@ -88,6 +88,18 @@ export function sourceText(source: DateSource): string {
   return SOURCE_TEXT[source];
 }
 
+/**
+ * A short note under a date that's less sure than the file's own record of it; nothing for the
+ * rest, whose source shows on hover instead.
+ * @param source - where the date came from
+ * @returns the note, or null when the date came from the file's own record
+ */
+export function dateNote(source: DateSource): string | null {
+  if (source === "filename") return "From the file name";
+  if (source === "modified") return "Guessed from when the file last changed";
+  return null;
+}
+
 export type TimelineRow =
   | { type: "month"; key: string; label: string; count: number; start: number; end: number }
   | { type: "tiles"; key: string; start: number; end: number };
@@ -154,6 +166,23 @@ export function formatWhen(unixSecs: number): string {
 export function splitPath(path: string): { folder: string; name: string } {
   const cut = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
   return { folder: path.slice(0, Math.max(cut, 0)), name: path.slice(cut + 1) };
+}
+
+/**
+ * A folder in the library as it reads from the library folder, e.g. "2025\2025-03" rather than
+ * the whole path. Windows paths aren't case sensitive, so neither is the match.
+ * @param folder - the folder's full path
+ * @param root - the library folder
+ * @returns the part under the library, "Library folder" for the library itself, or the full path
+ * for a folder outside it
+ */
+export function libraryFolder(folder: string, root: string | null | undefined): string {
+  if (!root) return folder;
+  const base = root.replace(/[\\/]+$/, "");
+  const lower = folder.toLowerCase();
+  if (lower === base.toLowerCase()) return "Library folder";
+  const prefix = `${base.toLowerCase()}\\`;
+  return lower.startsWith(prefix) ? folder.slice(prefix.length) : folder;
 }
 
 /**

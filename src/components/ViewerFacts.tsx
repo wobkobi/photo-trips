@@ -2,8 +2,17 @@
 
 import { useCallback, type ReactElement } from "react";
 import { api, type ImportItem, type MediaDetail, type MediaKind } from "../lib/api";
-import { count, formatBytes, formatTaken, sourceText, splitPath } from "../lib/format";
+import {
+  count,
+  dateNote,
+  formatBytes,
+  formatTaken,
+  libraryFolder,
+  sourceText,
+  splitPath,
+} from "../lib/format";
 import { located, useFileDetails } from "../lib/useFileDetails";
+import { useSettings } from "../lib/useSettings";
 import { CameraFact, Measures } from "./FileFacts";
 import { LocationFact } from "./LocationFact";
 import { Fact } from "./Viewer";
@@ -25,6 +34,8 @@ const KIND_NAMES: Record<MediaKind, string> = {
 export function LibraryFacts({ detail }: { detail: MediaDetail }): ReactElement {
   const load = useCallback(() => api.mediaDetails(detail.id), [detail.id]);
   const details = useFileDetails(`m${detail.id}`, load);
+  const { settings } = useSettings();
+  const note = dateNote(detail.dateSource);
   // The index keeps the location; the file's own is used only when the index has none.
   const spot =
     detail.lat !== null && detail.lon !== null
@@ -33,12 +44,14 @@ export function LibraryFacts({ detail }: { detail: MediaDetail }): ReactElement 
   return (
     <>
       <Fact label="Taken">
-        <p>{formatTaken(detail.takenAt)}</p>
-        <p
-          className={`mt-1 text-[14px] ${detail.dateSource === "modified" ? "text-warn" : "text-faint"}`}
-        >
-          {sourceText(detail.dateSource)}
-        </p>
+        <p title={sourceText(detail.dateSource)}>{formatTaken(detail.takenAt)}</p>
+        {note && (
+          <p
+            className={`mt-1 text-[14px] ${detail.dateSource === "modified" ? "text-warn" : "text-faint"}`}
+          >
+            {note}
+          </p>
+        )}
       </Fact>
 
       {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
@@ -49,7 +62,9 @@ export function LibraryFacts({ detail }: { detail: MediaDetail }): ReactElement 
           {KIND_NAMES[detail.kind]}, {formatBytes(detail.size)}
         </p>
         <Measures details={details} video={detail.kind === "video"} />
-        <p className="selectable mt-1 text-[14px] break-all text-faint">{detail.folder}</p>
+        <p className="selectable mt-1 text-[14px] break-all text-faint" title={detail.folder}>
+          {libraryFolder(detail.folder, settings?.library_root)}
+        </p>
       </Fact>
 
       {detail.members.length > 1 && (
@@ -94,7 +109,7 @@ export function ImportFacts({
     <>
       <Fact label="Taken">
         <p>{formatTaken(item.takenAt)}</p>
-        {item.uncertain && <p className="mt-1 text-[14px] text-warn">{sourceText("modified")}</p>}
+        {item.uncertain && <p className="mt-1 text-[14px] text-warn">{dateNote("modified")}</p>}
       </Fact>
 
       {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
@@ -103,10 +118,7 @@ export function ImportFacts({
       <Fact label="Goes into">
         <p className="selectable break-all">{folder || "The library folder"}</p>
         {item.renamed && (
-          <p className="mt-1 text-[14px] text-faint">
-            Gets a number added to its name, because a different file with that name is already
-            there.
-          </p>
+          <p className="mt-1 text-[14px] text-faint">Gets a number added; that name is taken</p>
         )}
       </Fact>
 
@@ -116,9 +128,8 @@ export function ImportFacts({
         </p>
         <Measures details={details} video={item.kind === "video"} />
         {item.extra > 0 && (
-          <p className="mt-1 text-[14px] text-faint">
-            Comes in with {count(item.extra, "other file", "other files")}, such as a Live Photo
-            video or RAW copy.
+          <p className="mt-1 text-[14px] text-faint" title="Such as a Live Photo video or RAW copy">
+            With {count(item.extra, "linked file", "linked files")}
           </p>
         )}
       </Fact>
