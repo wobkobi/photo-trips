@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.22.0] - 2026-11-16
+
+### Added
+
+- A Help page in the menu says what each page is for, with a button to open it, and lists the
+  keyboard shortcuts. F1 or Help > Pic Cabinet help opens it.
+
 ## [0.21.1] - 2026-11-16
 
 ### Changed

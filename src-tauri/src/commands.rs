@@ -30,6 +30,7 @@ const WRITABLE_SETTINGS: &[&str] = &[
     "text_size",
     "photo_size",
     "menu_narrow",
+    "tour_done",
 ];
 
 /// Text sizes offered in Settings, as page zoom percentages. Zoom scales the whole page, so
@@ -122,6 +123,9 @@ pub fn set_setting(
         }
         "menu_narrow" if value != "true" && value != "false" => {
             return Err(Error::msg("The menu width must be true or false"));
+        }
+        "tour_done" if value != "true" && value != "false" => {
+            return Err(Error::msg("The tour setting must be true or false"));
         }
         _ => {}
     }

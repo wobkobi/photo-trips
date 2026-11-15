@@ -1,6 +1,6 @@
 // Small shared building blocks: buttons, page header, empty state.
 
-import type { ButtonHTMLAttributes, ReactElement, ReactNode } from "react";
+import type { ComponentProps, ReactElement, ReactNode } from "react";
 
 /**
  * For the photo grid or move list that fills the rest of a page. It grows into the space left
@@ -38,7 +38,7 @@ export function Button({
   variant = "secondary",
   className = "",
   ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }): ReactElement {
+}: ComponentProps<"button"> & { variant?: Variant }): ReactElement {
   return (
     <button
       type="button"

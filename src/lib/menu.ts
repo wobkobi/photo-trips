@@ -15,6 +15,7 @@ const SHORTCUTS: Record<string, string> = {
   "Ctrl+W": "menu-close",
   "Ctrl+Q": "menu-quit",
   "Ctrl+,": "menu-settings",
+  F1: "menu-help",
   "Ctrl+1": "menu-page-library",
   "Ctrl+2": "menu-page-sort",
   "Ctrl+3": "menu-page-trips",

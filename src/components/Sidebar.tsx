@@ -16,6 +16,7 @@ const NAV: { id: PageId; label: string; icon: IconName }[] = [
   { id: "duplicates", label: "Duplicates", icon: "duplicates" },
   { id: "history", label: "History", icon: "history" },
   { id: "settings", label: "Settings", icon: "settings" },
+  { id: "help", label: "Help", icon: "help" },
 ];
 
 /**
@@ -37,6 +38,7 @@ const CRAMPED = "(max-width: 800px)";
  * @param props.libraryRoot - the library folder's full path
  * @param props.narrow - the saved choice to show icons only
  * @param props.onNarrow - called with the new width choice to save
+ * @param props.highlight - a page the tour is pointing at, ringed so it stands out
  * @returns the sidebar
  */
 export function Sidebar({
@@ -45,12 +47,14 @@ export function Sidebar({
   libraryRoot,
   narrow,
   onNarrow,
+  highlight = null,
 }: {
   page: PageId;
   onPage: (page: PageId) => void;
   libraryRoot: string;
   narrow: boolean;
   onNarrow: (narrow: boolean) => void;
+  highlight?: PageId | null;
 }): ReactElement {
   const folder = folderName(libraryRoot);
   const cramped = useMediaQuery(CRAMPED);
@@ -114,6 +118,7 @@ export function Sidebar({
               type="button"
               onClick={() => onPage(item.id)}
               aria-current={page === item.id ? "page" : undefined}
+              data-nav={item.id}
               title={iconsOnly ? item.label : undefined}
               className={`relative flex min-h-12 w-full items-center rounded-lg py-2.5 text-[18px] font-semibold transition-colors ${
                 iconsOnly ? "justify-center px-0" : "gap-3 px-3 text-left"
@@ -121,7 +126,7 @@ export function Sidebar({
                 page === item.id
                   ? "bg-raised text-ink before:absolute before:inset-y-2 before:left-0 before:w-0.75 before:rounded-r-sm before:bg-accent"
                   : "text-muted hover:bg-raised hover:text-ink"
-              }`}
+              } ${highlight === item.id ? "ring-2 ring-accent" : ""}`}
             >
               <Icon name={item.icon} size={iconsOnly ? 22 : 18} />
               <span className={iconsOnly ? "sr-only" : undefined}>{item.label}</span>

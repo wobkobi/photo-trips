@@ -31,6 +31,7 @@ const AUTOSTART: &str = "menu-autostart";
 const OPEN_LOGS: &str = "menu-open-logs";
 const UPDATES: &str = "menu-updates";
 const ABOUT: &str = "menu-about";
+const HELP: &str = "menu-help";
 /// View items are this prefix plus the page id the frontend uses.
 const PAGE_PREFIX: &str = "menu-page-";
 
@@ -141,6 +142,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         "&Help",
         true,
         &[
+            &item(HELP, "Pic Cabinet &help", Some("F1"))?,
+            &PredefinedMenuItem::separator(app)?,
             &item(OPEN_LOGS, "Open &log folder", None)?,
             &item(UPDATES, "Check for &updates...", None)?,
             &PredefinedMenuItem::separator(app)?,
@@ -213,6 +216,7 @@ fn run(app: &AppHandle, id: &str) -> bool {
         }
         QUIT => app.exit(0),
         SETTINGS => navigate(app, "settings"),
+        HELP => navigate(app, "help"),
         PAUSE => watch::toggle_pause(app),
         CLOSE_TO_TRAY => toggle_close_to_tray(app),
         AUTOSTART => toggle_autostart(app),
@@ -369,6 +373,7 @@ mod tests {
             OPEN_LOGS,
             UPDATES,
             ABOUT,
+            HELP,
         ];
         let known = |id: &str| {
             fixed.contains(&id)
