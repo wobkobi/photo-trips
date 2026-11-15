@@ -69,7 +69,9 @@ are read in full, so checking a large library is quick.
 
 ### Lets you look through it all
 
-The Library page shows the whole collection as a timeline of thumbnails. Any photo or video opens
+The Library page shows the whole collection as a timeline of thumbnails, which can be narrowed to
+one trip, one year, photos or videos, or the photos whose dates may be wrong. A trip's name on the
+Trips page opens the Library at just that trip. Any photo or video opens
 full size, and so do photos waiting to be imported, picked for a trip or chosen from a set of
 duplicates. Beside it are when it was taken, where (on a map built into the app), the camera or
 phone and its settings, and buttons to show the file in its folder or open it in the app Windows
