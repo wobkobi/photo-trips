@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::OptionalExtension;
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 use crate::AppState;
 use crate::dates::{self, DateSource};
@@ -187,4 +187,17 @@ pub fn open_media(state: State<'_, AppState>, id: i64) -> Result<()> {
 pub fn reveal_media(state: State<'_, AppState>, id: i64) -> Result<()> {
     let path = media_path(&state, id)?;
     tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|e| Error::msg(e.to_string()))
+}
+
+/// Open the third-party notices installed with the app, which list exactly what this version was
+/// built with (the file is generated at build time; see tauri.conf.json's resources).
+#[tauri::command(async)]
+pub fn open_notices(app: AppHandle) -> Result<()> {
+    let path = app.path().resource_dir()?.join("THIRD_PARTY_NOTICES.txt");
+    if !path.is_file() {
+        return Err(Error::msg(
+            "The third-party notices are missing from the install folder. Reinstalling Pic Cabinet puts them back.",
+        ));
+    }
+    tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| Error::msg(e.to_string()))
 }

@@ -106,7 +106,8 @@ accounts, analytics or tracking; the only thing it does online is check GitHub f
 
 Pic Cabinet is proprietary software, copyright To the Point Tech, and free to use under the terms
 in [LICENSE](LICENSE). It includes third-party software and data under their own licences,
-listed in [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
+listed in `THIRD_PARTY_NOTICES.txt` in the install folder (Settings > About > Third-party
+notices opens it).
 
 ## Development
 
@@ -122,7 +123,8 @@ npm run tauri build    # NSIS installer in src-tauri/target/release/bundle
 
 Checks: `npm run typecheck`, `npm run lint` (ESLint + clippy), `npm test` (Vitest + cargo test).
 Test fixtures are regenerated with `scripts/make-fixtures.sh` (needs ffmpeg).
-`npm run notices` regenerates `THIRD_PARTY_NOTICES.txt`; run it after changing dependencies.
+`THIRD_PARTY_NOTICES.txt` is generated into `src-tauri/resources/` before every dev start and
+build (`npm run notices` runs it on its own), so it always matches the dependencies being built.
 
 ### Releases
 

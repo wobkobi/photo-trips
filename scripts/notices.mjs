@@ -1,20 +1,18 @@
 // Write THIRD_PARTY_NOTICES.txt: every third-party package, tool and data set that ships in the
 // installer, with its licence. Reads the installed node_modules and Cargo's registry, so run it
-// after npm install and a cargo build.
-//
-//   npm run notices             regenerate the file
-//   npm run notices -- --check  exit 1 if the file is out of date (release.mjs runs this)
+// after npm install. Runs before every dev start and build, so each installer lists exactly the
+// dependencies it was built with; the file isn't kept in git.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import process from "node:process";
+
 import { LICENCE_FILE, renderNotices, shippedCrates } from "./notices-lib.mjs";
 
 const PRODUCT = "Pic Cabinet";
 const root = resolve(import.meta.dirname, "..");
-const out = join(root, "THIRD_PARTY_NOTICES.txt");
-const check = process.argv.includes("--check");
+// Bundled as a resource (tauri.conf.json) next to ExifTool, which is also downloaded at build time.
+const out = join(root, "src-tauri", "resources", "THIRD_PARTY_NOTICES.txt");
 
 /**
  * Contents of the licence files directly inside a package folder.
@@ -99,14 +97,6 @@ GeoNames place data${geocoder ? `, bundled in reverse_geocoder ${geocoder.versio
 `;
 
 const text = renderNotices({ product: PRODUCT, extras, npm, crates });
-if (check) {
-  const current = existsSync(out) ? readFileSync(out, "utf8").replace(/\r\n/g, "\n") : "";
-  if (current !== text) {
-    console.error("notices: THIRD_PARTY_NOTICES.txt is out of date. Run npm run notices.");
-    process.exit(1);
-  }
-  console.log("notices: up to date");
-} else {
-  writeFileSync(out, text);
-  console.log(`notices: ${npm.length} npm and ${crates.length} Rust packages`);
-}
+mkdirSync(dirname(out), { recursive: true });
+writeFileSync(out, text);
+console.log(`notices: ${npm.length} npm and ${crates.length} Rust packages`);

@@ -423,6 +423,7 @@ export const api = {
   mediaDetail: (id: number) => invoke<MediaDetail>("media_detail", { id }),
   openMedia: (id: number) => invoke<void>("open_media", { id }),
   revealMedia: (id: number) => invoke<void>("reveal_media", { id }),
+  openNotices: () => invoke<void>("open_notices"),
   installedExtensions: () => invoke<Codec[]>("installed_extensions"),
   openStorePage: (product: StoreProduct) => invoke<void>("open_store_page", { product }),
   planOrganise: () => invoke<Preview>("plan_organise"),

@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.16.2] - 2026-11-15
+
+### Changed
+
+- Settings > About > Third-party notices opens the list installed with the app, so it works offline
+  and always matches the installed version.
+
 ## [0.16.1] - 2026-11-15
 
 ### Fixed
