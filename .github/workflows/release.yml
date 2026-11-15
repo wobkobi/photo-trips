@@ -9,7 +9,14 @@ name: Release
 on:
   push:
     branches: [main]
+  # Run by hand from the Actions tab. A dry run builds and signs on GitHub's runners without
+  # publishing, to prove a release would work before merging.
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and sign only, without publishing
+        type: boolean
+        default: false
 
 # Releases run one at a time, in merge order
 concurrency:
@@ -33,7 +40,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(node -p "require('./package.json').version")
-          if gh release view "v$version" > /dev/null 2>&1; then
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "Dry run of v$version: building and signing without publishing."
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          elif gh release view "v$version" > /dev/null 2>&1; then
             echo "v$version is already released, nothing to do."
             echo "new=false" >> "$GITHUB_OUTPUT"
           else
@@ -73,4 +83,4 @@ jobs:
         if: steps.version.outputs.new == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: npm run release
+        run: npm run release -- ${{ inputs.dry_run && '--dry-run' || '' }}

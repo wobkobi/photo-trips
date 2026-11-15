@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.17.0] - 2026-11-15
+
+### Added
+
+- A magnifier on each photo opens it full size while picking photos for an import or a trip, and in
+  Duplicates; the photos on trip and suggestion cards open with a click. The viewer has its own tick
+  (or Keep button), and can open the file in its Windows app or show it in its folder.
+- The viewer's open buttons name the app Windows uses for the file, such as "Open in Photos" or
+  "Open in VLC media player", or say "Open in default app" when there isn't one. A file Pic Cabinet
+  can't show or play gets the same button in place of the picture.
+
+## [0.16.2] - 2026-11-15
+
+### Changed
+
+- Settings > About > Third-party notices opens the list installed with the app, so it works offline
+  and always matches the installed version.
+
 ## [0.16.1] - 2026-11-15
 
 ### Fixed

@@ -1,32 +1,45 @@
+import { useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { api, errorText } from "../lib/api";
 
 /** The public repo, whose main branch holds the current version of each document. */
 const DOCS = "https://github.com/wobkobi/pic-cabinet/blob/main";
 
-const LINKS = [
-  { label: "Licence", href: `${DOCS}/LICENSE` },
-  { label: "Privacy policy", href: `${DOCS}/PRIVACY.md` },
-  { label: "Third-party notices", href: `${DOCS}/THIRD_PARTY_NOTICES.txt` },
-];
-
 /**
- * Settings > About's links to the licence, privacy policy and third-party notices, opened in the
- * browser. The installer also puts the licence and notices in the install folder.
- * @returns the row of links
+ * Settings > About's links. The licence and privacy policy open in the browser; the third-party
+ * notices open from the install folder, since they're generated for each build and aren't online.
+ * @returns the row of links, and any problem opening the notices
  */
 export function LegalLinks() {
+  const [error, setError] = useState<string | null>(null);
+  const links = [
+    { label: "Licence", open: () => openUrl(`${DOCS}/LICENSE`) },
+    { label: "Privacy policy", open: () => openUrl(`${DOCS}/PRIVACY.md`) },
+    { label: "Third-party notices", open: () => api.openNotices() },
+  ];
+
   return (
-    <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[15px]">
-      {LINKS.map(({ label, href }) => (
-        <button
-          key={label}
-          type="button"
-          className="text-muted underline underline-offset-2 hover:text-ink"
-          onClick={() => void openUrl(href)}
-        >
-          {label}
-        </button>
-      ))}
-    </p>
+    <>
+      <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[15px]">
+        {links.map(({ label, open }) => (
+          <button
+            key={label}
+            type="button"
+            className="text-muted underline underline-offset-2 hover:text-ink"
+            onClick={() => {
+              setError(null);
+              open().catch((err: unknown) => setError(errorText(err)));
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </p>
+      {error && (
+        <p role="alert" className="mt-1 text-[15px] text-danger">
+          {error}
+        </p>
+      )}
+    </>
   );
 }

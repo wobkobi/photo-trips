@@ -1,19 +1,24 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import type { Tile } from "../lib/api";
 import { count } from "../lib/format";
 import { setPicked } from "../lib/picker";
+import { Icon } from "./Icon";
 import { TimelineGrid, type MonthRow, type TileEvent } from "./TimelineGrid";
 import { Button } from "./ui";
+import { Viewer, type ViewSource } from "./Viewer";
 
 /**
  * Month-grouped grid where every photo has a tick, for choosing which photos go ahead. A click
  * ticks or unticks one photo, Shift+click sets a run of photos to match the last one clicked,
- * and each month has a button to tick or untick all of it.
+ * and each month has a button to tick or untick all of it. Each photo's magnifier opens it in
+ * the viewer, which has its own tick.
  * @param props.tiles - photos, newest first
  * @param props.left - ids of the photos left out (everything else is ticked)
  * @param props.onChange - called with the new left-out ids
  * @param props.tileSize - preferred tile edge in CSS pixels
  * @param props.thumbOf - a tile's thumbnail URL
+ * @param props.source - the viewer's files, in the same order as `tiles`
+ * @param props.tickLabel - what ticking means, for the viewer's tick, e.g. "Bring this one in"
  * @returns the scrolling grid
  */
 export function PhotoPicker({
@@ -22,14 +27,20 @@ export function PhotoPicker({
   onChange,
   tileSize,
   thumbOf,
+  source,
+  tickLabel,
 }: {
   tiles: Tile[];
   left: ReadonlySet<number>;
   onChange: (left: Set<number>) => void;
   tileSize: number;
   thumbOf?: (tile: Tile) => string;
+  source: ViewSource;
+  tickLabel: string;
 }) {
   const [anchor, setAnchor] = useState<number | null>(null);
+  const [viewing, setViewing] = useState<number | null>(null);
+  const closeViewer = useCallback(() => setViewing(null), []);
   const picked = useMemo(
     () => new Set(tiles.filter((t) => !left.has(t.id)).map((t) => t.id)),
     [tiles, left],
@@ -61,19 +72,73 @@ export function PhotoPicker({
     );
   }
 
+  // The tiles can change under an open viewer (a fresh check finds fewer), so it closes rather
+  // than show the wrong photo.
+  const shown = viewing !== null && viewing < tiles.length ? tiles[viewing] : null;
   return (
-    <TimelineGrid
-      tiles={tiles}
-      tileSize={tileSize}
-      selecting
-      selected={picked}
-      fadeUnselected
-      onTileClick={onTileClick}
-      onTileMenu={(_, event) => event.preventDefault()}
-      onThumbError={() => undefined}
-      thumbOf={thumbOf}
-      monthAction={monthAction}
-    />
+    <>
+      <TimelineGrid
+        tiles={tiles}
+        tileSize={tileSize}
+        selecting
+        selected={picked}
+        fadeUnselected
+        onTileClick={onTileClick}
+        onTileMenu={(_, event) => event.preventDefault()}
+        onTileZoom={setViewing}
+        onThumbError={() => undefined}
+        thumbOf={thumbOf}
+        monthAction={monthAction}
+      />
+      {shown && viewing !== null && (
+        <Viewer
+          source={source}
+          index={viewing}
+          onIndex={setViewing}
+          onClose={closeViewer}
+          steps={["Newer", "Older"]}
+          controls={
+            <TickSwitch
+              label={tickLabel}
+              ticked={picked.has(shown.id)}
+              onToggle={() => onChange(setPicked(left, [shown.id], left.has(shown.id)))}
+            />
+          }
+        />
+      )}
+    </>
+  );
+}
+
+/** The viewer's tick for the photo on show: a large switch, ticked like its tile. */
+function TickSwitch({
+  label,
+  ticked,
+  onToggle,
+}: {
+  label: string;
+  ticked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={ticked}
+      onClick={onToggle}
+      className={`flex min-h-12 w-full items-center gap-3 rounded-lg border-2 px-3 py-2 text-left text-[17px] font-semibold ${
+        ticked ? "border-accent bg-accent/10" : "border-line hover:bg-raised"
+      }`}
+    >
+      <span
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 ${
+          ticked ? "border-accent bg-accent text-white" : "border-ink"
+        }`}
+      >
+        {ticked && <Icon name="check" size={20} />}
+      </span>
+      {label}
+    </button>
   );
 }
 

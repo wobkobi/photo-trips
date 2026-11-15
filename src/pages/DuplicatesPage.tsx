@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
 import { MovingProgress, ResultBanner } from "../components/PlanPreview";
 import { Button, EmptyState, PageHeader } from "../components/ui";
+import { Viewer } from "../components/Viewer";
+import { useLibrarySource } from "../components/viewSources";
 import {
   api,
   errorText,
@@ -275,6 +277,11 @@ function SetRow({
   onPick: (keep: number | null) => void;
 }) {
   const [one, many] = KIND_TEXT[set.kind];
+  const [viewing, setViewing] = useState<number | null>(null);
+  const closeViewer = useCallback(() => setViewing(null), []);
+  const ids = useMemo(() => set.copies.map((c) => c.id), [set.copies]);
+  const source = useLibrarySource(ids);
+  const shown = viewing === null ? null : set.copies[viewing];
   return (
     <div
       role="listitem"
@@ -298,15 +305,36 @@ function SetRow({
       {/* A scrolling row clips everything outside it, so the padding leaves room for the Keep
           ring and the focus outline; the negative margin keeps the photos lined up. */}
       <ul className="-mx-1.5 mt-0.5 flex gap-3 overflow-x-auto px-1.5 pt-1.5 pb-3">
-        {set.copies.map((copy) => (
+        {set.copies.map((copy, index) => (
           <CopyCard
             key={copy.id}
             copy={copy}
             state={keep === null ? "keep-all" : copy.id === keep ? "keep" : "bin"}
             onKeep={() => onPick(copy.id)}
+            onZoom={() => setViewing(index)}
           />
         ))}
       </ul>
+      {shown && viewing !== null && (
+        <Viewer
+          source={source}
+          index={viewing}
+          onIndex={setViewing}
+          onClose={closeViewer}
+          steps={["Previous copy", "Next copy"]}
+          controls={
+            <Button
+              variant="primary"
+              className="w-full"
+              disabled={keep === shown.id}
+              onClick={() => onPick(shown.id)}
+            >
+              <Icon name="check" size={18} />
+              {keep === shown.id ? "This is the copy kept" : "Keep this copy"}
+            </Button>
+          }
+        />
+      )}
     </div>
   );
 }
@@ -316,10 +344,12 @@ function CopyCard({
   copy,
   state,
   onKeep,
+  onZoom,
 }: {
   copy: DupCopy;
   state: "keep" | "bin" | "keep-all";
   onKeep: () => void;
+  onZoom: () => void;
 }) {
   const [failed, setFailed] = useState(false);
   const { folder, name } = splitPath(copy.path);
@@ -331,7 +361,7 @@ function CopyCard({
   ].filter(Boolean);
 
   return (
-    <li className="w-40 shrink-0">
+    <li className="relative w-40 shrink-0">
       <button
         type="button"
         onClick={onKeep}
@@ -383,6 +413,16 @@ function CopyCard({
           {folder || "Library folder"}
         </span>
         <span className="block h-[18px] truncate text-[14px] text-faint">{notes.join(", ")}</span>
+      </button>
+      {/* Beside the card's button, not in it, since a button can't hold another button. */}
+      <button
+        type="button"
+        onClick={onZoom}
+        aria-label={`Look at ${name}`}
+        title="Look at this copy bigger"
+        className="on-dark absolute top-1.5 right-1.5 flex h-10 w-10 items-center justify-center rounded-full bg-ground/70 text-ink hover:bg-ground focus-visible:bg-ground"
+      >
+        <Icon name="zoom" size={22} />
       </button>
     </li>
   );

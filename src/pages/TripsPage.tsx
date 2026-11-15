@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import type { PageId } from "../App";
 import { Field, INPUT } from "../components/Field";
 import { Icon } from "../components/Icon";
@@ -6,6 +6,7 @@ import { PhotoPicker, PickBar } from "../components/PhotoPicker";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
 import { SampleStrip } from "../components/SampleStrip";
 import { Button, EmptyState, PageHeader } from "../components/ui";
+import { useLibrarySource } from "../components/viewSources";
 import {
   api,
   errorText,
@@ -374,6 +375,8 @@ function TripEditor({
   const { form, trip, left, picked } = editor;
   const matches = useTripMatches(form, trip?.id ?? null);
   const tiles = matches?.tiles ?? NO_TILES;
+  const ids = useMemo(() => tiles.map((t) => t.id), [tiles]);
+  const source = useLibrarySource(ids);
   const ready =
     form.name.trim() !== "" && hasValidRange(form) && matches !== null && !matches.problem;
   const ticked = tiles.filter((t) => !left.has(t.id)).length;
@@ -431,8 +434,8 @@ function TripEditor({
           />
         </div>
         <p className="-mt-2 max-w-3xl text-[15px] text-muted">
-          Leave the times empty to take in whole days. Add them for travel days, when the trip starts
-          or ends partway through the day.
+          Leave the times empty to take in whole days. Add them for travel days, when the trip
+          starts or ends partway through the day.
         </p>
 
         <MatchSummary form={form} matches={matches} />
@@ -460,6 +463,8 @@ function TripEditor({
               left={left}
               onChange={setLeft}
               tileSize={tileSizeOf(settings)}
+              source={source}
+              tickLabel="Part of this trip"
             />
           </div>
         </>
@@ -532,5 +537,7 @@ function MatchSummary({ form, matches }: { form: TripForm; matches: TripMatches 
     );
   }
   if (matches.tiles.length > 0) return null;
-  return <p>No photos or videos from these dates yet. Photos added later still go into the trip.</p>;
+  return (
+    <p>No photos or videos from these dates yet. Photos added later still go into the trip.</p>
+  );
 }

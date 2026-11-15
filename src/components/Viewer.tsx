@@ -1,93 +1,178 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { api, errorText, fileUrl, thumbUrl, type MediaDetail, type Tile } from "../lib/api";
-import { formatBytes, formatTaken, sourceText } from "../lib/format";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { api, errorText, type MediaKind } from "../lib/api";
 import { Icon } from "./Icon";
 import { Button } from "./ui";
 
-const KIND_NAMES: Record<string, string> = {
+export const KIND_NAMES: Record<MediaKind, string> = {
   photo: "Photo",
   raw: "RAW",
   video: "Video",
   companion: "Sidecar",
 };
 
+/** One file, ready for the viewer to show. */
+export interface ViewItem {
+  name: string;
+  kind: MediaKind;
+  /** The original file's URL, when the webview can show (photos) or play (videos) it as it is. */
+  original: string | null;
+  /** A large image Windows drew: shown instead of a photo without an original, and as a video's
+   * poster or a failed file's stand-in. */
+  preview: string;
+  /** Details shown beside the photo, made with {@link Fact}. */
+  facts: ReactNode;
+}
+
+/** Default app names by extension, looked up once each. Null: Windows has no default. */
+const defaultApps = new Map<string, string | null>();
+
 /**
- * Full-window view of one tile with its details. Arrow keys step through the timeline.
- * @param props.tiles - the timeline, newest first
- * @param props.index - which tile is open
- * @param props.onIndex - move to another tile
- * @param props.onClose - close the viewer
- * @returns the viewer overlay
+ * What the button that opens a file outside Pic Cabinet says, e.g. "Open in Photos", or "Open in
+ * default app" until the name is known or when Windows has none.
+ * @param name - the file's name
+ * @returns the button text
  */
-export function Viewer({
-  tiles,
-  index,
-  onIndex,
-  onClose,
-}: {
-  tiles: Tile[];
-  index: number;
-  onIndex: (index: number) => void;
-  onClose: () => void;
-}) {
-  const tile = tiles[index];
-  // Results are tagged with the tile they belong to, so stepping to another tile shows nothing
-  // stale while its details load.
-  const [loaded, setLoaded] = useState<{ id: number; detail: MediaDetail } | null>(null);
-  const [failure, setFailure] = useState<{ id: number; message: string } | null>(null);
-  const detail = loaded?.id === tile.id ? loaded.detail : null;
-  const error = failure?.id === tile.id ? failure.message : null;
-  const setError = (message: string) => setFailure({ id: tile.id, message });
+function useOpenLabel(name: string | undefined): string {
+  const dot = name?.lastIndexOf(".") ?? -1;
+  const ext = name && dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+  const [found, setFound] = useState<{ ext: string; app: string | null } | null>(null);
 
   useEffect(() => {
+    if (!ext || defaultApps.has(ext)) return;
     let active = true;
-    api.mediaDetail(tile.id).then(
-      (d) => active && setLoaded({ id: tile.id, detail: d }),
-      (err) => active && setFailure({ id: tile.id, message: errorText(err) }),
+    api.defaultApp(ext).then(
+      (app) => {
+        defaultApps.set(ext, app);
+        if (active) setFound({ ext, app });
+      },
+      () => undefined,
     );
     return () => {
       active = false;
     };
-  }, [tile.id]);
+  }, [ext]);
+
+  const app = defaultApps.get(ext) ?? (found?.ext === ext ? found.app : null);
+  return app ? `Open in ${app}` : "Open in default app";
+}
+
+/** Where the viewer's files come from. Callers memoise it, since a new one reloads the file. */
+export interface ViewSource {
+  count: number;
+  /** Changes whenever item `index` would load something else, so stale loads are dropped. */
+  key: (index: number) => string;
+  load: (index: number) => Promise<ViewItem>;
+  /** Open the file in its default Windows app. */
+  open: (index: number) => Promise<void>;
+  /** Show the file selected in Explorer. Missing when there's no folder to show, e.g. a phone. */
+  reveal?: (index: number) => Promise<void>;
+}
+
+/**
+ * Full-window view of one file with its details. Arrow keys step through the source.
+ * @param props.source - the files
+ * @param props.index - which file is open
+ * @param props.onIndex - move to another file
+ * @param props.onClose - close the viewer
+ * @param props.steps - labels for the previous and next buttons (default Previous and Next)
+ * @param props.controls - shown above the details, e.g. a tick for the file on show
+ * @returns the viewer, drawn over the whole window
+ */
+export function Viewer({
+  source,
+  index,
+  onIndex,
+  onClose,
+  steps = ["Previous", "Next"],
+  controls,
+}: {
+  source: ViewSource;
+  index: number;
+  onIndex: (index: number) => void;
+  onClose: () => void;
+  steps?: [string, string];
+  controls?: ReactNode;
+}) {
+  const key = source.key(index);
+  // Results are tagged with the file they belong to, so stepping to another file shows nothing
+  // stale while it loads.
+  const [loaded, setLoaded] = useState<{ key: string; item: ViewItem } | null>(null);
+  const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
+  const item = loaded?.key === key ? loaded.item : null;
+  const error = failure?.key === key ? failure.message : null;
+  const dialog = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let active = true;
+    source.load(index).then(
+      (loadedItem) => active && setLoaded({ key, item: loadedItem }),
+      (err) => active && setFailure({ key, message: errorText(err) }),
+    );
+    return () => {
+      active = false;
+    };
+  }, [source, index, key]);
+
+  // Capture phase, so Escape closes only the viewer, not the selection or menu of the page behind.
+  useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-      // Newest first, so "left" (earlier on screen) is the newer tile.
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        onClose();
+      }
       if (event.key === "ArrowLeft" && index > 0) onIndex(index - 1);
-      if (event.key === "ArrowRight" && index < tiles.length - 1) onIndex(index + 1);
+      if (event.key === "ArrowRight" && index < source.count - 1) onIndex(index + 1);
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [index, tiles.length, onIndex, onClose]);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [index, source.count, onIndex, onClose]);
+
+  // Focus moves into the viewer, and back to whatever opened it on closing.
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialog.current?.focus();
+    return () => opener?.focus();
+  }, []);
 
   async function run(action: () => Promise<void>) {
     try {
       await action();
     } catch (err) {
-      setError(errorText(err));
+      setFailure({ key, message: errorText(err) });
     }
   }
 
-  return (
+  const reveal = source.reveal;
+  const openLabel = useOpenLabel(item?.name);
+  return createPortal(
     <div
+      ref={dialog}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
-      aria-label="Photo viewer"
-      className="fixed inset-0 z-40 flex bg-ground"
+      aria-label={item ? item.name : "Photo viewer"}
+      className="fixed inset-0 z-40 flex bg-ground outline-none"
     >
       <div className="on-dark relative flex min-w-0 flex-1 items-center justify-center bg-ground p-6">
-        {detail && (
+        {item && (
           <Media
-            key={detail.id}
-            detail={detail}
-            onOpen={() => run(() => api.openMedia(detail.id))}
+            key={key}
+            item={item}
+            openLabel={openLabel}
+            onOpen={() => run(() => source.open(index))}
           />
         )}
-        <NavButton side="left" disabled={index === 0} onClick={() => onIndex(index - 1)} />
+        <NavButton
+          side="left"
+          label={steps[0]}
+          hidden={index === 0}
+          onClick={() => onIndex(index - 1)}
+        />
         <NavButton
           side="right"
-          disabled={index >= tiles.length - 1}
+          label={steps[1]}
+          hidden={index >= source.count - 1}
           onClick={() => onIndex(index + 1)}
         />
       </div>
@@ -95,7 +180,7 @@ export function Viewer({
       <aside className="flex w-80 shrink-0 flex-col border-l border-line bg-surface">
         <div className="flex items-center justify-between px-5 pt-4">
           <span className="text-[14px] text-faint">
-            {(index + 1).toLocaleString()} of {tiles.length.toLocaleString()}
+            {(index + 1).toLocaleString()} of {source.count.toLocaleString()}
           </span>
           <Button onClick={onClose}>
             <Icon name="close" size={18} />
@@ -105,99 +190,75 @@ export function Viewer({
 
         <div className="flex-1 overflow-y-auto px-5 pt-3 pb-6">
           {error && <p className="mb-4 text-danger">{error}</p>}
-          {detail && (
+          {item && (
             <>
               <h2 className="selectable text-[24px] leading-tight font-bold tracking-tight break-all text-brand">
-                {detail.name}
+                {item.name}
               </h2>
-
-              <Fact label="Taken">
-                <p>{formatTaken(detail.takenAt)}</p>
-                <p
-                  className={`mt-1 text-[14px] ${detail.dateSource === "modified" ? "text-warn" : "text-faint"}`}
-                >
-                  {sourceText(detail.dateSource)}
-                </p>
-              </Fact>
-
-              {detail.lat !== null && detail.lon !== null && (
-                <Fact label="Location">
-                  <p className="selectable">
-                    {detail.lat.toFixed(4)}, {detail.lon.toFixed(4)}
-                  </p>
-                </Fact>
-              )}
-
-              <Fact label="File">
-                <p>
-                  {KIND_NAMES[detail.kind]}, {formatBytes(detail.size)}
-                </p>
-                <p className="selectable mt-1 text-[14px] break-all text-faint">{detail.folder}</p>
-              </Fact>
-
-              {detail.members.length > 1 && (
-                <Fact label="Moves together with">
-                  <ul className="flex flex-col gap-1">
-                    {detail.members.slice(1).map((m) => (
-                      <li key={m.id} className="flex justify-between gap-3 text-[15px]">
-                        <span className="selectable truncate">{m.name}</span>
-                        <span className="shrink-0 text-faint">{KIND_NAMES[m.kind]}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </Fact>
-              )}
-
+              {controls && <div className="mt-4">{controls}</div>}
+              {item.facts}
               <div className="mt-6 flex flex-wrap gap-2">
-                <Button onClick={() => run(() => api.revealMedia(detail.id))}>
-                  <Icon name="folder" size={16} />
-                  Show in folder
-                </Button>
-                <Button onClick={() => run(() => api.openMedia(detail.id))}>
+                {reveal && (
+                  <Button onClick={() => run(() => reveal(index))}>
+                    <Icon name="folder" size={16} />
+                    Show in folder
+                  </Button>
+                )}
+                <Button onClick={() => run(() => source.open(index))}>
                   <Icon name="open" size={16} />
-                  Open with Windows
+                  {openLabel}
                 </Button>
               </div>
             </>
           )}
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
-/** The photo or video itself, with a fallback when the webview can't show it. */
-function Media({ detail, onOpen }: { detail: MediaDetail; onOpen: () => void }) {
+/** The photo or video itself, or a button to open it in its own app when Pic Cabinet can't. */
+function Media({
+  item,
+  openLabel,
+  onOpen,
+}: {
+  item: ViewItem;
+  openLabel: string;
+  onOpen: () => void;
+}) {
   const [failed, setFailed] = useState(false);
   const mediaClass = "max-h-full max-w-full object-contain";
+  const video = item.kind === "video";
 
-  if (failed || (detail.kind === "video" && !detail.playable)) {
+  if (failed || (video && !item.original)) {
     return (
       <div className="max-w-sm text-center">
         <img
-          src={thumbUrl(detail.id, detail.version)}
+          src={item.preview}
           alt=""
           className="mx-auto mb-5 max-h-48 rounded-[3px] opacity-80"
           onError={(e) => (e.currentTarget.hidden = true)}
         />
         <p className="text-muted">
-          {detail.kind === "video"
+          {video
             ? "This video's format can't play inside Pic Cabinet."
-            : "Windows can't draw this file, so it can't be shown here. It is still sorted like any other photo."}
+            : "This file can't be shown inside Pic Cabinet. It is still sorted like any other photo."}
         </p>
         <Button variant="primary" className="mt-5" onClick={onOpen}>
-          <Icon name="play" size={16} />
-          {detail.kind === "video" ? "Play in default player" : "Open with Windows"}
+          <Icon name={video ? "play" : "open"} size={16} />
+          {openLabel}
         </Button>
       </div>
     );
   }
 
-  if (detail.kind === "video") {
+  if (video) {
     return (
       <video
-        src={fileUrl(detail.path)}
-        poster={thumbUrl(detail.id, detail.version, true)}
+        src={item.original ?? undefined}
+        poster={item.preview}
         controls
         autoPlay
         onError={() => setFailed(true)}
@@ -208,8 +269,8 @@ function Media({ detail, onOpen }: { detail: MediaDetail; onOpen: () => void }) 
 
   return (
     <img
-      src={detail.viewable ? fileUrl(detail.path) : thumbUrl(detail.id, detail.version, true)}
-      alt={detail.name}
+      src={item.original ?? item.preview}
+      alt={item.name}
       draggable={false}
       onError={() => setFailed(true)}
       className={mediaClass}
@@ -219,30 +280,38 @@ function Media({ detail, onOpen }: { detail: MediaDetail; onOpen: () => void }) 
 
 function NavButton({
   side,
-  disabled,
+  label,
+  hidden,
   onClick,
 }: {
   side: "left" | "right";
-  disabled: boolean;
+  label: string;
+  hidden: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
+      disabled={hidden}
       className={`absolute top-1/2 flex min-h-12 -translate-y-1/2 items-center gap-2 rounded-full bg-surface/90 px-5 text-[17px] font-semibold text-ink hover:bg-raised disabled:invisible ${
         side === "left" ? "left-6" : "right-6"
       }`}
     >
       {side === "left" && <Icon name="back" />}
-      {side === "left" ? "Newer" : "Older"}
+      {label}
       {side === "right" && <Icon name="chevron" />}
     </button>
   );
 }
 
-function Fact({ label, children }: { label: string; children: ReactNode }) {
+/**
+ * One block of details in the viewer's side panel.
+ * @param props.label - what the block is about, e.g. "Taken"
+ * @param props.children - the details
+ * @returns the block
+ */
+export function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <section className="mt-5 border-t border-line pt-4">
       <h3 className="mb-1.5 text-[14px] text-faint">{label}</h3>

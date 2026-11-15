@@ -822,6 +822,69 @@ pub fn thumb_source(app: &AppHandle<impl tauri::Runtime>, id: &str) -> Option<(P
     pending.thumbs.get(item.parse::<usize>().ok()?).cloned()
 }
 
+/// What the viewer needs to show a file waiting in an import preview.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportFile {
+    pub path: String,
+    /// A photo the webview can show as it is.
+    pub viewable: bool,
+    /// A video the webview can play.
+    pub playable: bool,
+}
+
+/// The file behind item `item` of import preview `id`. Phone files are already copied into
+/// staging by the time the preview exists, so every item is a file on this PC.
+fn preview_file(pending: &PendingImport, item: usize) -> Result<(&Path, &str)> {
+    let path = pending.thumbs.get(item).map(|(path, _, _)| path.as_path());
+    let kind = pending.preview.items.get(item).map(|i| i.kind.as_str());
+    path.zip(kind)
+        .ok_or_else(|| Error::msg("That photo isn't in this import any more. Check again."))
+}
+
+/// Show a file from an import preview in the viewer. Its path is let into the asset protocol,
+/// since a card or folder being imported is outside the library.
+#[tauri::command]
+pub fn import_file(
+    app: AppHandle,
+    previews: State<Previews<PendingImport>>,
+    id: u64,
+    item: usize,
+) -> Result<ImportFile> {
+    let pending = previews.get(id)?;
+    let (path, kind) = preview_file(&pending, item)?;
+    let _ = app.asset_protocol_scope().allow_file(path);
+    Ok(ImportFile {
+        path: path.to_string_lossy().into_owned(),
+        viewable: kind == Kind::Photo.as_str() && formats::web_viewable(path),
+        playable: kind == Kind::Video.as_str() && formats::web_playable(path),
+    })
+}
+
+/// Open a file from an import preview in its default Windows app.
+#[tauri::command(async)]
+pub fn open_import_file(
+    previews: State<Previews<PendingImport>>,
+    id: u64,
+    item: usize,
+) -> Result<()> {
+    let pending = previews.get(id)?;
+    let (path, _) = preview_file(&pending, item)?;
+    tauri_plugin_opener::open_path(path, None::<&str>).map_err(|e| Error::msg(e.to_string()))
+}
+
+/// Show a file from an import preview selected in Explorer.
+#[tauri::command(async)]
+pub fn reveal_import_file(
+    previews: State<Previews<PendingImport>>,
+    id: u64,
+    item: usize,
+) -> Result<()> {
+    let pending = previews.get(id)?;
+    let (path, _) = preview_file(&pending, item)?;
+    tauri_plugin_opener::reveal_item_in_dir(path).map_err(|e| Error::msg(e.to_string()))
+}
+
 fn lock(db: &Mutex<Connection>) -> Result<std::sync::MutexGuard<'_, Connection>> {
     db.lock().map_err(|_| Error::msg("Database lock poisoned"))
 }
@@ -927,6 +990,36 @@ mod tests {
         label: "test",
         on_begin: None,
     };
+
+    #[test]
+    fn viewer_finds_each_previewed_file_and_refuses_a_missing_one() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let card = card(root);
+        let (plan, other_files) = plan_folder(&db, root, card.path(), &[]);
+        let looked = Looked {
+            spec: SourceSpec::Drive {
+                path: card.path().into(),
+                name: "Card".into(),
+            },
+            name: "Card".into(),
+            source_root: card.path().into(),
+            transfer: Transfer::Copy,
+            staging: None,
+            plan,
+            other_files,
+        };
+        let pending = looked.into_pending(7, root);
+        let items = &pending.preview.items;
+        assert!(!items.is_empty());
+
+        for (n, item) in items.iter().enumerate() {
+            let (path, kind) = preview_file(&pending, n).unwrap();
+            assert_eq!(path, card.path().join(&item.from), "item {n}");
+            assert_eq!(kind, item.kind);
+        }
+        assert!(preview_file(&pending, items.len()).is_err());
+    }
 
     #[test]
     fn plan_skips_copies_and_places_new_files_by_date_and_trip() {

@@ -1,6 +1,7 @@
 mod commands;
 mod dates;
 mod db;
+mod default_app;
 mod devices;
 mod duplicates;
 mod error;
@@ -151,6 +152,7 @@ pub fn run() {
             library::media_detail,
             library::open_media,
             library::reveal_media,
+            library::open_notices,
             extensions::installed_extensions,
             extensions::open_store_page,
             organise::plan_organise,
@@ -169,6 +171,10 @@ pub fn run() {
             import::import_preview,
             import::apply_import,
             import::discard_import,
+            import::import_file,
+            import::open_import_file,
+            import::reveal_import_file,
+            default_app::default_app,
             devices::import_sources,
             suggest::suggest_trips,
             suggest::dismiss_suggestion,
