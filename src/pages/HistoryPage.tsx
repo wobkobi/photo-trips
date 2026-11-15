@@ -101,14 +101,15 @@ function BatchRow({
     <li className="rounded-md border border-line bg-surface">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4">
         <div className="min-w-0 flex-1">
-          <p className="font-semibold">{batch.label}</p>
+          {/* Labels can hold a whole folder path, which has nowhere else to break. */}
+          <p className="font-semibold wrap-anywhere">{batch.label}</p>
           <p className="mt-1 flex flex-wrap gap-x-3 text-[15px] text-muted">
             <span>{formatWhen(batch.createdAt)}</span>
             <span className={trouble ? "text-warn" : undefined}>{statusText(batch)}</span>
           </p>
         </div>
         {confirming ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-[15px]">{confirmText(batch)}</span>
             <Button variant="primary" onClick={onUndo} disabled={busy}>
               Put back
@@ -246,7 +247,7 @@ function Entries({ batch }: { batch: BatchInfo }) {
 
   return (
     <div className="border-t border-line">
-      <ul className="max-h-96 overflow-y-auto px-4 py-2">
+      <ul className="max-h-[50vh] overflow-y-auto px-4 py-2">
         {entries.map((entry) => (
           <li key={entry.seq} className="flex gap-3 py-1.5 text-[15px]">
             <span
@@ -256,10 +257,13 @@ function Entries({ batch }: { batch: BatchInfo }) {
               {OP_TEXT[entry.op][entry.status]}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="selectable flex min-w-0 items-center gap-1.5">
-                <span className="truncate text-muted">{entry.from}</span>
+              {/* Full paths, wrapping as needed: where a file went is what this list is for. */}
+              <span className="selectable flex min-w-0 flex-wrap items-center gap-x-1.5">
+                <span className="min-w-0 break-all text-muted">{entry.from}</span>
                 <Icon name="chevron" size={12} className="shrink-0 text-faint" />
-                <span className="truncate">{entry.op === "trash" ? "Recycle Bin" : entry.to}</span>
+                <span className="min-w-0 break-all">
+                  {entry.op === "trash" ? "Recycle Bin" : entry.to}
+                </span>
               </span>
               {entry.error && (
                 <span className="selectable block text-[14px] text-warn">{entry.error}</span>

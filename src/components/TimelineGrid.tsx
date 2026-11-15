@@ -12,6 +12,7 @@ import { thumbUrl, type Tile } from "../lib/api";
 import { jumpRow, timelineRows, type TimelineRow } from "../lib/format";
 import { tripBg } from "../lib/trips";
 import { Icon } from "./Icon";
+import { LIST_FILL } from "./ui";
 
 const GAP = 6;
 const SIDE_PADDING = 32;
@@ -55,6 +56,8 @@ function libraryThumb(tile: Tile): string {
  * @param props.fadeUnselected - fade tiles that aren't selected, for when most are
  * @param props.jump - scroll to this tile, with its month heading when it's in the month's first
  *   row, and move keyboard focus to it
+ * @param props.ownsHeight - the grid sits straight in a page column, so it keeps its own minimum
+ *   height ({@link LIST_FILL}); otherwise its parent row does
  * @returns the scrolling grid
  */
 export function TimelineGrid({
@@ -70,6 +73,7 @@ export function TimelineGrid({
   monthAction,
   fadeUnselected = false,
   jump,
+  ownsHeight = false,
 }: {
   tiles: Tile[];
   tileSize: number;
@@ -83,6 +87,7 @@ export function TimelineGrid({
   monthAction?: (month: MonthRow) => ReactNode;
   fadeUnselected?: boolean;
   jump?: TileJump | null;
+  ownsHeight?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -148,7 +153,10 @@ export function TimelineGrid({
   }, [jump, laidOut]);
 
   return (
-    <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+    <div
+      ref={scrollRef}
+      className={`overflow-y-auto ${ownsHeight ? LIST_FILL : "min-h-0 flex-1"}`}
+    >
       {width > 0 && (
         <div className="relative w-full" style={{ height: virtualizer.getTotalSize() + 32 }}>
           {virtualizer.getVirtualItems().map((item) => {
@@ -164,12 +172,14 @@ export function TimelineGrid({
                 }}
               >
                 {row.type === "month" ? (
+                  // The row has a fixed height (HEADER_HEIGHT), so nothing in it may wrap: a long
+                  // month name is cut short instead of growing up over the photos above.
                   <div className="flex h-full items-end gap-4 pb-3">
-                    <h2 className="flex items-end gap-3">
-                      <span className="text-[26px] leading-none font-extrabold tracking-tight text-brand">
+                    <h2 className="flex min-w-0 items-end gap-3">
+                      <span className="truncate text-[26px] leading-none font-extrabold tracking-tight text-brand">
                         {row.label}
                       </span>
-                      <span className="pb-0.5 text-[15px] text-faint">
+                      <span className="shrink-0 pb-0.5 text-[15px] text-faint">
                         {row.count.toLocaleString()}
                       </span>
                     </h2>

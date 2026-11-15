@@ -54,8 +54,10 @@ export function Row({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-6 border-t border-line py-4">
-      <div className="min-w-0">
+    // The control drops under the words when both can't share a line, rather than squeezing the
+    // words to one per line.
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-line py-4">
+      <div className="min-w-0 flex-1 basis-60">
         <h3 className="font-semibold">{title}</h3>
         {detail && <p className="mt-1 text-[15px] break-words text-muted">{detail}</p>}
       </div>

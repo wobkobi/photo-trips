@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
 import { MovingProgress, ResultBanner } from "../components/PlanPreview";
-import { Button, EmptyState, PageHeader } from "../components/ui";
+import { Button, EmptyState, LIST_FILL, PageHeader } from "../components/ui";
 import { Viewer } from "../components/Viewer";
 import { useLibrarySource } from "../components/viewSources";
 import {
@@ -19,7 +19,11 @@ import { keeperOf, removalPlan, type Picks } from "../lib/duplicates";
 import { count, formatBytes, splitPath } from "../lib/format";
 import { useJobDone, useJobs } from "../lib/useJobs";
 
-/** Fixed height of one set in the list: header, a row of copy cards and spacing. */
+/**
+ * Height of one set in the list (header, a row of copy cards and spacing) when nothing wraps. A
+ * set is measured once drawn, so a header that wraps at a large text size makes its row taller
+ * instead of running into the next set.
+ */
 const SET_HEIGHT = 272;
 
 const KIND_TEXT: Record<DupSet["kind"], [string, string]> = {
@@ -245,7 +249,7 @@ function SetList({
       ref={scrollRef}
       role="list"
       aria-label="Duplicate sets"
-      className="min-h-0 flex-1 overflow-y-auto"
+      className={`overflow-y-auto ${LIST_FILL}`}
     >
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() + 16 }}>
         {virtualizer.getVirtualItems().map((row) => {
@@ -255,7 +259,9 @@ function SetList({
               key={set.hash}
               set={set}
               keep={keeperOf(set, picks)}
+              index={row.index}
               top={row.start}
+              measureRef={virtualizer.measureElement}
               onPick={(keep) => onPick(set.hash, keep)}
             />
           );
@@ -268,12 +274,16 @@ function SetList({
 function SetRow({
   set,
   keep,
+  index,
   top,
+  measureRef,
   onPick,
 }: {
   set: DupSet;
   keep: number | null;
+  index: number;
   top: number;
+  measureRef: (element: HTMLElement | null) => void;
   onPick: (keep: number | null) => void;
 }) {
   const [one, many] = KIND_TEXT[set.kind];
@@ -284,9 +294,11 @@ function SetRow({
   const shown = viewing === null ? null : set.copies[viewing];
   return (
     <div
+      ref={measureRef}
+      data-index={index}
       role="listitem"
       className="absolute left-0 flex w-full flex-col px-8 pt-5"
-      style={{ top, height: SET_HEIGHT }}
+      style={{ top, minHeight: SET_HEIGHT }}
     >
       <div className="flex items-center justify-between gap-4">
         <p className="text-[15px] text-muted">
@@ -406,13 +418,16 @@ function CopyCard({
             )}
           </span>
         </span>
-        <span className={`selectable mt-2 block truncate text-[15px] ${going ? "text-muted" : ""}`}>
+        <span
+          className={`selectable mt-2 block truncate text-[15px] ${going ? "text-muted" : ""}`}
+          title={name}
+        >
           {name}
         </span>
         <span className="selectable block truncate text-[14px] text-muted" title={folder}>
           {folder || "Library folder"}
         </span>
-        <span className="block h-[18px] truncate text-[14px] text-faint">{notes.join(", ")}</span>
+        <span className="block h-[1.5em] truncate text-[14px] text-faint">{notes.join(", ")}</span>
       </button>
       {/* Beside the card's button, not in it, since a button can't hold another button. */}
       <button

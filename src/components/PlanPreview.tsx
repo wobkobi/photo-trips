@@ -8,7 +8,7 @@ import { thumbUrl, type ApplySummary, type JobProgress, type Preview } from "../
 import { count, monthLabel, splitPath } from "../lib/format";
 import { JOB_NAMES } from "../lib/useJobs";
 import { Icon } from "./Icon";
-import { Button, Progress } from "./ui";
+import { Button, LIST_FILL, Progress } from "./ui";
 
 const ROW_HEIGHT = 60;
 
@@ -39,7 +39,7 @@ const VERBS = {
  */
 export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex flex-1 flex-col">
       <section className="px-8 pt-6 pb-5">
         <p className="text-[30px] leading-none font-extrabold tracking-tight text-brand">
           {preview.files === 0
@@ -71,7 +71,7 @@ export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode
         </div>
       </section>
       {preview.files > 0 && (
-        <div className="flex min-h-0 flex-1 gap-6 border-t border-line">
+        <div className={`flex gap-6 border-t border-line ${LIST_FILL}`}>
           <FolderList folders={preview.folders} />
           <MoveList
             label="Files that will move"
@@ -367,7 +367,9 @@ function MoveRow({ item, origin, top }: { item: MoveRowData; origin: string; top
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="selectable truncate">{to.name}</span>
+          <span className="selectable min-w-0 truncate" title={to.name}>
+            {to.name}
+          </span>
           {item.extra > 0 && (
             <span
               className="shrink-0 text-[14px] text-muted"
@@ -377,13 +379,26 @@ function MoveRow({ item, origin, top }: { item: MoveRowData; origin: string; top
             </span>
           )}
           {item.renamed && (
-            <span className="shrink-0 truncate text-[14px] text-faint">was {from.name}</span>
+            // Gives way before the new name does: shrink-[4] takes most of any squeeze.
+            <span
+              className="min-w-0 shrink-[4] truncate text-[14px] text-faint"
+              title={`was ${from.name}`}
+            >
+              was {from.name}
+            </span>
           )}
         </span>
         <span className="flex min-w-0 items-center gap-1.5 text-[14px] text-muted">
-          <span className="selectable truncate">{from.folder || origin}</span>
+          <span
+            className="selectable min-w-0 shrink-[4] truncate"
+            title={from.folder || origin}
+          >
+            {from.folder || origin}
+          </span>
           <Icon name="chevron" size={12} className="shrink-0 text-faint" />
-          <span className="selectable shrink-0 text-ink">{to.folder}</span>
+          <span className="selectable min-w-0 truncate text-ink" title={to.folder}>
+            {to.folder}
+          </span>
         </span>
       </span>
     </div>

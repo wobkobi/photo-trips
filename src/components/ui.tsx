@@ -2,6 +2,18 @@
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
+/**
+ * For the photo grid or move list that fills the rest of a page. It grows into the space left
+ * under the page's header and notes, but never below this height, so tall notes (a large text
+ * size, a small window) can't squeeze it to nothing; the page scrolls instead.
+ *
+ * The boxes between the page and the list must not have `min-h-0`, or they shrink and the list
+ * overflows them. Without that they size to their content, which would include every row of a
+ * virtual list; size containment makes the list count as empty there, so only its minimum height
+ * reaches them.
+ */
+export const LIST_FILL = "min-h-72 flex-1 contain-size";
+
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 const VARIANTS: Record<Variant, string> = {
@@ -53,13 +65,14 @@ export function PageHeader({
 }) {
   return (
     <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line px-8 pt-7 pb-5">
-      <div>
+      <div className="min-w-0">
         <h1 className="text-[34px] leading-[1.05] font-extrabold tracking-tight text-brand">
           {title}
         </h1>
         {detail && <p className="mt-2 text-muted">{detail}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {/* Buttons that don't fit move to the next line whole, rather than breaking their words. */}
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
   );
 }
@@ -72,7 +85,7 @@ export function PageHeader({
  */
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center px-6 py-24 text-center">
+    <div className="mx-auto flex max-w-md flex-col items-center px-6 py-[min(6rem,12vh)] text-center">
       <h2 className="text-2xl font-extrabold tracking-tight text-brand">{title}</h2>
       <div className="mt-3 text-muted [&_button]:mt-5">{children}</div>
     </div>

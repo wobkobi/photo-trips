@@ -12,7 +12,7 @@ import {
   ResultBanner,
 } from "../components/PlanPreview";
 import type { TileJump } from "../components/TimelineGrid";
-import { Button, EmptyState, PageHeader } from "../components/ui";
+import { Button, EmptyState, LIST_FILL, PageHeader } from "../components/ui";
 import { useImportSource } from "../components/viewSources";
 import {
   api,
@@ -235,7 +235,9 @@ function Sources({
               <li key={device.id} className="flex items-center gap-3 px-4 py-3">
                 <Icon name={device.kind === "phone" ? "phone" : "card"} className="text-muted" />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate">{device.name}</span>
+                  <span className="block truncate" title={device.name}>
+                    {device.name}
+                  </span>
                   <span className="block text-[14px] text-muted">
                     {device.kind === "phone" ? "Phone or camera" : "Memory card"}
                   </span>
@@ -360,13 +362,13 @@ function IncomingView({
     ? "in the folder"
     : `${preview.spec.kind === "folder" ? "in" : "on"} ${preview.source}`;
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex flex-1 flex-col">
       <section className="px-8 pt-6 pb-5">
         <p className="text-[30px] leading-none font-extrabold tracking-tight text-brand">
           {count(preview.files, "new file", "new files")} from {preview.source}
         </p>
         {preview.spec.kind === "folder" && (
-          <p className="mt-2 truncate text-[15px] text-faint" title={preview.spec.path}>
+          <p className="selectable mt-2 text-[15px] break-all text-faint">
             {preview.spec.path}
           </p>
         )}
@@ -416,7 +418,7 @@ function IncomingView({
         onAll={(pick) => onLeftChange(pick ? new Set() : new Set(tiles.map((t) => t.id)))}
       />
       <FolderJumpList folders={folders} onOpen={openFolder} />
-      <div className="flex min-h-0 flex-1 border-t border-line">
+      <div className={`flex border-t border-line ${LIST_FILL}`}>
         <FolderList folders={folders} onOpen={openFolder} />
         <PhotoPicker
           tiles={tiles}

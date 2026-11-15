@@ -55,9 +55,9 @@ export function CodecHint({ failed, onDismiss }: { failed: Tile[]; onDismiss: ()
   if (missing.length === 0) return null;
 
   return (
-    <div className="mx-8 mt-5 flex gap-3 rounded-md border border-warn-line bg-warn-soft p-4">
+    <div className="mx-8 mt-5 flex flex-wrap gap-3 rounded-md border border-warn-line bg-warn-soft p-4">
       <Icon name="warn" className="mt-0.5 shrink-0 text-warn" />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-64">
         <p>
           Windows can&apos;t preview some of your files. They are still sorted normally. These
           extensions from the Microsoft Store add the missing previews:

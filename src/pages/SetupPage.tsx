@@ -22,8 +22,10 @@ export function SetupPage() {
   }
 
   return (
-    <div className="flex h-full items-center justify-center px-8">
-      <div className="max-w-lg">
+    // Centred with auto margins rather than align-items, so at a large text size the top of the
+    // text stays reachable when it's taller than the window.
+    <div className="flex h-full overflow-y-auto px-8 py-8">
+      <div className="m-auto max-w-lg">
         <h1 className="text-[52px] leading-[1.05] font-extrabold tracking-tight text-brand">
           Where do your photos live?
         </h1>

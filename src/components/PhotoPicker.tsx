@@ -65,12 +65,15 @@ export function PhotoPicker({
     const ids = tiles.slice(month.start, month.end).map((t) => t.id);
     const allPicked = ids.every((id) => picked.has(id));
     return (
+      // Short on screen so it fits the fixed-height month heading beside the name; the full
+      // wording is read out.
       <Button
         variant="ghost"
-        className="ml-auto"
+        className="ml-auto shrink-0 whitespace-nowrap"
+        aria-label={allPicked ? `Untick all of ${month.label}` : `Tick all of ${month.label}`}
         onClick={() => onChange(setPicked(left, ids, !allPicked))}
       >
-        {allPicked ? `Untick all of ${month.label}` : `Tick all of ${month.label}`}
+        {allPicked ? "Untick month" : "Tick month"}
       </Button>
     );
   }
