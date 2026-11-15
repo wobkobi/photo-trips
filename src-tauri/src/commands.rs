@@ -29,6 +29,7 @@ const WRITABLE_SETTINGS: &[&str] = &[
     "codec_hint_dismissed",
     "text_size",
     "photo_size",
+    "menu_narrow",
 ];
 
 /// Text sizes offered in Settings, as page zoom percentages. Zoom scales the whole page, so

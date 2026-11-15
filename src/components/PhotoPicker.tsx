@@ -3,7 +3,7 @@ import type { Tile } from "../lib/api";
 import { count } from "../lib/format";
 import { setPicked } from "../lib/picker";
 import { Icon } from "./Icon";
-import { TimelineGrid, type MonthRow, type TileEvent } from "./TimelineGrid";
+import { TimelineGrid, type MonthRow, type TileEvent, type TileJump } from "./TimelineGrid";
 import { Button } from "./ui";
 import { Viewer, type ViewSource } from "./Viewer";
 
@@ -19,6 +19,7 @@ import { Viewer, type ViewSource } from "./Viewer";
  * @param props.thumbOf - a tile's thumbnail URL
  * @param props.source - the viewer's files, in the same order as `tiles`
  * @param props.tickLabel - what ticking means, for the viewer's tick, e.g. "Bring this one in"
+ * @param props.jump - scroll to this tile and focus it
  * @returns the scrolling grid
  */
 export function PhotoPicker({
@@ -29,6 +30,7 @@ export function PhotoPicker({
   thumbOf,
   source,
   tickLabel,
+  jump,
 }: {
   tiles: Tile[];
   left: ReadonlySet<number>;
@@ -37,6 +39,7 @@ export function PhotoPicker({
   thumbOf?: (tile: Tile) => string;
   source: ViewSource;
   tickLabel: string;
+  jump?: TileJump | null;
 }) {
   const [anchor, setAnchor] = useState<number | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
@@ -89,6 +92,7 @@ export function PhotoPicker({
         onThumbError={() => undefined}
         thumbOf={thumbOf}
         monthAction={monthAction}
+        jump={jump}
       />
       {shown && viewing !== null && (
         <Viewer

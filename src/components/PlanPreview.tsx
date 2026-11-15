@@ -191,28 +191,54 @@ export function ResultBanner({
 }
 
 /**
- * The folders receiving files, with how many each gets.
+ * The folders receiving files, with how many each gets. Given `onOpen`, each folder is a button,
+ * for jumping to its photos in a grid beside the list.
  * @param props.folders - folders relative to the library, with file counts
+ * @param props.onOpen - called with the folder that was clicked
  * @returns the side list (hidden on narrow windows)
  */
-export function FolderList({ folders }: { folders: Preview["folders"] }) {
+export function FolderList({
+  folders,
+  onOpen,
+}: {
+  folders: Preview["folders"];
+  onOpen?: (folder: string) => void;
+}) {
   return (
     <aside
       aria-label="Folders receiving files"
-      className="hidden w-60 shrink-0 overflow-y-auto border-r border-line py-4 pl-8 lg:block"
+      className={`hidden w-60 shrink-0 overflow-y-auto border-r border-line py-4 lg:block ${
+        onOpen ? "pl-5" : "pl-8"
+      }`}
     >
+      {onOpen && <p className="mb-1 pl-3 text-[14px] text-faint">Click one to go to its photos.</p>}
       <ul className="flex flex-col">
         {folders.map(({ folder, files }) => {
           const name = splitPath(folder).name;
-          return (
-            <li key={folder} className="flex items-baseline justify-between gap-3 py-1.5 pr-5">
+          const title = /^\d{4}-\d{2}$/.test(name) ? monthLabel(name) : name;
+          const body = (
+            <>
               <span className="min-w-0">
-                <span className="block truncate">
-                  {/^\d{4}-\d{2}$/.test(name) ? monthLabel(name) : name}
-                </span>
+                <span className="block truncate">{title}</span>
                 <span className="block truncate text-[14px] text-faint">{folder}</span>
               </span>
               <span className="shrink-0 text-[15px] text-muted">{files.toLocaleString()}</span>
+            </>
+          );
+          return (
+            <li key={folder} className={onOpen ? "pr-3" : "pr-5"}>
+              {onOpen ? (
+                <button
+                  type="button"
+                  onClick={() => onOpen(folder)}
+                  aria-label={`Go to the ${files === 1 ? "photo" : "photos"} going into ${title}`}
+                  className="flex min-h-11 w-full items-baseline justify-between gap-3 rounded-lg px-3 py-1.5 text-left hover:bg-raised"
+                >
+                  {body}
+                </button>
+              ) : (
+                <div className="flex items-baseline justify-between gap-3 py-1.5">{body}</div>
+              )}
             </li>
           );
         })}
