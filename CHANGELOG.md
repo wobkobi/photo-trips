@@ -10,6 +10,8 @@ All notable changes to this project are documented here. The format follows
 
 - A Help page in the menu says what each page is for, with a button to open it, and lists the
   keyboard shortcuts. F1 or Help > Pic Cabinet help opens it.
+- A short tour of the menu shows once after setup, pointing at each page in turn. Skip it any time,
+  or take it again from Help.
 
 ## [0.21.1] - 2026-11-16
 
