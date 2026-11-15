@@ -95,6 +95,8 @@ All notable changes to this project are documented here. The format follows
   with the notices, and Settings > About links to all three. The README now describes what the app
   does.
 
+## [0.11.1] - 2026-11-15
+
 ### Fixed
 
 - Updated a tool used to check the code, fixing a security alert. The app itself is unchanged.
@@ -141,6 +143,12 @@ All notable changes to this project are documented here. The format follows
   free HEVC listing, which the Store doesn't offer on every PC. It now suggests only missing
   extensions, suggests HEVC for HEIC photos as well as HEIF, and links the paid HEVC listing for PCs
   the free one isn't offered on.
+
+## [0.9.2] - 2026-11-14
+
+### Changed
+
+- The To the Point Tech chip logo is drawn from the website's own logo file, so the two match.
 
 ## [0.9.1] - 2026-11-14
 
