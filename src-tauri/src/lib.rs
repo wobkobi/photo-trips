@@ -1,6 +1,7 @@
 mod commands;
 mod dates;
 mod db;
+mod default_app;
 mod devices;
 mod duplicates;
 mod error;
@@ -173,6 +174,7 @@ pub fn run() {
             import::import_file,
             import::open_import_file,
             import::reveal_import_file,
+            default_app::default_app,
             devices::import_sources,
             suggest::suggest_trips,
             suggest::dismiss_suggestion,

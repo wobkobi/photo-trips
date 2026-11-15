@@ -433,6 +433,8 @@ export const api = {
   openMedia: (id: number) => invoke<void>("open_media", { id }),
   revealMedia: (id: number) => invoke<void>("reveal_media", { id }),
   openNotices: () => invoke<void>("open_notices"),
+  /** Name of the app Windows opens this extension with, or null when it would ask. */
+  defaultApp: (ext: string) => invoke<string | null>("default_app", { ext }),
   installedExtensions: () => invoke<Codec[]>("installed_extensions"),
   openStorePage: (product: StoreProduct) => invoke<void>("open_store_page", { product }),
   planOrganise: () => invoke<Preview>("plan_organise"),

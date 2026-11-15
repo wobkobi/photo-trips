@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { errorText, type MediaKind } from "../lib/api";
+import { api, errorText, type MediaKind } from "../lib/api";
 import { Icon } from "./Icon";
 import { Button } from "./ui";
 
@@ -22,6 +22,39 @@ export interface ViewItem {
   preview: string;
   /** Details shown beside the photo, made with {@link Fact}. */
   facts: ReactNode;
+}
+
+/** Default app names by extension, looked up once each. Null: Windows has no default. */
+const defaultApps = new Map<string, string | null>();
+
+/**
+ * What the button that opens a file outside Pic Cabinet says, e.g. "Open in Photos", or "Open in
+ * default app" until the name is known or when Windows has none.
+ * @param name - the file's name
+ * @returns the button text
+ */
+function useOpenLabel(name: string | undefined): string {
+  const dot = name?.lastIndexOf(".") ?? -1;
+  const ext = name && dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+  const [found, setFound] = useState<{ ext: string; app: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!ext || defaultApps.has(ext)) return;
+    let active = true;
+    api.defaultApp(ext).then(
+      (app) => {
+        defaultApps.set(ext, app);
+        if (active) setFound({ ext, app });
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [ext]);
+
+  const app = defaultApps.get(ext) ?? (found?.ext === ext ? found.app : null);
+  return app ? `Open in ${app}` : "Open in default app";
 }
 
 /** Where the viewer's files come from. Callers memoise it, since a new one reloads the file. */
@@ -111,6 +144,7 @@ export function Viewer({
   }
 
   const reveal = source.reveal;
+  const openLabel = useOpenLabel(item?.name);
   return createPortal(
     <div
       ref={dialog}
@@ -121,7 +155,14 @@ export function Viewer({
       className="fixed inset-0 z-40 flex bg-ground outline-none"
     >
       <div className="on-dark relative flex min-w-0 flex-1 items-center justify-center bg-ground p-6">
-        {item && <Media key={key} item={item} onOpen={() => run(() => source.open(index))} />}
+        {item && (
+          <Media
+            key={key}
+            item={item}
+            openLabel={openLabel}
+            onOpen={() => run(() => source.open(index))}
+          />
+        )}
         <NavButton
           side="left"
           label={steps[0]}
@@ -165,7 +206,7 @@ export function Viewer({
                 )}
                 <Button onClick={() => run(() => source.open(index))}>
                   <Icon name="open" size={16} />
-                  Open with Windows
+                  {openLabel}
                 </Button>
               </div>
             </>
@@ -177,8 +218,16 @@ export function Viewer({
   );
 }
 
-/** The photo or video itself, with a fallback when the webview can't show it. */
-function Media({ item, onOpen }: { item: ViewItem; onOpen: () => void }) {
+/** The photo or video itself, or a button to open it in its own app when Pic Cabinet can't. */
+function Media({
+  item,
+  openLabel,
+  onOpen,
+}: {
+  item: ViewItem;
+  openLabel: string;
+  onOpen: () => void;
+}) {
   const [failed, setFailed] = useState(false);
   const mediaClass = "max-h-full max-w-full object-contain";
   const video = item.kind === "video";
@@ -195,11 +244,11 @@ function Media({ item, onOpen }: { item: ViewItem; onOpen: () => void }) {
         <p className="text-muted">
           {video
             ? "This video's format can't play inside Pic Cabinet."
-            : "Windows can't draw this file, so it can't be shown here. It is still sorted like any other photo."}
+            : "This file can't be shown inside Pic Cabinet. It is still sorted like any other photo."}
         </p>
         <Button variant="primary" className="mt-5" onClick={onOpen}>
-          <Icon name="play" size={16} />
-          {video ? "Play in default player" : "Open with Windows"}
+          <Icon name={video ? "play" : "open"} size={16} />
+          {openLabel}
         </Button>
       </div>
     );
