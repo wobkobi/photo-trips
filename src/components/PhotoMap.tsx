@@ -61,7 +61,8 @@ export function PhotoMap({
       transformStyle: start.dark ? (_, next) => darkenStyle(next) : undefined,
       center: [start.lon, start.lat],
       zoom: start.zoom,
-      attributionControl: { compact: true },
+      // MapLibre's credit control pops open whenever map data arrives; a fixed line is used below.
+      attributionControl: false,
       scrollZoom: false,
       keyboard: false,
       dragRotate: false,
@@ -71,12 +72,6 @@ export function PhotoMap({
     // A tile failing after the style loaded leaves a gap; only a style that never loads fails.
     created.on("error", () => {
       if (!created.isStyleLoaded()) fail.current();
-    });
-    // The compact credit starts unfolded over the small map; fold it to its (i) button.
-    created.once("load", () => {
-      box.current
-        ?.querySelector(".maplibregl-ctrl-attrib")
-        ?.classList.remove("maplibregl-compact-show");
     });
     const pin = document.createElement("div");
     pin.innerHTML = PIN;
@@ -114,5 +109,12 @@ export function PhotoMap({
     map.current?.getCanvas().setAttribute("aria-label", label);
   }, [label]);
 
-  return <div ref={box} className="h-47.5 w-full" />;
+  return (
+    <div className="relative">
+      <div ref={box} className="h-47.5 w-full" />
+      <p className="pointer-events-none absolute right-0 bottom-0 rounded-tl-sm bg-surface/80 px-1.5 text-[11px] leading-4 text-muted">
+        OpenFreeMap © OpenMapTiles © OpenStreetMap
+      </p>
+    </div>
+  );
 }

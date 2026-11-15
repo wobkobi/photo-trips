@@ -36,6 +36,7 @@ All notable changes to this project are documented here. The format follows
 - Where a photo was taken now names the suburb, such as Flat Bush rather than Manukau City. The
   name is looked up from OpenStreetMap; without an internet connection the nearest town is shown
   as before.
+- The map's credits no longer pop open over the map each time you move to another photo.
 
 ## [0.22.0] - 2026-11-16
 
