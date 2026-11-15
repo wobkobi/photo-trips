@@ -2,10 +2,22 @@ import { describe, expect, it } from "vitest";
 import type { DupCopy, DupSet } from "./api";
 import { keeperOf, removalPlan } from "./duplicates";
 
+/**
+ * A copy of a duplicate, not in place.
+ * @param id - media id
+ * @returns the copy
+ */
 function copy(id: number): DupCopy {
   return { id, version: 0, path: `in\\IMG_${id}.jpg`, inPlace: false, extra: 0 };
 }
 
+/**
+ * A photo duplicate set.
+ * @param hash - content hash
+ * @param size - file size in bytes
+ * @param ids - media ids of the copies
+ * @returns the set
+ */
 function set(hash: string, size: number, ids: number[]): DupSet {
   return { hash, size, kind: "photo", copies: ids.map(copy) };
 }

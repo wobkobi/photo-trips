@@ -2,11 +2,11 @@
 // bundled with the app. Skips the download when the pinned version is already in place.
 // Runs from the predev / prebuild npm scripts; safe to run by hand.
 
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 const VERSION = "13.63";
 // SHA2-256 published at https://exiftool.org/checksums.txt

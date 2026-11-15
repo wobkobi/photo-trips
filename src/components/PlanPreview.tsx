@@ -2,8 +2,8 @@
 // summary, destination folders, the list of moves, progress while moving, and the result with
 // Undo.
 
-import { useRef, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useRef, useState, type ReactElement, type ReactNode } from "react";
 import { thumbUrl, type ApplySummary, type JobProgress, type Preview } from "../lib/api";
 import { count, monthLabel, splitPath } from "../lib/format";
 import { JOB_NAMES } from "../lib/useJobs";
@@ -33,11 +33,12 @@ const VERBS = {
 /**
  * Everything a previewed change will do: a headline count, notes, the folders receiving files
  * and every move.
+ * @param props - Component props.
  * @param props.preview - the previewed plan
  * @param props.note - extra lines for the notes under the headline
  * @returns the plan view, filling the remaining height
  */
-export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode }) {
+export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode }): ReactElement {
   return (
     <div className="flex flex-1 flex-col">
       <section className="px-8 pt-6 pb-5">
@@ -89,10 +90,11 @@ export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode
 
 /**
  * Why some sidecar files never move.
+ * @param props - Component props.
  * @param props.files - how many are left alone
  * @returns one sentence
  */
-export function LeftAlone({ files }: { files: number }) {
+export function LeftAlone({ files }: { files: number }): ReactElement {
   return (
     <p className="mt-2">
       {count(files, "sidecar file stays", "sidecar files stay")} where{" "}
@@ -104,10 +106,11 @@ export function LeftAlone({ files }: { files: number }) {
 
 /**
  * Progress while files move, go to the Recycle Bin or go back.
+ * @param props - Component props.
  * @param props.job - the running job
  * @returns the progress block
  */
-export function MovingProgress({ job }: { job: JobProgress }) {
+export function MovingProgress({ job }: { job: JobProgress }): ReactElement {
   return (
     <div className="max-w-xl px-8 py-8">
       <p className="mb-4 text-[26px] leading-none font-bold tracking-tight text-brand">
@@ -123,6 +126,7 @@ export function MovingProgress({ job }: { job: JobProgress }) {
 
 /**
  * Outcome of an applied change, with Undo and a link to History.
+ * @param props - Component props.
  * @param props.result - what the apply job reported
  * @param props.intro - sentence before the move count, e.g. "Saved the trip Japan."
  * @param props.destination - where the files went, when that isn't a folder, e.g. "the
@@ -152,7 +156,7 @@ export function ResultBanner({
   busy: boolean;
   onUndo: () => void;
   onHistory: () => void;
-}) {
+}): ReactElement {
   const [past, ing, plain] = VERBS[verb];
   const moved = count(result.moved, "file", "files") + (destination ? ` to ${destination}` : "");
   const movedText = result.cancelled
@@ -193,6 +197,7 @@ export function ResultBanner({
 /**
  * The folders receiving files, with how many each gets. Given `onOpen`, each folder is a button,
  * for jumping to its photos in a grid beside the list.
+ * @param props - Component props.
  * @param props.folders - folders relative to the library, with file counts
  * @param props.onOpen - called with the folder that was clicked
  * @returns the side list (hidden on narrow windows; see {@link FolderJumpList})
@@ -203,7 +208,7 @@ export function FolderList({
 }: {
   folders: Preview["folders"];
   onOpen?: (folder: string) => void;
-}) {
+}): ReactElement {
   return (
     <aside
       aria-label="Folders receiving files"
@@ -220,6 +225,7 @@ export function FolderList({
 /**
  * {@link FolderList} for windows too narrow for the side list (including any window at a large
  * text size): a closed "Where they go" line above the grid that opens to the same buttons.
+ * @param props - Component props.
  * @param props.folders - folders relative to the library, with file counts
  * @param props.onOpen - called with the folder that was clicked
  * @returns the fold-out list (hidden where the side list shows)
@@ -230,12 +236,16 @@ export function FolderJumpList({
 }: {
   folders: Preview["folders"];
   onOpen: (folder: string) => void;
-}) {
+}): ReactElement {
   return (
     <details className="group shrink-0 border-t border-line px-5 lg:hidden">
       {/* A flex summary loses the browser's marker, so the chevron stands in for it. */}
       <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-[16px] font-semibold">
-        <Icon name="chevron" size={16} className="shrink-0 transition-transform group-open:rotate-90" />
+        <Icon
+          name="chevron"
+          size={16}
+          className="shrink-0 transition-transform group-open:rotate-90"
+        />
         Where they go: {folders.length.toLocaleString()}{" "}
         {folders.length === 1 ? "folder" : "folders"}
       </summary>
@@ -247,56 +257,65 @@ export function FolderJumpList({
   );
 }
 
+/**
+ * The folder rows shared by {@link FolderList} and {@link FolderJumpList}: month folders show
+ * their month name, and each row is a button when `onOpen` is given.
+ * @param props - Component props.
+ * @param props.folders - folders relative to the library, with file counts
+ * @param props.onOpen - called with the folder that was clicked; plain rows without it
+ * @returns the list of folders
+ */
 function FolderEntries({
   folders,
   onOpen,
 }: {
   folders: Preview["folders"];
   onOpen?: (folder: string) => void;
-}) {
+}): ReactElement {
   return (
     <ul className="flex flex-col">
-        {folders.map(({ folder, files }) => {
-          const name = splitPath(folder).name;
-          const title = /^\d{4}-\d{2}$/.test(name) ? monthLabel(name) : name;
-          const body = (
-            <>
-              <span className="min-w-0">
-                <span className="block truncate" title={title}>
-                  {title}
-                </span>
-                <span className="block truncate text-[14px] text-faint" title={folder}>
-                  {folder}
-                </span>
+      {folders.map(({ folder, files }) => {
+        const name = splitPath(folder).name;
+        const title = /^\d{4}-\d{2}$/.test(name) ? monthLabel(name) : name;
+        const body = (
+          <>
+            <span className="min-w-0">
+              <span className="block truncate" title={title}>
+                {title}
               </span>
-              <span className="shrink-0 text-[15px] text-muted">{files.toLocaleString()}</span>
-            </>
-          );
-          return (
-            <li key={folder} className={onOpen ? "pr-3" : "pr-5"}>
-              {onOpen ? (
-                <button
-                  type="button"
-                  onClick={() => onOpen(folder)}
-                  aria-label={`Go to the ${files.toLocaleString()} ${
-                    files === 1 ? "photo" : "photos"
-                  } going into ${title}`}
-                  className="flex min-h-11 w-full items-baseline justify-between gap-3 rounded-lg px-3 py-1.5 text-left hover:bg-raised"
-                >
-                  {body}
-                </button>
-              ) : (
-                <div className="flex items-baseline justify-between gap-3 py-1.5">{body}</div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+              <span className="block truncate text-[14px] text-faint" title={folder}>
+                {folder}
+              </span>
+            </span>
+            <span className="shrink-0 text-[15px] text-muted">{files.toLocaleString()}</span>
+          </>
+        );
+        return (
+          <li key={folder} className={onOpen ? "pr-3" : "pr-5"}>
+            {onOpen ? (
+              <button
+                type="button"
+                onClick={() => onOpen(folder)}
+                aria-label={`Go to the ${files.toLocaleString()} ${
+                  files === 1 ? "photo" : "photos"
+                } going into ${title}`}
+                className="flex min-h-11 w-full items-baseline justify-between gap-3 rounded-lg px-3 py-1.5 text-left hover:bg-raised"
+              >
+                {body}
+              </button>
+            ) : (
+              <div className="flex items-baseline justify-between gap-3 py-1.5">{body}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
 /**
  * Every photo that will move, as a virtual list.
+ * @param props - Component props.
  * @param props.rows - the moves
  * @param props.label - accessible name for the list
  * @param props.origin - what an empty `from` folder is called (default "Library folder")
@@ -310,14 +329,22 @@ export function MoveList({
   rows: MoveRowData[];
   label: string;
   origin?: string;
-}) {
+}): ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null);
   // TanStack Virtual returns fresh functions each render, which the React Compiler can't
   // memoise; it skips this component, which is the documented, intended outcome.
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: rows.length,
+    /**
+     * The element the list scrolls in.
+     * @returns the scroll container, or null before it mounts
+     */
     getScrollElement: () => scrollRef.current,
+    /**
+     * Every row is the same height.
+     * @returns the row height in pixels
+     */
     estimateSize: () => ROW_HEIGHT,
     overscan: 8,
   });
@@ -338,7 +365,24 @@ export function MoveList({
   );
 }
 
-function MoveRow({ item, origin, top }: { item: MoveRowData; origin: string; top: number }) {
+/**
+ * One row of a {@link MoveList}: thumbnail (or the extension when it fails to load), the new
+ * name, and the folder it moves from and to.
+ * @param props - Component props.
+ * @param props.item - the move to show
+ * @param props.origin - what an empty `from` folder is called
+ * @param props.top - offset from the top of the list, in pixels
+ * @returns the positioned row
+ */
+function MoveRow({
+  item,
+  origin,
+  top,
+}: {
+  item: MoveRowData;
+  origin: string;
+  top: number;
+}): ReactElement {
   const [failed, setFailed] = useState(false);
   const from = splitPath(item.from);
   const to = splitPath(item.to);
@@ -379,9 +423,9 @@ function MoveRow({ item, origin, top }: { item: MoveRowData; origin: string; top
             </span>
           )}
           {item.renamed && (
-            // Gives way before the new name does: shrink-[4] takes most of any squeeze.
+            // Gives way before the new name does: shrink-4 takes most of any squeeze.
             <span
-              className="min-w-0 shrink-[4] truncate text-[14px] text-faint"
+              className="min-w-0 shrink-4 truncate text-[14px] text-faint"
               title={`was ${from.name}`}
             >
               was {from.name}
@@ -389,10 +433,7 @@ function MoveRow({ item, origin, top }: { item: MoveRowData; origin: string; top
           )}
         </span>
         <span className="flex min-w-0 items-center gap-1.5 text-[14px] text-muted">
-          <span
-            className="selectable min-w-0 shrink-[4] truncate"
-            title={from.folder || origin}
-          >
+          <span className="selectable min-w-0 shrink-4 truncate" title={from.folder || origin}>
             {from.folder || origin}
           </span>
           <Icon name="chevron" size={12} className="shrink-0 text-faint" />

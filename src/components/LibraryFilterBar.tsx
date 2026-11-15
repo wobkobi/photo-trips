@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactElement } from "react";
 import type { Tile } from "../lib/api";
 import { filterChoices, isFiltered, NO_FILTER, type LibraryFilter } from "../lib/libraryFilter";
 import { Field, INPUT } from "./Field";
@@ -8,6 +8,7 @@ import { Button } from "./ui";
 /**
  * The menus above the Library timeline that narrow it to a trip, a year, photos or videos, or
  * dates that may be wrong. Menus with only one sensible choice are left out.
+ * @param props - Component props.
  * @param props.tiles - every tile in the library, newest first
  * @param props.filter - the current filter
  * @param props.onChange - called with the new filter
@@ -21,11 +22,15 @@ export function LibraryFilterBar({
   tiles: Tile[];
   filter: LibraryFilter;
   onChange: (filter: LibraryFilter) => void;
-}) {
+}): ReactElement {
   const choices = useMemo(() => filterChoices(tiles, filter), [tiles, filter]);
   const tripValue = typeof filter.trip === "object" ? String(filter.trip.id) : filter.trip;
 
-  function chooseTrip(value: string) {
+  /**
+   * Apply the trip menu's choice. A trip id that no longer matches a trip falls back to "any".
+   * @param value - "any", "none", or a trip's id as a string
+   */
+  function chooseTrip(value: string): void {
     if (value === "any" || value === "none") onChange({ ...filter, trip: value });
     else onChange({ ...filter, trip: choices.trips.find((t) => String(t.id) === value) ?? "any" });
   }

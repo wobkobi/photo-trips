@@ -1,13 +1,14 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type ReactElement,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { thumbUrl, type Tile } from "../lib/api";
 import { jumpRow, timelineRows, type TimelineRow } from "../lib/format";
 import { tripBg } from "../lib/trips";
@@ -42,6 +43,7 @@ function libraryThumb(tile: Tile): string {
 
 /**
  * Month-grouped photo grid that only renders the rows on screen.
+ * @param props - Component props.
  * @param props.tiles - tiles, newest first
  * @param props.tileSize - preferred tile edge in CSS pixels; tiles stretch to fill each row
  * @param props.selecting - picking photos, so tiles show a tick box and a click picks
@@ -88,7 +90,7 @@ export function TimelineGrid({
   fadeUnselected?: boolean;
   jump?: TileJump | null;
   ownsHeight?: boolean;
-}) {
+}): ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -110,7 +112,16 @@ export function TimelineGrid({
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: rows.length,
+    /**
+     * The element the grid scrolls in.
+     * @returns the scroll container, or null before it mounts
+     */
     getScrollElement: () => scrollRef.current,
+    /**
+     * Month headings have a fixed height; a tile row is one tile plus the gap below it.
+     * @param i - the row's index in `rows`
+     * @returns the row height in pixels
+     */
     estimateSize: (i) => (rows[i].type === "month" ? HEADER_HEIGHT : tileSize + GAP),
     overscan: 3,
   });
@@ -134,7 +145,8 @@ export function TimelineGrid({
     virtualizer.scrollToIndex(row, { align: "start" });
     let tries = 0;
     let done = false;
-    const focusTile = () => {
+    /** Focus the jumped-to tile once it's drawn, retrying each frame up to JUMP_FRAMES. */
+    const focusTile = (): void => {
       const tile = scrollRef.current?.querySelector<HTMLButtonElement>(
         `[data-tile="${jump.index}"]`,
       );
@@ -153,10 +165,7 @@ export function TimelineGrid({
   }, [jump, laidOut]);
 
   return (
-    <div
-      ref={scrollRef}
-      className={`overflow-y-auto ${ownsHeight ? LIST_FILL : "min-h-0 flex-1"}`}
-    >
+    <div ref={scrollRef} className={`overflow-y-auto ${ownsHeight ? LIST_FILL : "min-h-0 flex-1"}`}>
       {width > 0 && (
         <div className="relative w-full" style={{ height: virtualizer.getTotalSize() + 32 }}>
           {virtualizer.getVirtualItems().map((item) => {
@@ -214,6 +223,23 @@ export function TimelineGrid({
   );
 }
 
+/**
+ * One square tile in a {@link TimelineGrid}: the thumbnail (or the file extension when Windows
+ * has none), a tick box while selecting, and an optional magnifier beside it.
+ * @param props - Component props.
+ * @param props.index - position in the grid, for finding the tile to focus after a jump
+ * @param props.tile - the photo or video
+ * @param props.thumb - thumbnail URL
+ * @param props.size - tile edge in CSS pixels
+ * @param props.selecting - picking photos, so a plain click picks instead of opening
+ * @param props.selected - the tile is picked
+ * @param props.faded - dim the tile, for an unpicked one when most are picked
+ * @param props.onClick - called with the click
+ * @param props.onMenu - called with the right-click
+ * @param props.onZoom - open the tile in the viewer from a magnifier button; no magnifier without it
+ * @param props.onThumbError - called when the thumbnail fails to load
+ * @returns the tile
+ */
 function TileButton({
   index,
   tile,
@@ -241,7 +267,7 @@ function TileButton({
   /** Open the tile in the viewer from a magnifier button, for when a click picks instead. */
   onZoom?: () => void;
   onThumbError: (tile: Tile) => void;
-}) {
+}): ReactElement {
   const [failed, setFailed] = useState(false);
   const kind = tile.kind === "video" ? "Video" : "Photo";
   const trip = tile.trip ? `, ${tile.trip.name} trip` : "";

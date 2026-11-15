@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
@@ -36,10 +36,11 @@ const NONE_LEFT: ReadonlySet<number> = new Set();
 /**
  * Bring photos in from a memory card, a phone or a folder. A check lists what's new first,
  * nothing comes in until the user says so, and the whole import can be undone.
+ * @param props - Component props.
  * @param props.onNavigate - switch to another page
  * @returns the page
  */
-export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void }): ReactElement {
   const { running } = useJobs();
   const [devices, setDevices] = useState<ImportDevice[] | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
@@ -60,7 +61,7 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
     api.importPreview().then(setPreview, (err) => setError(errorText(err)));
     const unlisten = listen<ImportDevice[]>(DEVICES_CHANGED, (event) => setDevices(event.payload));
     return () => {
-      unlisten.then((off) => off());
+      void unlisten.then((off) => off());
     };
   }, []);
 
@@ -75,7 +76,11 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
   });
   useJobDone("undo", () => setResult(null));
 
-  async function run(action: () => Promise<void>) {
+  /**
+   * Run an action, showing any failure as the page error.
+   * @param action - the API call to make
+   */
+  async function run(action: () => Promise<void>): Promise<void> {
     setError(null);
     try {
       await action();
@@ -84,12 +89,17 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
     }
   }
 
-  function check(source: ImportSource) {
+  /**
+   * Start a check of a source for photos not in the library yet.
+   * @param source - the card, phone or folder to look through
+   */
+  function check(source: ImportSource): void {
     setResult(null);
-    run(() => api.scanImport(source));
+    void run(() => api.scanImport(source));
   }
 
-  async function chooseFolder() {
+  /** Ask for a folder, then check it with the copy or move choice in force. */
+  async function chooseFolder(): Promise<void> {
     const picked = await open({
       directory: true,
       title: moveFiles
@@ -99,12 +109,17 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
     if (typeof picked === "string") check({ kind: "folder", path: picked, moveFiles });
   }
 
-  function bringIn(ready: ImportPreview) {
+  /**
+   * Start the import, leaving out the unticked items.
+   * @param ready - the checked import to bring in
+   */
+  function bringIn(ready: ImportPreview): void {
     setMovedIn(ready.moving);
-    run(() => api.applyImport(ready.id, [...left]));
+    void run(() => api.applyImport(ready.id, [...left]));
   }
 
-  function otherSources() {
+  /** Drop the checked import and go back to the list of sources. */
+  function otherSources(): void {
     if (preview) api.discardImport(preview.id).catch(() => undefined);
     setPreview(null);
     setError(null);
@@ -199,6 +214,18 @@ function sourceOf(device: ImportDevice): ImportSource {
     : { kind: "drive", path: device.id, name: device.name };
 }
 
+/**
+ * The places to import from: plugged-in cards and phones, and a folder with the copy or move
+ * choice.
+ * @param props - Component props.
+ * @param props.devices - cards and phones plugged in, or null while loading
+ * @param props.moveFiles - a folder import moves files in rather than copying
+ * @param props.busy - a job is running, so checks are disabled
+ * @param props.onMoveFiles - set the copy or move choice
+ * @param props.onCheck - check a source for new photos
+ * @param props.onChooseFolder - pick a folder to check
+ * @returns the source list
+ */
 function Sources({
   devices,
   moveFiles,
@@ -213,7 +240,7 @@ function Sources({
   onMoveFiles: (move: boolean) => void;
   onCheck: (source: ImportSource) => void;
   onChooseFolder: () => void;
-}) {
+}): ReactElement {
   return (
     <div className="flex max-w-3xl flex-col gap-10 px-8 py-7">
       <section aria-labelledby="import-devices">
@@ -291,6 +318,7 @@ function Sources({
 
 /**
  * One option of a radio group, drawn as a card.
+ * @param props - Component props.
  * @param props.checked - this option is chosen
  * @param props.title - the option
  * @param props.detail - what it means
@@ -307,7 +335,7 @@ function Choice({
   title: string;
   detail: string;
   onSelect: () => void;
-}) {
+}): ReactElement {
   return (
     <label
       className={`flex cursor-pointer gap-3 rounded-md border p-3.5 transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent ${
@@ -332,6 +360,7 @@ function Choice({
 /**
  * What a check found: the headline, notes, and every incoming photo with a tick, so photos
  * can be left out before anything comes in.
+ * @param props - Component props.
  * @param props.preview - the checked import
  * @param props.left - indexes of the items unticked
  * @param props.onLeftChange - called with the new unticked indexes
@@ -345,16 +374,25 @@ function IncomingView({
   preview: ImportPreview;
   left: ReadonlySet<number>;
   onLeftChange: (left: ReadonlySet<number>) => void;
-}) {
+}): ReactElement {
   const { settings } = useSettings();
   const tiles = useMemo(() => importTiles(preview.items), [preview.items]);
   const order = useMemo(() => tiles.map((t) => t.id), [tiles]);
   const source = useImportSource(preview, order);
   const folders = useMemo(() => pickedFolders(preview.items, left), [preview.items, left]);
   const totals = pickTotals(preview.items, left);
-  const thumbOf = (tile: Tile) => thumbUrl(preview.items[tile.id].thumb, tile.version);
+  /**
+   * Thumbnail address for an incoming item, from wherever it sits now.
+   * @param tile - the tile shown
+   * @returns the thumbnail URL
+   */
+  const thumbOf = (tile: Tile): string => thumbUrl(preview.items[tile.id].thumb, tile.version);
   const [jump, setJump] = useState<TileJump | null>(null);
-  function openFolder(folder: string) {
+  /**
+   * Scroll the picker to the first ticked item in a folder.
+   * @param folder - the destination folder chosen
+   */
+  function openFolder(folder: string): void {
     const index = firstInFolder(preview.items, tiles, folder, left);
     if (index >= 0) setJump({ index });
   }
@@ -368,9 +406,7 @@ function IncomingView({
           {count(preview.files, "new file", "new files")} from {preview.source}
         </p>
         {preview.spec.kind === "folder" && (
-          <p className="selectable mt-2 text-[15px] break-all text-faint">
-            {preview.spec.path}
-          </p>
+          <p className="selectable mt-2 text-[15px] break-all text-faint">{preview.spec.path}</p>
         )}
         <div className="mt-3 flex max-w-3xl flex-col gap-1 text-muted">
           <p>
@@ -435,6 +471,15 @@ function IncomingView({
   );
 }
 
+/**
+ * Shown when a check finds nothing that isn't in the library already.
+ * @param props - Component props.
+ * @param props.preview - the checked import
+ * @param props.busy - a job is running, so checking again is disabled
+ * @param props.onCheck - check the same source again
+ * @param props.onBack - go back to the list of sources
+ * @returns the empty state
+ */
 function NothingNew({
   preview,
   busy,
@@ -445,7 +490,7 @@ function NothingNew({
   busy: boolean;
   onCheck: () => void;
   onBack: () => void;
-}) {
+}): ReactElement {
   const where = preview.spec.kind === "folder" ? "in" : "on";
   return (
     <EmptyState title={`Nothing new ${where} ${preview.source}`}>

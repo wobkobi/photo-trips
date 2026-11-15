@@ -12,6 +12,12 @@ import {
   timelineRows,
 } from "./format";
 
+/**
+ * A plain photo tile.
+ * @param id - media id
+ * @param takenAt - when it was taken
+ * @returns the tile
+ */
 function tile(id: number, takenAt: string): Tile {
   return {
     id,

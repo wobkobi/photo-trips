@@ -48,7 +48,11 @@ export function cameraName(make: string | null, model: string | null): string | 
   return `${maker} ${named}`;
 }
 
-/** One decimal place at most: 1.6, 2, 5.1. */
+/**
+ * One decimal place at most: 1.6, 2, 5.1.
+ * @param n - the number to shorten
+ * @returns the number as text
+ */
 function short(n: number): string {
   return String(Number(n.toFixed(1)));
 }

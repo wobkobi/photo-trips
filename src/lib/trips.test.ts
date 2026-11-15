@@ -54,7 +54,12 @@ describe("trip form", () => {
 
 describe("rangeOfTiles", () => {
   it("spans the first to the last day of the selection", () => {
-    const tile = (takenAt: string) => ({ takenAt }) as Tile;
+    /**
+     * A tile with just a date.
+     * @param takenAt - when it was taken
+     * @returns the tile
+     */
+    const tile = (takenAt: string): Tile => ({ takenAt }) as Tile;
     expect(
       rangeOfTiles([
         tile("2025-03-15T08:00:00"),

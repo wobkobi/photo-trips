@@ -1,5 +1,6 @@
 // Settings > About: check for a newer version and install it.
 
+import type { ReactElement } from "react";
 import type { UpdateProgress } from "../lib/api";
 import { formatBytes } from "../lib/format";
 import { parseReleaseNotes } from "../lib/releaseNotes";
@@ -11,7 +12,7 @@ import { Button, Progress } from "./ui";
  * Check for updates, and show a newer version's notes with a button that installs it.
  * @returns the update controls
  */
-export function UpdateCheck() {
+export function UpdateCheck(): ReactElement {
   const { check, update, progress, error, runCheck, install } = useUpdates();
 
   return (
@@ -54,10 +55,11 @@ export function UpdateCheck() {
 
 /**
  * A release's changes, grouped as in the changelog.
+ * @param props - Component props.
  * @param props.notes - the release notes markdown
  * @returns the notes
  */
-function Notes({ notes }: { notes: string }) {
+function Notes({ notes }: { notes: string }): ReactElement {
   return (
     <div className="selectable mt-3 space-y-3 text-[15px]">
       {parseReleaseNotes(notes).map((group, i) => (
@@ -76,10 +78,11 @@ function Notes({ notes }: { notes: string }) {
 
 /**
  * Download bar, then what the install is waiting on.
+ * @param props - Component props.
  * @param props.progress - the latest install progress
  * @returns the progress element
  */
-function InstallProgress({ progress }: { progress: UpdateProgress }) {
+function InstallProgress({ progress }: { progress: UpdateProgress }): ReactElement {
   switch (progress.stage) {
     case "downloading":
       return (

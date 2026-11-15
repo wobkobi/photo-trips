@@ -1,16 +1,20 @@
-import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Button } from "../components/ui";
+import { useState, type ReactElement } from "react";
 import { Icon } from "../components/Icon";
+import { Button } from "../components/ui";
 import { errorText } from "../lib/api";
 import { useSettings } from "../lib/useSettings";
 
-/** First run: choose the folder that becomes the library. */
-export function SetupPage() {
+/**
+ * First run: choose the folder that becomes the library.
+ * @returns the page
+ */
+export function SetupPage(): ReactElement {
   const { save } = useSettings();
   const [error, setError] = useState<string | null>(null);
 
-  async function chooseFolder() {
+  /** Ask for the library folder and save it, showing any failure to save. */
+  async function chooseFolder(): Promise<void> {
     setError(null);
     const picked = await open({ directory: true, title: "Choose your photo library folder" });
     if (typeof picked !== "string") return;

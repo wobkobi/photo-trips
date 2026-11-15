@@ -1,15 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api, errorText, type MediaKind } from "../lib/api";
 import { Icon } from "./Icon";
 import { Button } from "./ui";
-
-export const KIND_NAMES: Record<MediaKind, string> = {
-  photo: "Photo",
-  raw: "RAW",
-  video: "Video",
-  companion: "Sidecar",
-};
 
 /** One file, ready for the viewer to show. */
 export interface ViewItem {
@@ -17,8 +10,10 @@ export interface ViewItem {
   kind: MediaKind;
   /** The original file's URL, when the webview can show (photos) or play (videos) it as it is. */
   original: string | null;
-  /** A large image Windows drew: shown instead of a photo without an original, and as a video's
-   * poster or a failed file's stand-in. */
+  /**
+   * A large image Windows drew: shown instead of a photo without an original, and as a video's
+   * poster or a failed file's stand-in.
+   */
   preview: string;
   /** Details shown beside the photo, made with {@link Fact}. */
   facts: ReactNode;
@@ -71,6 +66,7 @@ export interface ViewSource {
 
 /**
  * Full-window view of one file with its details. Arrow keys step through the source.
+ * @param props - Component props.
  * @param props.source - the files
  * @param props.index - which file is open
  * @param props.onIndex - move to another file
@@ -93,7 +89,7 @@ export function Viewer({
   onClose: () => void;
   steps?: [string, string];
   controls?: ReactNode;
-}) {
+}): ReactElement {
   const key = source.key(index);
   // Results are tagged with the file they belong to, so stepping to another file shows nothing
   // stale while it loads.
@@ -116,7 +112,11 @@ export function Viewer({
 
   // Capture phase, so Escape closes only the viewer, not the selection or menu of the page behind.
   useEffect(() => {
-    function onKey(event: KeyboardEvent) {
+    /**
+     * Escape closes the viewer; the left and right arrows step through the source.
+     * @param event - the window's keydown, caught before the page behind sees it
+     */
+    function onKey(event: KeyboardEvent): void {
       if (event.key === "Escape") {
         event.stopPropagation();
         onClose();
@@ -135,7 +135,11 @@ export function Viewer({
     return () => opener?.focus();
   }, []);
 
-  async function run(action: () => Promise<void>) {
+  /**
+   * Run a file action, showing any failure in the side panel against the file on show.
+   * @param action - the open or reveal call
+   */
+  async function run(action: () => Promise<void>): Promise<void> {
     try {
       await action();
     } catch (err) {
@@ -218,7 +222,14 @@ export function Viewer({
   );
 }
 
-/** The photo or video itself, or a button to open it in its own app when Pic Cabinet can't. */
+/**
+ * The photo or video itself, or a button to open it in its own app when Pic Cabinet can't.
+ * @param props - Component props.
+ * @param props.item - the file on show
+ * @param props.openLabel - text for the open-in-app button
+ * @param props.onOpen - open the file in its default app
+ * @returns the media, or the fallback with its open button
+ */
 function Media({
   item,
   openLabel,
@@ -227,7 +238,7 @@ function Media({
   item: ViewItem;
   openLabel: string;
   onOpen: () => void;
-}) {
+}): ReactElement {
   const [failed, setFailed] = useState(false);
   const mediaClass = "max-h-full max-w-full object-contain";
   const video = item.kind === "video";
@@ -278,6 +289,15 @@ function Media({
   );
 }
 
+/**
+ * Previous or next button over one side of the photo, hidden at that end of the source.
+ * @param props - Component props.
+ * @param props.side - which edge it sits on
+ * @param props.label - what the button says
+ * @param props.hidden - at that end of the source, so there's nowhere to step
+ * @param props.onClick - step to the neighbouring file
+ * @returns the button
+ */
 function NavButton({
   side,
   label,
@@ -288,7 +308,7 @@ function NavButton({
   label: string;
   hidden: boolean;
   onClick: () => void;
-}) {
+}): ReactElement {
   return (
     <button
       type="button"
@@ -309,11 +329,12 @@ function NavButton({
 
 /**
  * One block of details in the viewer's side panel.
+ * @param props - Component props.
  * @param props.label - what the block is about, e.g. "Taken"
  * @param props.children - the details
  * @returns the block
  */
-export function Fact({ label, children }: { label: string; children: ReactNode }) {
+export function Fact({ label, children }: { label: string; children: ReactNode }): ReactElement {
   return (
     <section className="mt-5 border-t border-line pt-4">
       <h3 className="mb-1.5 text-[14px] text-faint">{label}</h3>

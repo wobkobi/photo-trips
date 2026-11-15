@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
 import { MovingProgress, ResultBanner } from "../components/PlanPreview";
@@ -35,10 +35,15 @@ const KIND_TEXT: Record<DupSet["kind"], [string, string]> = {
 /**
  * Photos and videos that are exact copies of each other. One copy of each set stays; the
  * rest go to the Recycle Bin as one change that History can undo.
+ * @param props - Component props.
  * @param props.onNavigate - switch to another page
  * @returns the page
  */
-export function DuplicatesPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+export function DuplicatesPage({
+  onNavigate,
+}: {
+  onNavigate: (page: PageId) => void;
+}): ReactElement {
   const { running } = useJobs();
   const [report, setReport] = useState<DupReport | null>(null);
   const [picks, setPicks] = useState<Picks>({});
@@ -69,7 +74,11 @@ export function DuplicatesPage({ onNavigate }: { onNavigate: (page: PageId) => v
     load();
   });
 
-  async function run(action: () => Promise<void>) {
+  /**
+   * Run an action with the confirm closed, showing any failure as the page error.
+   * @param action - the API call to make
+   */
+  async function run(action: () => Promise<void>): Promise<void> {
     setError(null);
     setConfirming(false);
     try {
@@ -84,7 +93,11 @@ export function DuplicatesPage({ onNavigate }: { onNavigate: (page: PageId) => v
   const showProgress = working || running?.kind === "undo";
   const sets = report?.sets ?? [];
   const plan = removalPlan(sets, picks);
-  const check = () => run(api.findDuplicates);
+  /**
+   * Hash the files not compared yet.
+   * @returns resolves once the check is queued
+   */
+  const check = (): Promise<void> => run(api.findDuplicates);
 
   return (
     <div className="flex h-full flex-col">
@@ -165,6 +178,15 @@ export function DuplicatesPage({ onNavigate }: { onNavigate: (page: PageId) => v
   );
 }
 
+/**
+ * Shown when no sets are left: either nothing is duplicated, or some same-size files still need
+ * comparing.
+ * @param props - Component props.
+ * @param props.report - the latest duplicates report
+ * @param props.busy - a job is running, so the check button is disabled
+ * @param props.onCheck - compare the files not checked yet
+ * @returns the empty state
+ */
 function NoSets({
   report,
   busy,
@@ -173,7 +195,7 @@ function NoSets({
   report: DupReport;
   busy: boolean;
   onCheck: () => void;
-}) {
+}): ReactElement {
   if (report.unchecked === 0) {
     return (
       <EmptyState title="No duplicates">
@@ -194,7 +216,22 @@ function NoSets({
   );
 }
 
-function Summary({ report, plan }: { report: DupReport; plan: { copies: number; bytes: number } }) {
+/**
+ * Headline of how much space the extra copies take, and what the clean-up will do.
+ * @param props - Component props.
+ * @param props.report - the latest duplicates report
+ * @param props.plan - what the current picks remove
+ * @param props.plan.copies - number of copies going to the bin
+ * @param props.plan.bytes - space those copies free
+ * @returns the summary section
+ */
+function Summary({
+  report,
+  plan,
+}: {
+  report: DupReport;
+  plan: { copies: number; bytes: number };
+}): ReactElement {
   return (
     <section className="border-b border-line px-8 pt-6 pb-5">
       <p className="text-[30px] leading-none font-extrabold tracking-tight text-brand">
@@ -224,6 +261,14 @@ function Summary({ report, plan }: { report: DupReport; plan: { copies: number; 
   );
 }
 
+/**
+ * Virtualised list of duplicate sets, since a big library can have thousands.
+ * @param props - Component props.
+ * @param props.sets - every duplicate set
+ * @param props.picks - the copy chosen to keep per set, where it differs from the default
+ * @param props.onPick - choose the copy to keep in a set, or null to keep all
+ * @returns the scrolling list
+ */
 function SetList({
   sets,
   picks,
@@ -232,14 +277,22 @@ function SetList({
   sets: DupSet[];
   picks: Picks;
   onPick: (hash: string, keep: number | null) => void;
-}) {
+}): ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null);
   // TanStack Virtual returns fresh functions each render, which the React Compiler can't
   // memoise; it skips this component, which is the documented, intended outcome.
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: sets.length,
+    /**
+     * The list's own scroll box.
+     * @returns the scrolling element, or null before it mounts
+     */
     getScrollElement: () => scrollRef.current,
+    /**
+     * Unwrapped height, corrected once a set is measured.
+     * @returns the estimated row height in pixels
+     */
     estimateSize: () => SET_HEIGHT,
     overscan: 3,
   });
@@ -271,6 +324,17 @@ function SetList({
   );
 }
 
+/**
+ * One duplicate set: its copies side by side, with a viewer to compare them bigger.
+ * @param props - Component props.
+ * @param props.set - the set of identical files
+ * @param props.keep - id of the copy kept, or null when the whole set is left alone
+ * @param props.index - position in the list, for the virtualiser's measuring
+ * @param props.top - offset from the top of the list in pixels
+ * @param props.measureRef - lets the virtualiser measure the drawn row
+ * @param props.onPick - choose the copy to keep, or null to keep all
+ * @returns the set row
+ */
 function SetRow({
   set,
   keep,
@@ -285,7 +349,7 @@ function SetRow({
   top: number;
   measureRef: (element: HTMLElement | null) => void;
   onPick: (keep: number | null) => void;
-}) {
+}): ReactElement {
   const [one, many] = KIND_TEXT[set.kind];
   const [viewing, setViewing] = useState<number | null>(null);
   const closeViewer = useCallback(() => setViewing(null), []);
@@ -351,7 +415,15 @@ function SetRow({
   );
 }
 
-/** One copy: kept, going to the bin, or kept because its whole set is left alone. */
+/**
+ * One copy: kept, going to the bin, or kept because its whole set is left alone.
+ * @param props - Component props.
+ * @param props.copy - the file this card shows
+ * @param props.state - whether the copy stays, goes, or stays with its whole set
+ * @param props.onKeep - keep this copy instead
+ * @param props.onZoom - open the copy in the viewer
+ * @returns the card
+ */
 function CopyCard({
   copy,
   state,
@@ -362,7 +434,7 @@ function CopyCard({
   state: "keep" | "bin" | "keep-all";
   onKeep: () => void;
   onZoom: () => void;
-}) {
+}): ReactElement {
   const [failed, setFailed] = useState(false);
   const { folder, name } = splitPath(copy.path);
   const ext = name.split(".").pop() ?? "";
@@ -382,7 +454,7 @@ function CopyCard({
         className="group block w-full rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         <span
-          className={`relative block aspect-[4/3] overflow-hidden rounded-[3px] bg-raised ${
+          className={`relative block aspect-4/3 overflow-hidden rounded-[3px] bg-raised ${
             state === "keep" ? "ring-3 ring-accent" : ""
           }`}
         >

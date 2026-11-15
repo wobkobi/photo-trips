@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 import { CodecHint } from "../components/CodecHint";
 import { Icon } from "../components/Icon";
 import { LibraryFilterBar } from "../components/LibraryFilterBar";
@@ -19,6 +19,7 @@ import { useSettings } from "../lib/useSettings";
  * The whole library as a month-by-month timeline, with a viewer for single photos.
  * "Pick photos for a trip" turns clicks into picking, so the photos to make a trip from can be
  * chosen without knowing any shortcuts; Ctrl-click, Shift-click and right-click pick too.
+ * @param props - Component props.
  * @param props.filter - which photos to show; kept by the app so the Trips page can open the
  *   Library at one trip
  * @param props.onFilter - called with a new filter
@@ -43,7 +44,7 @@ export function LibraryPage({
   onImport: () => void;
   refreshRequested: boolean;
   onRefreshStarted: () => void;
-}) {
+}): ReactElement {
   const { settings, save } = useSettings();
   const { running } = useJobs();
   const [allTiles, setTiles] = useState<Tile[] | null>(null);
@@ -89,7 +90,8 @@ export function LibraryPage({
     setMenu(null);
   }, []);
 
-  function refresh() {
+  /** Re-read the library folder for new and changed files. */
+  function refresh(): void {
     api.indexLibrary().catch((err) => setError(errorText(err)));
   }
 
@@ -103,7 +105,11 @@ export function LibraryPage({
 
   useEffect(() => {
     if (!selecting) return;
-    const onKey = (event: KeyboardEvent) => {
+    /**
+     * Escape stops picking.
+     * @param event - the key pressed
+     */
+    const onKey = (event: KeyboardEvent): void => {
       if (event.key === "Escape") clearSelection();
     };
     window.addEventListener("keydown", onKey);
@@ -114,8 +120,10 @@ export function LibraryPage({
    * Explorer-style selection: Ctrl toggles, Shift extends from the last clicked tile, and a
    * plain click toggles while picking or while anything is picked. Otherwise a plain click
    * opens the viewer.
+   * @param index - position of the clicked tile in the shown list
+   * @param event - the click, for its modifier keys
    */
-  function onTileClick(index: number, event: TileEvent) {
+  function onTileClick(index: number, event: TileEvent): void {
     if (!tiles) return;
     const id = tiles[index].id;
     if (event.shiftKey && anchor !== null) {
@@ -136,7 +144,12 @@ export function LibraryPage({
     setOpen(index);
   }
 
-  function onTileMenu(index: number, event: TileEvent) {
+  /**
+   * Right-click opens the trip menu, picking the tile first unless it's already picked.
+   * @param index - position of the tile in the shown list
+   * @param event - the right-click, for where to open the menu
+   */
+  function onTileMenu(index: number, event: TileEvent): void {
     if (!tiles) return;
     event.preventDefault();
     const id = tiles[index].id;
@@ -147,7 +160,8 @@ export function LibraryPage({
     setMenu({ x: event.clientX, y: event.clientY });
   }
 
-  function createTrip() {
+  /** Start a new trip over the picked photos' days, with only those photos ticked. */
+  function createTrip(): void {
     if (!tiles) return;
     const chosen = tiles.filter((t) => selected.has(t.id));
     if (chosen.length === 0) return;
@@ -158,8 +172,11 @@ export function LibraryPage({
     });
   }
 
-  /** Picked photos and the viewer belong to the old list, so a new filter drops both. */
-  function changeFilter(next: LibraryFilter) {
+  /**
+   * Picked photos and the viewer belong to the old list, so a new filter drops both.
+   * @param next - the filter to apply
+   */
+  function changeFilter(next: LibraryFilter): void {
     clearSelection();
     setOpen(null);
     onFilter(next);
@@ -291,6 +308,15 @@ export function LibraryPage({
   );
 }
 
+/**
+ * The header line: how many photos are shown, and how many other files are left alone.
+ * @param props - Component props.
+ * @param props.count - photos and videos the filter shows
+ * @param props.total - photos and videos in the library
+ * @param props.summary - the last library read, for its count of other files
+ * @param props.indexing - the first read is still running
+ * @returns the detail text
+ */
 function Detail({
   count,
   total,
@@ -301,7 +327,7 @@ function Detail({
   total: number;
   summary: IndexSummary | null;
   indexing: boolean;
-}) {
+}): ReactElement {
   if (indexing) return <>Reading your library folder</>;
   const noun = total === 1 ? "photo or video" : "photos and videos";
   const items =

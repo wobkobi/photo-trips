@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from "react";
 import { api, SETTING_CHANGED, type SettingChange, type Settings } from "./api";
 import { SettingsContext } from "./useSettings";
 
 /**
  * Loads settings once and shares them with the whole app.
+ * @param props - Component props.
  * @param props.children - app content
  * @returns the provider element
  */
-export function SettingsProvider({ children }: { children: ReactNode }) {
+export function SettingsProvider({ children }: { children: ReactNode }): ReactElement {
   const [settings, setSettings] = useState<Settings | null>(null);
 
   const reload = useCallback(() => {
@@ -22,7 +23,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setSettings((prev) => ({ ...prev, [payload.key]: payload.value })),
     );
     return () => {
-      unlisten.then((off) => off());
+      void unlisten.then((off) => off());
     };
   }, [reload]);
 

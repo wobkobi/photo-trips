@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
@@ -28,6 +28,7 @@ interface Review {
 /**
  * Suggestions: stretches of busy days, or days away from home, that aren't a trip yet. Each
  * can become a trip, previewed as file moves first like any other, or be dismissed.
+ * @param props - Component props.
  * @param props.onNavigate - switch to another page
  * @param props.onCreateTrip - open a suggestion in the trip editor, to change it or untick photos
  * @returns the page
@@ -38,7 +39,7 @@ export function SuggestionsPage({
 }: {
   onNavigate: (page: PageId) => void;
   onCreateTrip: (start: TripStart) => void;
-}) {
+}): ReactElement {
   const { running } = useJobs();
   const [data, setData] = useState<Suggestions | null>(null);
   const [review, setReview] = useState<Review | null>(null);
@@ -80,7 +81,11 @@ export function SuggestionsPage({
     load();
   });
 
-  async function reviewCreate(form: TripForm) {
+  /**
+   * Plan a suggestion as a new trip and show the moves for review before anything changes.
+   * @param form - the trip the suggestion fills in
+   */
+  async function reviewCreate(form: TripForm): Promise<void> {
     const draft = toDraft(form);
     setError(null);
     setResult(null);
@@ -102,7 +107,11 @@ export function SuggestionsPage({
     }
   }
 
-  async function apply(current: Review) {
+  /**
+   * Save the reviewed trip and start its moves; the apply job's end shows the result.
+   * @param current - the trip under review
+   */
+  async function apply(current: Review): Promise<void> {
     setError(null);
     setApplying(current.done);
     try {
@@ -113,7 +122,11 @@ export function SuggestionsPage({
     }
   }
 
-  async function undo(batchId: number) {
+  /**
+   * Undo the trip just made, showing any failure as the page error.
+   * @param batchId - the batch to undo
+   */
+  async function undo(batchId: number): Promise<void> {
     setError(null);
     try {
       await api.undoBatch(batchId);
@@ -122,7 +135,11 @@ export function SuggestionsPage({
     }
   }
 
-  async function dismiss(suggestion: Suggestion) {
+  /**
+   * Stop suggesting a suggestion's days, dropping it from the list without a reload.
+   * @param suggestion - the suggestion turned down
+   */
+  async function dismiss(suggestion: Suggestion): Promise<void> {
     setError(null);
     setResult(null);
     const key = suggestionKey(suggestion);
@@ -137,13 +154,13 @@ export function SuggestionsPage({
             }
           : current,
       );
-
     } catch (err) {
       setError(errorText(err));
     }
   }
 
-  async function restore() {
+  /** Bring every dismissed suggestion back and reload the list. */
+  async function restore(): Promise<void> {
     setError(null);
     try {
       await api.restoreDismissed();
@@ -250,6 +267,7 @@ export function SuggestionsPage({
 
 /**
  * One suggestion, with its reason and sample photos. The dashed edge marks it as not yet a trip.
+ * @param props - Component props.
  * @param props.suggestion - the suggestion
  * @param props.busy - a job or check is running, so the buttons wait
  * @param props.onCreate - preview it as a trip as it is
@@ -270,7 +288,7 @@ function SuggestionCard({
   onCreate: () => void;
   onChange: () => void;
   onDismiss: () => void;
-}) {
+}): ReactElement {
   return (
     <li className="flex flex-col gap-3 rounded-md border border-dashed border-line bg-surface p-4">
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">

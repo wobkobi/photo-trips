@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
 import type { PageId } from "../App";
 import { api } from "../lib/api";
 import { folderName } from "../lib/format";
@@ -31,6 +31,7 @@ const CRAMPED = "(max-width: 800px)";
  * The menu is narrow when the saved choice says so, or when the window is cramped. While cramped,
  * widening it lasts until the window has room again and isn't saved, since the saved choice is
  * about roomy windows.
+ * @param props - Component props.
  * @param props.page - the page on show
  * @param props.onPage - switch page
  * @param props.libraryRoot - the library folder's full path
@@ -50,7 +51,7 @@ export function Sidebar({
   libraryRoot: string;
   narrow: boolean;
   onNarrow: (narrow: boolean) => void;
-}) {
+}): ReactElement {
   const folder = folderName(libraryRoot);
   const cramped = useMediaQuery(CRAMPED);
   const [widened, setWidened] = useState(false);
@@ -62,12 +63,14 @@ export function Sidebar({
   }
   const iconsOnly = narrow || (cramped && !widened);
 
-  function widen() {
+  /** Show labels: clear the saved narrow choice, or widen just while the window is cramped. */
+  function widen(): void {
     if (narrow) onNarrow(false);
     if (cramped) setWidened(true);
   }
 
-  function narrowIt() {
+  /** Go back to icons only, saving the choice unless the window is cramped anyway. */
+  function narrowIt(): void {
     setWidened(false);
     if (!cramped) onNarrow(true);
   }
@@ -150,7 +153,11 @@ export function Sidebar({
             iconsOnly ? "justify-center" : "px-3 text-left"
           }`}
         >
-          <Icon name={iconsOnly ? "chevron" : "back"} size={iconsOnly ? 20 : 16} className="shrink-0" />
+          <Icon
+            name={iconsOnly ? "chevron" : "back"}
+            size={iconsOnly ? 20 : 16}
+            className="shrink-0"
+          />
           <span className={iconsOnly ? "sr-only" : undefined}>
             {iconsOnly ? "Widen the menu" : "Narrow the menu"}
           </span>

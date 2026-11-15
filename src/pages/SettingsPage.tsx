@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
 import { isEnabled } from "@tauri-apps/plugin-autostart";
+import { open } from "@tauri-apps/plugin-dialog";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
 import { BrandMark } from "../components/BrandMark";
 import { FolderNames } from "../components/FolderNames";
@@ -15,8 +15,8 @@ import { SuggestionSettings } from "../components/SuggestionSettings";
 import { Button, PageHeader } from "../components/ui";
 import { UpdateCheck } from "../components/UpdateCheck";
 import { api, AUTOSTART_CHANGED, errorText, type ApplySummary, type Preview } from "../lib/api";
-import { count } from "../lib/format";
 import { PHOTO_SIZES, photoSizeOf, TEXT_SIZES, textSizeOf } from "../lib/display";
+import { count } from "../lib/format";
 import { normaliseExtensions } from "../lib/settingValues";
 import { useAction } from "../lib/useAction";
 import { useJobDone, useJobs } from "../lib/useJobs";
@@ -26,6 +26,7 @@ import { useSettings } from "../lib/useSettings";
  * App settings (text and photo sizes, library, folder names, inbox folders, suggestions, file
  * types and window behaviour), then the app's version, maker and updates. A folder name change
  * swaps the page for its preview of the renames until it's applied or abandoned.
+ * @param props - Component props.
  * @param props.showAbout - Help > About or Check for updates was picked; scroll to the About
  * section on opening
  * @param props.onAboutShown - called once About has been scrolled into view
@@ -40,7 +41,7 @@ export function SettingsPage({
   showAbout: boolean;
   onAboutShown: () => void;
   onNavigate: (page: PageId) => void;
-}) {
+}): ReactElement {
   const { settings, save } = useSettings();
   const { running } = useJobs();
   const [review, setReview] = useState<Preview | null>(null);
@@ -61,7 +62,7 @@ export function SettingsPage({
     // The menu bar's Start with Windows tick changes it too.
     const unlisten = listen<boolean>(AUTOSTART_CHANGED, ({ payload }) => setAutostart(payload));
     return () => {
-      unlisten.then((off) => off());
+      void unlisten.then((off) => off());
     };
   }, []);
 
@@ -80,7 +81,11 @@ export function SettingsPage({
   });
   useJobDone("undo", () => setResult(null));
 
-  async function rename(preview: Preview) {
+  /**
+   * Apply the reviewed folder renames; the apply job's end clears the review.
+   * @param preview - the reviewed plan
+   */
+  async function rename(preview: Preview): Promise<void> {
     setRenameError(null);
     setApplying(true);
     try {
@@ -91,7 +96,11 @@ export function SettingsPage({
     }
   }
 
-  async function undo(batchId: number) {
+  /**
+   * Undo the rename batch just applied, showing any failure under the header.
+   * @param batchId - the batch to undo
+   */
+  async function undo(batchId: number): Promise<void> {
     setRenameError(null);
     try {
       await api.undoBatch(batchId);
@@ -100,7 +109,8 @@ export function SettingsPage({
     }
   }
 
-  async function changeLibrary() {
+  /** Ask for a new library folder and save it. */
+  async function changeLibrary(): Promise<void> {
     const picked = await open({ directory: true, title: "Choose your photo library folder" });
     if (typeof picked === "string") await library.run(() => save("library_root", picked));
   }

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactElement } from "react";
 import { thumbUrl, type SampleTile } from "../lib/api";
 import { Viewer } from "./Viewer";
 import { useLibrarySource } from "./viewSources";
@@ -6,10 +6,11 @@ import { useLibrarySource } from "./viewSources";
 /**
  * A row of small thumbnails from a trip or a suggested one. Each opens in the viewer, which
  * steps through the rest of the row.
+ * @param props - Component props.
  * @param props.sample - photos to show, already spread through the trip
  * @returns the strip
  */
-export function SampleStrip({ sample }: { sample: SampleTile[] }) {
+export function SampleStrip({ sample }: { sample: SampleTile[] }): ReactElement {
   const [viewing, setViewing] = useState<number | null>(null);
   const closeViewer = useCallback(() => setViewing(null), []);
   const ids = useMemo(() => sample.map((tile) => tile.id), [sample]);
@@ -33,6 +34,14 @@ export function SampleStrip({ sample }: { sample: SampleTile[] }) {
   );
 }
 
+/**
+ * One thumbnail in the strip, left as an empty tile if it fails to load.
+ * @param props - Component props.
+ * @param props.tile - the photo to show
+ * @param props.label - accessible name, giving its place in the strip
+ * @param props.onOpen - open it in the viewer
+ * @returns the thumbnail button
+ */
 function SampleThumb({
   tile,
   label,
@@ -41,7 +50,7 @@ function SampleThumb({
   tile: SampleTile;
   label: string;
   onOpen: () => void;
-}) {
+}): ReactElement {
   const [failed, setFailed] = useState(false);
   return (
     <button

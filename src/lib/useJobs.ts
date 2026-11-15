@@ -28,7 +28,10 @@ export const JOB_NAMES: Record<string, string> = {
   inbox: "Moving new photos in from the inbox",
 };
 
-/** Background job state. Must be used under JobsProvider. */
+/**
+ * Background job state. Must be used under JobsProvider.
+ * @returns the running job, the last one to finish, and a way to clear it
+ */
 export function useJobs(): JobsContextValue {
   const ctx = useContext(JobsContext);
   if (!ctx) throw new Error("useJobs outside JobsProvider");

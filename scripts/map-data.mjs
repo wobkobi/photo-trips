@@ -33,9 +33,23 @@ const fromAt = process.argv.indexOf("--from");
 const from = fromAt > 0 ? process.argv[fromAt + 1] : null;
 
 /**
+ * A GeoJSON feature collection; only the fields this script reads.
+ * @typedef {object} FeatureCollection
+ * @property {Feature[]} features - the features
+ */
+
+/**
+ * One GeoJSON feature. Coordinates nest deeper the more complex the geometry: a Point is
+ * [lon, lat], a LineString a list of those, up to a MultiPolygon with four levels of arrays.
+ * @typedef {object} Feature
+ * @property {{ type: string, coordinates: number[] | number[][] | number[][][] | number[][][][] }} geometry - the shape
+ * @property {Record<string, unknown>} properties - attributes, e.g. a place name and population
+ */
+
+/**
  * One layer's GeoJSON, from `--from` or downloaded, after checking it matches the pinned file.
  * @param {string} name - the layer's file name without .geojson
- * @returns {Promise<any>} the parsed GeoJSON
+ * @returns {Promise<FeatureCollection>} the parsed GeoJSON
  */
 async function layer(name) {
   let bytes;
@@ -53,7 +67,7 @@ async function layer(name) {
 
 /**
  * Every ring or line in a feature collection, as arrays of [lon, lat].
- * @param {any} collection - GeoJSON feature collection
+ * @param {FeatureCollection} collection - GeoJSON feature collection
  * @returns {number[][][]} the rings or lines
  */
 function parts(collection) {
@@ -104,12 +118,21 @@ function simplify(points) {
   return points.filter((_, i) => keep[i]);
 }
 
+/** Collects the output file as a list of byte chunks. */
 class Writer {
+  /** @type {Buffer[]} */
   chunks = [];
+  /**
+   * Append raw bytes.
+   * @param {number[]} list - byte values, 0 to 255
+   */
   bytes(list) {
     this.chunks.push(Buffer.from(list));
   }
-  /** Unsigned LEB128. */
+  /**
+   * Unsigned LEB128.
+   * @param {number} n - a whole number, 0 or more
+   */
   varint(n) {
     const list = [];
     do {
@@ -120,10 +143,17 @@ class Writer {
     } while (n > 0);
     this.bytes(list);
   }
-  /** Zigzag, so small negative numbers stay one byte too. */
+  /**
+   * Zigzag, so small negative numbers stay one byte too.
+   * @param {number} n - a whole number
+   */
   signed(n) {
     this.varint(n < 0 ? -2 * n - 1 : 2 * n);
   }
+  /**
+   * UTF-8 text, after its length in bytes.
+   * @param {string} s - the text
+   */
   text(s) {
     const encoded = Buffer.from(s, "utf8");
     this.varint(encoded.length);

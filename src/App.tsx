@@ -1,30 +1,33 @@
-import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { useCallback, useEffect, useState, type ReactElement } from "react";
 import { Sidebar } from "./components/Sidebar";
-import { NO_FILTER, type FilterTrip, type LibraryFilter } from "./lib/libraryFilter";
 import { JobsProvider } from "./lib/jobs";
+import { NO_FILTER, type FilterTrip, type LibraryFilter } from "./lib/libraryFilter";
 import { useMenuBar, type MenuRequest } from "./lib/menu";
 import { SettingsProvider } from "./lib/settings";
+import type { TripStart } from "./lib/trips";
 import { UpdatesProvider } from "./lib/updates";
 import { useJobDone } from "./lib/useJobs";
-import { useUpdates } from "./lib/useUpdates";
 import { useSettings } from "./lib/useSettings";
+import { useUpdates } from "./lib/useUpdates";
 import { DuplicatesPage } from "./pages/DuplicatesPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { ImportPage } from "./pages/ImportPage";
 import { LibraryPage } from "./pages/LibraryPage";
-import { SetupPage } from "./pages/SetupPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { SetupPage } from "./pages/SetupPage";
 import { SortPage } from "./pages/SortPage";
 import { SuggestionsPage } from "./pages/SuggestionsPage";
 import { TripsPage } from "./pages/TripsPage";
-import type { TripStart } from "./lib/trips";
 
 export type PageId =
   "library" | "sort" | "trips" | "suggestions" | "import" | "duplicates" | "history" | "settings";
 
-/** Root component: settings and job providers around the shell. */
-export default function App() {
+/**
+ * Root component: settings and job providers around the shell.
+ * @returns the app
+ */
+export default function App(): ReactElement {
   return (
     <SettingsProvider>
       <JobsProvider>
@@ -36,7 +39,12 @@ export default function App() {
   );
 }
 
-function Shell() {
+/**
+ * The sidebar and current page, once settings have loaded; the setup page until a library
+ * folder is chosen. Holds the state that has to outlive a page change.
+ * @returns the shell, or null while settings load
+ */
+function Shell(): ReactElement | null {
   const { settings, save, reload } = useSettings();
   // A folder name change saves its presets with the batch, and undoing it puts them back.
   useJobDone(["apply", "undo"], reload);
@@ -77,7 +85,7 @@ function Shell() {
   useEffect(() => {
     const unlisten = listen<PageId>("navigate", (event) => setPage(event.payload));
     return () => {
-      unlisten.then((off) => off());
+      void unlisten.then((off) => off());
     };
   }, []);
 
@@ -114,6 +122,23 @@ function Shell() {
   );
 }
 
+/**
+ * The page the sidebar has selected, with the state and callbacks it needs.
+ * @param props - Component props.
+ * @param props.page - which page to show
+ * @param props.onNavigate - open another page
+ * @param props.filter - the Library filter
+ * @param props.onFilter - change the Library filter
+ * @param props.onShowTrip - show one trip in the Library
+ * @param props.tripDraft - a trip started elsewhere, for the Trips page to open
+ * @param props.onTripDraftUsed - called once the Trips page has opened the draft
+ * @param props.onCreateTrip - start a trip and open the Trips page
+ * @param props.refresh - File > Look for new photos is waiting for the Library
+ * @param props.onRefreshStarted - called once the Library has started looking
+ * @param props.showAbout - Settings should open at About
+ * @param props.onAboutShown - called once Settings has shown About
+ * @returns the page
+ */
 function CurrentPage({
   page,
   onNavigate,
@@ -140,7 +165,7 @@ function CurrentPage({
   onRefreshStarted: () => void;
   showAbout: boolean;
   onAboutShown: () => void;
-}) {
+}): ReactElement {
   switch (page) {
     case "library":
       return (

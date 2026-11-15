@@ -1,8 +1,8 @@
 // Keyboard shortcuts for the window's menu bar. Keys pressed in the page never reach the native
 // menu, so the page matches them here and asks the backend to run the same menu item.
 
-import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { useEffect, useRef } from "react";
 import { api } from "./api";
 
 /** What the menu asks the page to do, on the "menu://action" event. */
@@ -44,7 +44,7 @@ export function shortcutFor(event: KeyPress): string | null {
  * carry out.
  * @param onRequest - called with each request from the menu (or a shortcut for one)
  */
-export function useMenuBar(onRequest: (request: MenuRequest) => void) {
+export function useMenuBar(onRequest: (request: MenuRequest) => void): void {
   // Kept in a ref so a new callback each render doesn't re-subscribe.
   const handler = useRef(onRequest);
   useEffect(() => {
@@ -52,7 +52,11 @@ export function useMenuBar(onRequest: (request: MenuRequest) => void) {
   });
 
   useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
+    /**
+     * Run the menu item bound to a key press, if any.
+     * @param event - the key press
+     */
+    function onKeyDown(event: KeyboardEvent): void {
       const id = shortcutFor(event);
       if (!id) return;
       // Also stops WebView2's own use of the keys, like F5 reloading the page.
@@ -65,7 +69,7 @@ export function useMenuBar(onRequest: (request: MenuRequest) => void) {
     );
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      unlisten.then((off) => off());
+      void unlisten.then((off) => off());
     };
   }, []);
 }

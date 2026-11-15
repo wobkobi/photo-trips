@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { ImportItem } from "./api";
 import { firstInFolder, importTiles, pickedFolders, pickTotals, setPicked } from "./picker";
 
+/**
+ * A photo in an import preview.
+ * @param takenAt - when it was taken
+ * @param to - destination, relative to the library folder
+ * @param extra - number of companion files
+ * @param bytes - size of the photo and its companions together
+ * @returns the item
+ */
 function item(takenAt: string, to: string, extra = 0, bytes = 100): ImportItem {
   return {
     thumb: "i1-0",

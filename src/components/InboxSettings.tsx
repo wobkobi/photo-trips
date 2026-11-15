@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { useEffect, useState, type ReactElement } from "react";
 import { api, WATCH_CHANGED, type WatchStatus } from "../lib/api";
 import { folderName, parseFolders, samePath, watchSummary } from "../lib/settingValues";
 import { useAction } from "../lib/useAction";
@@ -9,8 +9,11 @@ import { Icon } from "./Icon";
 import { Row, Section, Toggle } from "./SettingParts";
 import { Button } from "./ui";
 
-/** Inbox folders: the list, adding and removing, and pausing the watcher. */
-export function InboxSettings() {
+/**
+ * Inbox folders: the list, adding and removing, and pausing the watcher.
+ * @returns the settings section
+ */
+export function InboxSettings(): ReactElement {
   const { settings, save } = useSettings();
   const { error, run } = useAction();
   const [status, setStatus] = useState<WatchStatus | null>(null);
@@ -26,18 +29,30 @@ export function InboxSettings() {
     const unlisten = listen<WatchStatus>(WATCH_CHANGED, (event) => setStatus(event.payload));
     return () => {
       live = false;
-      unlisten.then((off) => off());
+      void unlisten.then((off) => off());
     };
   }, []);
 
-  const saveFolders = (next: string[]) => run(() => save("inbox_folders", JSON.stringify(next)));
+  /**
+   * Save the inbox folder list; a failure shows as the section's error.
+   * @param next - the full list of folders to watch
+   * @returns resolves true once saved, false if the save failed
+   */
+  const saveFolders = (next: string[]): Promise<boolean> =>
+    run(() => save("inbox_folders", JSON.stringify(next)));
 
-  async function addFolder() {
+  /** Ask for a folder and add it to the list, unless the picker was cancelled. */
+  async function addFolder(): Promise<void> {
     const picked = await open({ directory: true, title: "Choose an inbox folder" });
     if (typeof picked === "string") await saveFolders([...folders, picked]);
   }
 
-  const isMissing = (folder: string) =>
+  /**
+   * Whether the watcher reported this folder as missing, e.g. on a drive that's unplugged.
+   * @param folder - a folder from the list
+   * @returns true when it can't be found
+   */
+  const isMissing = (folder: string): boolean =>
     status?.missing.some((path) => samePath(path, folder)) ?? false;
 
   return (

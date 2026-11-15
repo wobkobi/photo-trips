@@ -11,7 +11,10 @@ export interface SettingsContextValue {
 
 export const SettingsContext = createContext<SettingsContextValue | null>(null);
 
-/** Access the shared settings. Must be used under SettingsProvider. */
+/**
+ * Access the shared settings. Must be used under SettingsProvider.
+ * @returns the settings, a save function and a reload function
+ */
 export function useSettings(): SettingsContextValue {
   const ctx = useContext(SettingsContext);
   if (!ctx) throw new Error("useSettings outside SettingsProvider");

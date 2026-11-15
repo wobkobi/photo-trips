@@ -1,6 +1,6 @@
 // Small shared building blocks: buttons, page header, empty state.
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactElement, ReactNode } from "react";
 
 /**
  * For the photo grid or move list that fills the rest of a page. It grows into the space left
@@ -29,6 +29,7 @@ const VARIANTS: Record<Variant, string> = {
 
 /**
  * Standard button.
+ * @param props - Component props.
  * @param props.variant - visual weight (default secondary)
  * @param props.className - extra classes
  * @returns the button element
@@ -37,7 +38,7 @@ export function Button({
   variant = "secondary",
   className = "",
   ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }): ReactElement {
   return (
     <button
       type="button"
@@ -49,6 +50,7 @@ export function Button({
 
 /**
  * Page title row with optional actions on the right.
+ * @param props - Component props.
  * @param props.title - page title
  * @param props.detail - one line under the title
  * @param props.actions - buttons for the right side
@@ -62,7 +64,7 @@ export function PageHeader({
   title: string;
   detail?: ReactNode;
   actions?: ReactNode;
-}) {
+}): ReactElement {
   return (
     <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line px-8 pt-7 pb-5">
       <div className="min-w-0">
@@ -79,11 +81,18 @@ export function PageHeader({
 
 /**
  * Centred message for empty pages, phrased as the next step to take.
+ * @param props - Component props.
  * @param props.title - what's missing
  * @param props.children - how to fix it (text and buttons)
  * @returns the empty-state element
  */
-export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
+export function EmptyState({
+  title,
+  children,
+}: {
+  title: string;
+  children?: ReactNode;
+}): ReactElement {
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-6 py-[min(6rem,12vh)] text-center">
       <h2 className="text-2xl font-extrabold tracking-tight text-brand">{title}</h2>
@@ -94,6 +103,7 @@ export function EmptyState({ title, children }: { title: string; children?: Reac
 
 /**
  * Thin progress bar with a caption.
+ * @param props - Component props.
  * @param props.done - completed units
  * @param props.total - total units (0 = unknown, shows an indeterminate bar)
  * @param props.label - caption under the bar
@@ -110,7 +120,7 @@ export function Progress({
   total: number;
   label: string;
   count?: boolean;
-}) {
+}): ReactElement {
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : null;
   return (
     <div className="w-full">

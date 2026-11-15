@@ -1,8 +1,8 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
 import process from "node:process";
+import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
 

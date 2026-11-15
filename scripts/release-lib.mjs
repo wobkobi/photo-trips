@@ -85,7 +85,11 @@ export function releaseNotes(changelog, version, since) {
       else if (line.trim()) groups.set(heading, [...(groups.get(heading) ?? []), line]);
     }
   }
-  /** @param {string} heading - "### Added" and the like */
+  /**
+   * Where a heading sorts in {@link HEADING_ORDER}; any other heading, or none, goes last.
+   * @param {string} heading - "### Added" and the like
+   * @returns {number} its position
+   */
   const rank = (heading) => {
     const i = HEADING_ORDER.indexOf(heading.slice(4));
     return i === -1 ? HEADING_ORDER.length : i;
