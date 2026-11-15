@@ -10,8 +10,8 @@ import {
   type ImportPreview,
   type MediaDetail,
 } from "../lib/api";
+import { warmImportFacts, warmLibraryFacts } from "../lib/factsAhead";
 import { splitPath } from "../lib/format";
-import { warmPlace } from "../lib/places";
 import type { ViewItem, ViewSource } from "./Viewer";
 import { ImportFacts, LibraryFacts } from "./ViewerFacts";
 
@@ -56,13 +56,13 @@ export function useLibrarySource(ids: number[]): ViewSource {
 /**
  * What the viewer shows for a library file. Videos and photos the webview can't handle get no
  * original, so the viewer falls back to the large thumbnail. The viewer loads the next files
- * ahead, so their suburb lookups start here too.
+ * ahead, so reading the side panel's details starts here too.
  * @param detail - the file's indexed details
  * @returns the viewer item
  */
 function libraryItem(detail: MediaDetail): ViewItem {
   const shown = detail.kind === "video" ? detail.playable : detail.viewable;
-  if (detail.lat !== null && detail.lon !== null) warmPlace(detail.lat, detail.lon);
+  warmLibraryFacts(detail);
   return {
     name: detail.name,
     kind: detail.kind,
@@ -117,7 +117,8 @@ export function useImportSource(preview: ImportPreview, order: number[]): ViewSo
 
 /**
  * What the viewer shows for a file in an import preview. Videos and photos the webview can't
- * handle get no original, so the viewer falls back to the large thumbnail.
+ * handle get no original, so the viewer falls back to the large thumbnail. Reading the side
+ * panel's details starts here, as for library files.
  * @param previewId - the import preview the file belongs to
  * @param index - the file's index in the preview's items
  * @param item - the preview's entry for the file
@@ -131,6 +132,7 @@ function importItem(
   file: ImportFile,
 ): ViewItem {
   const shown = item.kind === "video" ? file.playable : file.viewable;
+  warmImportFacts(previewId, index);
   return {
     name: splitPath(item.from).name,
     kind: item.kind,

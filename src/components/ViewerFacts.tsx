@@ -2,6 +2,7 @@
 
 import { useCallback, type ReactElement } from "react";
 import { api, type ImportItem, type MediaDetail, type MediaKind } from "../lib/api";
+import { importKey, libraryKey } from "../lib/factsAhead";
 import {
   count,
   dateNote,
@@ -25,15 +26,16 @@ const KIND_NAMES: Record<MediaKind, string> = {
 };
 
 /**
- * Details of a library file: when it was taken, where, the camera, the file itself and the
- * files that move with it.
+ * Details of a library file. Sections that come and go or change height between files sit
+ * lowest, so the rest stays put while stepping through photos: the map, then the list of files
+ * that move with this one, which changes most often.
  * @param props - Component props.
  * @param props.detail - the file's indexed details
  * @returns the facts for the viewer's side panel
  */
 export function LibraryFacts({ detail }: { detail: MediaDetail }): ReactElement {
   const load = useCallback(() => api.mediaDetails(detail.id), [detail.id]);
-  const details = useFileDetails(`m${detail.id}`, load);
+  const details = useFileDetails(libraryKey(detail), load);
   const { settings } = useSettings();
   const note = dateNote(detail.dateSource);
   // The index keeps the location; the file's own is used only when the index has none.
@@ -54,9 +56,6 @@ export function LibraryFacts({ detail }: { detail: MediaDetail }): ReactElement 
         )}
       </Fact>
 
-      {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
-      {details && <CameraFact details={details} />}
-
       <Fact label="File">
         <p>
           {KIND_NAMES[detail.kind]}, {formatBytes(detail.size)}
@@ -66,6 +65,9 @@ export function LibraryFacts({ detail }: { detail: MediaDetail }): ReactElement 
           {libraryFolder(detail.folder, settings?.library_root)}
         </p>
       </Fact>
+
+      {details && <CameraFact details={details} />}
+      {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
 
       {detail.members.length > 1 && (
         <Fact label="Moves together with">
@@ -84,8 +86,8 @@ export function LibraryFacts({ detail }: { detail: MediaDetail }): ReactElement 
 }
 
 /**
- * Details of a file waiting in an import preview: when it was taken, where, the camera, the
- * folder it goes into and the file itself.
+ * Details of a file waiting in an import preview, in the same order as {@link LibraryFacts}:
+ * steady sections first, the map last.
  * @param props - Component props.
  * @param props.previewId - the import preview the file belongs to
  * @param props.index - the file's index in the preview's items
@@ -102,7 +104,7 @@ export function ImportFacts({
   item: ImportItem;
 }): ReactElement {
   const load = useCallback(() => api.importFileDetails(previewId, index), [previewId, index]);
-  const details = useFileDetails(`i${previewId}-${index}`, load);
+  const details = useFileDetails(importKey(previewId, index), load);
   const spot = located(details);
   const { folder } = splitPath(item.to);
   return (
@@ -111,9 +113,6 @@ export function ImportFacts({
         <p>{formatTaken(item.takenAt)}</p>
         {item.uncertain && <p className="mt-1 text-[14px] text-warn">{dateNote("modified")}</p>}
       </Fact>
-
-      {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
-      {details && <CameraFact details={details} />}
 
       <Fact label="Goes into">
         <p className="selectable break-all">{folder || "The library folder"}</p>
@@ -133,6 +132,9 @@ export function ImportFacts({
           </p>
         )}
       </Fact>
+
+      {details && <CameraFact details={details} />}
+      {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
     </>
   );
 }

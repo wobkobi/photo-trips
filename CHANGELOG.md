@@ -31,6 +31,8 @@ All notable changes to this project are documented here. The format follows
   since the next and previous ones load ahead and the map stays put.
 - Photos in the viewer show at once: the grid thumbnail fills in while the full picture loads, and
   the next two photos each way, with their suburb names, load ahead.
+- The viewer's side panel no longer jumps while stepping through photos: it lays out once, with
+  Taken, File and Camera first and the map below them.
 
 ### Fixed
 
