@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CodecHint } from "../components/CodecHint";
 import { Icon } from "../components/Icon";
+import { LibraryFilterBar } from "../components/LibraryFilterBar";
 import { TileMenu } from "../components/TileMenu";
 import { TimelineGrid, type TileEvent } from "../components/TimelineGrid";
 import { Viewer } from "../components/Viewer";
@@ -9,6 +10,7 @@ import { useLibrarySource } from "../components/viewSources";
 import { api, errorText, type IndexSummary, type Tile } from "../lib/api";
 import { tileSizeOf } from "../lib/display";
 import { count as countOf } from "../lib/format";
+import { filterTiles, isFiltered, NO_FILTER, type LibraryFilter } from "../lib/libraryFilter";
 import { EMPTY_FORM, rangeOfTiles, type TripStart } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { useSettings } from "../lib/useSettings";
@@ -17,6 +19,9 @@ import { useSettings } from "../lib/useSettings";
  * The whole library as a month-by-month timeline, with a viewer for single photos.
  * "Pick photos for a trip" turns clicks into picking, so the photos to make a trip from can be
  * chosen without knowing any shortcuts; Ctrl-click, Shift-click and right-click pick too.
+ * @param props.filter - which photos to show; kept by the app so the Trips page can open the
+ *   Library at one trip
+ * @param props.onFilter - called with a new filter
  * @param props.onCreateTrip - start a new trip over the picked photos' days, with only those
  *   photos ticked
  * @param props.onImport - open the Import page
@@ -25,11 +30,15 @@ import { useSettings } from "../lib/useSettings";
  * @returns the page
  */
 export function LibraryPage({
+  filter,
+  onFilter,
   onCreateTrip,
   onImport,
   refreshRequested,
   onRefreshStarted,
 }: {
+  filter: LibraryFilter;
+  onFilter: (filter: LibraryFilter) => void;
   onCreateTrip: (start: TripStart) => void;
   onImport: () => void;
   refreshRequested: boolean;
@@ -37,7 +46,8 @@ export function LibraryPage({
 }) {
   const { settings, save } = useSettings();
   const { running } = useJobs();
-  const [tiles, setTiles] = useState<Tile[] | null>(null);
+  const [allTiles, setTiles] = useState<Tile[] | null>(null);
+  const tiles = useMemo(() => allTiles && filterTiles(allTiles, filter), [allTiles, filter]);
   const [summary, setSummary] = useState<IndexSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<number | null>(null);
@@ -148,14 +158,30 @@ export function LibraryPage({
     });
   }
 
+  /** Picked photos and the viewer belong to the old list, so a new filter drops both. */
+  function changeFilter(next: LibraryFilter) {
+    clearSelection();
+    setOpen(null);
+    onFilter(next);
+  }
+
   const indexing = running?.kind === "index";
+  const total = allTiles?.length ?? 0;
   const count = tiles?.length ?? 0;
+  const filtered = isFiltered(filter);
 
   return (
     <div className="flex h-full flex-col">
       <PageHeader
         title="Library"
-        detail={<Detail count={count} summary={summary} indexing={indexing && count === 0} />}
+        detail={
+          <Detail
+            count={count}
+            total={total}
+            summary={summary}
+            indexing={indexing && total === 0}
+          />
+        }
         actions={
           selecting ? (
             <>
@@ -193,7 +219,19 @@ export function LibraryPage({
         <CodecHint failed={failedThumbs} onDismiss={() => save("codec_hint_dismissed", "true")} />
       )}
 
-      {tiles !== null && count === 0 && !indexing && (
+      {allTiles !== null && total > 0 && (
+        <LibraryFilterBar tiles={allTiles} filter={filter} onChange={changeFilter} />
+      )}
+
+      {total > 0 && count === 0 && filtered && (
+        <EmptyState title="Nothing matches">
+          <p>No photos or videos fit everything chosen above. Change a choice to see more.</p>
+          <Button variant="primary" onClick={() => changeFilter(NO_FILTER)}>
+            Show everything
+          </Button>
+        </EmptyState>
+      )}
+      {allTiles !== null && total === 0 && !indexing && (
         <EmptyState title="No photos here yet">
           <p>
             Pic Cabinet didn&apos;t find any photos or videos in your library folder. Bring some in
@@ -206,7 +244,7 @@ export function LibraryPage({
           </Button>
         </EmptyState>
       )}
-      {tiles !== null && count === 0 && indexing && (
+      {allTiles !== null && total === 0 && indexing && (
         <EmptyState title="Looking for photos">
           <p>Your library folder is being read. Photos appear here as soon as that finishes.</p>
         </EmptyState>
@@ -254,15 +292,21 @@ export function LibraryPage({
 
 function Detail({
   count,
+  total,
   summary,
   indexing,
 }: {
   count: number;
+  total: number;
   summary: IndexSummary | null;
   indexing: boolean;
 }) {
   if (indexing) return <>Reading your library folder</>;
-  const items = `${count.toLocaleString()} ${count === 1 ? "photo or video" : "photos and videos"}`;
+  const noun = total === 1 ? "photo or video" : "photos and videos";
+  const items =
+    count === total
+      ? `${total.toLocaleString()} ${noun}`
+      : `Showing ${count.toLocaleString()} of ${total.toLocaleString()} ${noun}`;
   if (!summary || summary.otherFiles === 0) return <>{items}</>;
   return (
     <>

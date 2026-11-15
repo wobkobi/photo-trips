@@ -5,6 +5,7 @@ import { Icon, type IconName } from "./components/Icon";
 import { JobStatus } from "./components/JobStatus";
 import { api } from "./lib/api";
 import { folderName } from "./lib/format";
+import { NO_FILTER, type FilterTrip, type LibraryFilter } from "./lib/libraryFilter";
 import { JobsProvider } from "./lib/jobs";
 import { useMenuBar, type MenuRequest } from "./lib/menu";
 import { SettingsProvider } from "./lib/settings";
@@ -59,6 +60,12 @@ function Shell() {
   // A trip started in the Library or Suggestions, until the Trips page opens it.
   const [tripDraft, setTripDraft] = useState<TripStart | null>(null);
   const clearTripDraft = useCallback(() => setTripDraft(null), []);
+  // Kept here, not in the Library, so it survives a trip to another page and back.
+  const [filter, setFilter] = useState<LibraryFilter>(NO_FILTER);
+  const showTrip = useCallback((trip: FilterTrip) => {
+    setFilter({ ...NO_FILTER, trip });
+    setPage("library");
+  }, []);
   const createTrip = useCallback((start: TripStart) => {
     setTripDraft(start);
     setPage("trips");
@@ -144,6 +151,9 @@ function Shell() {
         <CurrentPage
           page={page}
           onNavigate={setPage}
+          filter={filter}
+          onFilter={setFilter}
+          onShowTrip={showTrip}
           tripDraft={tripDraft}
           onTripDraftUsed={clearTripDraft}
           onCreateTrip={createTrip}
@@ -160,6 +170,9 @@ function Shell() {
 function CurrentPage({
   page,
   onNavigate,
+  filter,
+  onFilter,
+  onShowTrip,
   tripDraft,
   onTripDraftUsed,
   onCreateTrip,
@@ -170,6 +183,9 @@ function CurrentPage({
 }: {
   page: PageId;
   onNavigate: (page: PageId) => void;
+  filter: LibraryFilter;
+  onFilter: (filter: LibraryFilter) => void;
+  onShowTrip: (trip: FilterTrip) => void;
   tripDraft: TripStart | null;
   onTripDraftUsed: () => void;
   onCreateTrip: (start: TripStart) => void;
@@ -182,6 +198,8 @@ function CurrentPage({
     case "library":
       return (
         <LibraryPage
+          filter={filter}
+          onFilter={onFilter}
           onCreateTrip={onCreateTrip}
           onImport={() => onNavigate("import")}
           refreshRequested={refresh}
@@ -191,7 +209,14 @@ function CurrentPage({
     case "sort":
       return <SortPage onNavigate={onNavigate} />;
     case "trips":
-      return <TripsPage draft={tripDraft} onDraftUsed={onTripDraftUsed} onNavigate={onNavigate} />;
+      return (
+        <TripsPage
+          draft={tripDraft}
+          onDraftUsed={onTripDraftUsed}
+          onNavigate={onNavigate}
+          onShowTrip={onShowTrip}
+        />
+      );
     case "suggestions":
       return <SuggestionsPage onNavigate={onNavigate} onCreateTrip={onCreateTrip} />;
     case "import":
