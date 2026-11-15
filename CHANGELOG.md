@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.21.1] - 2026-11-16
+
+### Changed
+
+- The Library's filter menus are shorter: each starts with All, and the rest read No trip, Photos,
+  Videos and Uncertain dates. The button that resets them is Clear filters.
+
 ## [0.21.0] - 2026-11-16
 
 ### Added

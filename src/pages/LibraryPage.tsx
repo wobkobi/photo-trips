@@ -205,7 +205,7 @@ export function LibraryPage({
               <span className="mr-2 text-[16px] font-semibold" aria-live="polite">
                 {selected.size > 0
                   ? `${countOf(selected.size, "photo", "photos")} picked`
-                  : "Click the photos to put in the trip"}
+                  : "Click photos to add"}
               </span>
               <Button variant="ghost" onClick={clearSelection}>
                 Cancel
@@ -242,9 +242,9 @@ export function LibraryPage({
 
       {total > 0 && count === 0 && filtered && (
         <EmptyState title="Nothing matches">
-          <p>No photos or videos fit everything chosen above. Change a choice to see more.</p>
+          <p>Try fewer filters.</p>
           <Button variant="primary" onClick={() => changeFilter(NO_FILTER)}>
-            Show everything
+            Clear filters
           </Button>
         </EmptyState>
       )}

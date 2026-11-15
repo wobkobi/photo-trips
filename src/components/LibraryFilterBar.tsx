@@ -38,7 +38,7 @@ export function LibraryFilterBar({
   return (
     <div
       role="group"
-      aria-label="Show only some photos"
+      aria-label="Filters"
       className="flex flex-wrap items-end gap-x-4 gap-y-3 border-b border-line px-8 py-4"
     >
       {(choices.trips.length > 0 || filter.trip !== "any") && (
@@ -48,8 +48,8 @@ export function LibraryFilterBar({
             onChange={(e) => chooseTrip(e.target.value)}
             className={`${INPUT} max-w-72`}
           >
-            <option value="any">Any trip or none</option>
-            <option value="none">Not on a trip</option>
+            <option value="any">All</option>
+            <option value="none">No trip</option>
             {choices.trips.map((trip) => (
               <option key={trip.id} value={trip.id}>
                 {trip.name}
@@ -65,7 +65,7 @@ export function LibraryFilterBar({
             onChange={(e) => onChange({ ...filter, year: e.target.value })}
             className={INPUT}
           >
-            <option value="any">Every year</option>
+            <option value="any">All</option>
             {choices.years.map((year) => (
               <option key={year} value={year}>
                 {year}
@@ -81,9 +81,9 @@ export function LibraryFilterBar({
             onChange={(e) => onChange({ ...filter, kind: e.target.value as LibraryFilter["kind"] })}
             className={INPUT}
           >
-            <option value="all">Photos and videos</option>
-            <option value="photos">Photos only</option>
-            <option value="videos">Videos only</option>
+            <option value="all">All</option>
+            <option value="photos">Photos</option>
+            <option value="videos">Videos</option>
           </select>
         </Field>
       )}
@@ -95,13 +95,13 @@ export function LibraryFilterBar({
             onChange={(e) => onChange({ ...filter, uncertain: e.target.checked })}
             className="size-5 accent-brand"
           />
-          Only dates that may be wrong
+          Uncertain dates
         </label>
       )}
       {isFiltered(filter) && (
         <Button variant="ghost" onClick={() => onChange(NO_FILTER)}>
           <Icon name="close" size={16} />
-          Show everything
+          Clear filters
         </Button>
       )}
     </div>
