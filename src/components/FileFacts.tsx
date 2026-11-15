@@ -55,7 +55,7 @@ export function CameraFact({ details }: { details: FileDetails }): ReactElement 
             type="button"
             aria-expanded={open}
             onClick={toggle}
-            className="mt-1 -ml-1 flex min-h-11 items-center gap-1.5 rounded-lg px-1 text-[15px] font-semibold text-brand hover:underline"
+            className="mt-1 -ml-1 flex min-h-11 items-center gap-1.5 rounded-lg px-1 text-[15px] font-semibold text-accent hover:underline"
           >
             <Icon name="chevron" size={16} className={open ? "rotate-90" : ""} />
             {open ? "Fewer details" : "More details"}

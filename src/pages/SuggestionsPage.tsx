@@ -293,7 +293,7 @@ function SuggestionCard({
     <li className="flex flex-col gap-3 rounded-md border border-dashed border-line bg-surface p-4">
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[22px] leading-tight font-bold tracking-tight text-brand">
+          <p className="text-[22px] leading-tight font-bold tracking-tight text-ink">
             {suggestion.name}
           </p>
           <p className="mt-1 text-[15px] text-muted">

@@ -134,7 +134,7 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
     <div className="flex h-full flex-col">
       <PageHeader
         title="Import"
-        detail="Bring in photos from a memory card, a phone or a folder. Anything already in your library stays out."
+        detail={ready ? undefined : "From a memory card, a phone or a folder"}
         actions={
           ready && (
             <>
@@ -158,7 +158,7 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
         }
       />
       {error && (
-        <p role="alert" className="mx-8 mt-4 text-danger">
+        <p role="alert" className="mx-5 mt-3 text-danger">
           {error}
         </p>
       )}
@@ -246,7 +246,7 @@ function Sources({
       <section aria-labelledby="import-devices">
         <h2
           id="import-devices"
-          className="text-[24px] leading-none font-bold tracking-tight text-brand"
+          className="text-[24px] leading-none font-bold tracking-tight text-ink"
         >
           Memory cards and phones
         </h2>
@@ -285,7 +285,7 @@ function Sources({
       <section aria-labelledby="import-folder">
         <h2
           id="import-folder"
-          className="text-[24px] leading-none font-bold tracking-tight text-brand"
+          className="text-[24px] leading-none font-bold tracking-tight text-ink"
         >
           A folder on this PC
         </h2>
@@ -401,50 +401,65 @@ function IncomingView({
     : `${preview.spec.kind === "folder" ? "in" : "on"} ${preview.source}`;
   return (
     <div className="flex flex-1 flex-col">
-      <section className="px-8 pt-6 pb-5">
-        <p className="text-[30px] leading-none font-extrabold tracking-tight text-brand">
+      {/* One line of totals; the fuller notes fold away, so the photos get the room. */}
+      <section className="px-5 pt-3 pb-2">
+        <p className="text-[18px] font-semibold">
           {count(preview.files, "new file", "new files")} from {preview.source}
         </p>
         {preview.spec.kind === "folder" && (
-          <p className="selectable mt-2 text-[15px] break-all text-faint">{preview.spec.path}</p>
+          <p className="selectable text-[14px] break-all text-faint">{preview.spec.path}</p>
         )}
-        <div className="mt-3 flex max-w-3xl flex-col gap-1 text-muted">
-          <p>
-            {formatBytes(preview.bytes)} into {count(preview.folders.length, "folder", "folders")}:
-            each photo goes in its trip&apos;s folder, or the folder for the month it was taken.
-          </p>
-          {preview.already > 0 && (
+        <p className="mt-0.5 text-[14px] text-muted">
+          {formatBytes(preview.bytes)} into {count(preview.folders.length, "folder", "folders")}
+          {preview.already > 0 && <> · {preview.already.toLocaleString()} already here</>}
+        </p>
+        <details className="group mt-1 text-[14px] text-muted">
+          <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1.5 rounded-md text-faint hover:text-ink">
+            <Icon
+              name="chevron"
+              size={14}
+              className="shrink-0 transition-transform group-open:rotate-90"
+            />
+            Details
+          </summary>
+          <div className="flex max-w-3xl flex-col gap-1 pb-1 pl-5">
             <p>
-              {count(preview.already, "file is", "files are")} already in your library (
-              {formatBytes(preview.alreadyBytes)}) and {preview.already === 1 ? "stays" : "stay"}{" "}
-              out.
+              {formatBytes(preview.bytes)} into {count(preview.folders.length, "folder", "folders")}
+              : each photo goes in its trip&apos;s folder, or the folder for the month it was taken.
             </p>
-          )}
-          {preview.renamed > 0 && (
+            {preview.already > 0 && (
+              <p>
+                {count(preview.already, "file is", "files are")} already in your library (
+                {formatBytes(preview.alreadyBytes)}) and {preview.already === 1 ? "stays" : "stay"}{" "}
+                out.
+              </p>
+            )}
+            {preview.renamed > 0 && (
+              <p>
+                {count(preview.renamed, "photo gets", "photos get")} a number added to the name,
+                like IMG_1 (1).jpg, because a different file with that name is already there.
+              </p>
+            )}
+            {preview.leftAlone > 0 && <LeftAlone files={preview.leftAlone} />}
+            {preview.otherFiles > 0 && (
+              <p>
+                {count(
+                  preview.otherFiles,
+                  "file isn't a photo or video and is",
+                  "files aren't photos or videos and are",
+                )}{" "}
+                left out.
+              </p>
+            )}
             <p>
-              {count(preview.renamed, "photo gets", "photos get")} a number added to the name, like
-              IMG_1 (1).jpg, because a different file with that name is already there.
+              {preview.moving
+                ? "The new photos move out of the folder."
+                : `Nothing ${preview.spec.kind === "folder" ? "in" : "on"} ${preview.source} changes.`}{" "}
+              No file in your library is ever replaced, and the whole import can be undone from
+              History.
             </p>
-          )}
-          {preview.leftAlone > 0 && <LeftAlone files={preview.leftAlone} />}
-          {preview.otherFiles > 0 && (
-            <p>
-              {count(
-                preview.otherFiles,
-                "file isn't a photo or video and is",
-                "files aren't photos or videos and are",
-              )}{" "}
-              left out.
-            </p>
-          )}
-          <p>
-            {preview.moving
-              ? "The new photos move out of the folder."
-              : `Nothing ${preview.spec.kind === "folder" ? "in" : "on"} ${preview.source} changes.`}{" "}
-            No file in your library is ever replaced, and the whole import can be undone from
-            History.
-          </p>
-        </div>
+          </div>
+        </details>
       </section>
       <PickBar
         ticked={totals.items}

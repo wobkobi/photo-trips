@@ -93,7 +93,7 @@ export function HelpPage({
             <li key={page.id} className="flex flex-wrap items-start gap-x-4 gap-y-2 py-4">
               <Icon name={page.icon} size={22} className="mt-0.5 shrink-0 text-accent" />
               <div className="min-w-0 flex-1 basis-60">
-                <h2 className="text-[19px] font-bold text-brand">{page.title}</h2>
+                <h2 className="text-[19px] font-bold text-ink">{page.title}</h2>
                 <p className="mt-1 text-muted">{page.text}</p>
               </div>
               <Button variant="ghost" onClick={() => onNavigate(page.id)}>
@@ -104,7 +104,7 @@ export function HelpPage({
           ))}
         </ul>
 
-        <h2 className="mt-10 text-[22px] font-bold tracking-tight text-brand">Shortcuts</h2>
+        <h2 className="mt-10 text-[22px] font-bold tracking-tight text-ink">Shortcuts</h2>
         <dl className="mt-3 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2">
           {SHORTCUTS.map(([keys, does]) => (
             <div key={keys} className="contents">

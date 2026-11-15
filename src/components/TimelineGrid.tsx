@@ -15,9 +15,10 @@ import { tripBg } from "../lib/trips";
 import { Icon } from "./Icon";
 import { LIST_FILL } from "./ui";
 
-const GAP = 6;
-const SIDE_PADDING = 32;
-const HEADER_HEIGHT = 64;
+// Tight gutters, so the grid reads as one wall of photos rather than a page of cards.
+const GAP = 3;
+const SIDE_PADDING = 12;
+const HEADER_HEIGHT = 48;
 /** Frames to wait for a jumped-to tile to be drawn before giving up on focusing it. */
 const JUMP_FRAMES = 6;
 
@@ -183,12 +184,12 @@ export function TimelineGrid({
                 {row.type === "month" ? (
                   // The row has a fixed height (HEADER_HEIGHT), so nothing in it may wrap: a long
                   // month name is cut short instead of growing up over the photos above.
-                  <div className="flex h-full items-end gap-4 pb-3">
-                    <h2 className="flex min-w-0 items-end gap-3">
-                      <span className="truncate text-[26px] leading-none font-extrabold tracking-tight text-brand">
+                  <div className="flex h-full items-end gap-4 px-1 pb-1">
+                    <h2 className="flex min-w-0 items-baseline gap-2.5 pb-2.5">
+                      <span className="truncate text-[16px] leading-none font-semibold">
                         {row.label}
                       </span>
-                      <span className="shrink-0 pb-0.5 text-[15px] text-faint">
+                      <span className="shrink-0 text-[13px] leading-none text-faint">
                         {row.count.toLocaleString()}
                       </span>
                     </h2>
@@ -284,7 +285,7 @@ function TileButton({
         data-tile={index}
         aria-label={label}
         aria-pressed={selecting ? selected : undefined}
-        className="relative h-full w-full overflow-hidden rounded-[3px] bg-raised focus-visible:outline-offset-0"
+        className="relative h-full w-full overflow-hidden rounded-xs bg-raised focus-visible:outline-offset-0"
       >
         {failed ? (
           <span className="flex h-full w-full items-center justify-center text-[20px] font-bold text-faint">
@@ -333,12 +334,12 @@ function TileButton({
           />
         )}
         {selected && (
-          <span className="pointer-events-none absolute inset-0 rounded-[3px] ring-4 ring-accent ring-inset" />
+          <span className="pointer-events-none absolute inset-0 rounded-xs ring-4 ring-accent ring-inset" />
         )}
         {selecting && (
           <span
             className={`absolute top-2 left-2 flex h-8 w-8 items-center justify-center rounded-full border-2 ${
-              selected ? "border-white bg-accent text-white" : "on-dark border-ink bg-ground/50"
+              selected ? "border-white bg-accent text-ground" : "on-dark border-ink bg-ground/50"
             }`}
           >
             {selected && <Icon name="check" size={20} />}

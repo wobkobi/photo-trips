@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, State, Theme};
 
 use crate::AppState;
 use crate::db;
@@ -31,11 +31,15 @@ const WRITABLE_SETTINGS: &[&str] = &[
     "photo_size",
     "menu_narrow",
     "tour_done",
+    "theme",
 ];
 
 /// Text sizes offered in Settings, as page zoom percentages. Zoom scales the whole page, so
 /// buttons and spacing grow with the words and nothing gets cut off.
 const TEXT_SIZES: &[u32] = &[100, 115, 130, 150];
+
+/// Themes offered in Settings; "system" follows Windows.
+const THEMES: &[&str] = &["system", "light", "dark"];
 
 /// Photo tile sizes offered in Settings; the grid turns each into a tile width.
 const PHOTO_SIZES: &[&str] = &["small", "medium", "large"];
@@ -54,6 +58,25 @@ pub fn apply_text_size(app: &AppHandle, value: Option<&str>) {
         && let Err(err) = window.set_zoom(text_zoom(value))
     {
         log::warn!("Couldn't change the text size: {err}");
+    }
+}
+
+/// Window theme for a stored theme: light or dark, or none to follow Windows (also for anything
+/// not offered, or never set).
+pub fn window_theme(value: Option<&str>) -> Option<Theme> {
+    match value {
+        Some("light") => Some(Theme::Light),
+        Some("dark") => Some(Theme::Dark),
+        _ => None,
+    }
+}
+
+/// Theme the main window's title bar and menus to match the page.
+pub fn apply_theme(app: &AppHandle, value: Option<&str>) {
+    if let Some(window) = app.get_webview_window("main")
+        && let Err(err) = window.set_theme(window_theme(value))
+    {
+        log::warn!("Couldn't change the theme: {err}");
     }
 }
 
@@ -127,6 +150,9 @@ pub fn set_setting(
         "tour_done" if value != "true" && value != "false" => {
             return Err(Error::msg("The tour setting must be true or false"));
         }
+        "theme" if !THEMES.contains(&value.as_str()) => {
+            return Err(Error::msg("Choose one of the themes shown"));
+        }
         _ => {}
     }
     db::set_setting(&*lock_db(&state)?, &key, &value)?;
@@ -138,6 +164,7 @@ pub fn set_setting(
         "inbox_folders" => watch::reload(&app),
         "close_to_tray" => menu::show_close_to_tray(&app, value != "false"),
         "text_size" => apply_text_size(&app, Some(&value)),
+        "theme" => apply_theme(&app, Some(&value)),
         "extra_photo_exts" | "extra_video_exts" => {
             watch::reload(&app);
             // Files of the new types show up once the library is read again. With another task
@@ -267,5 +294,14 @@ mod tests {
         assert_eq!(text_zoom(Some("150")), 1.5);
         assert_eq!(text_zoom(Some("400")), 1.0);
         assert_eq!(text_zoom(Some("large")), 1.0);
+    }
+
+    #[test]
+    fn theme_follows_windows_unless_chosen() {
+        assert_eq!(window_theme(None), None);
+        assert_eq!(window_theme(Some("system")), None);
+        assert_eq!(window_theme(Some("blue")), None);
+        assert_eq!(window_theme(Some("light")), Some(Theme::Light));
+        assert_eq!(window_theme(Some("dark")), Some(Theme::Dark));
     }
 }

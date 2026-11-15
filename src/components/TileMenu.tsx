@@ -98,7 +98,7 @@ export function TileMenu({
       role="menu"
       onKeyDown={onKeyDown}
       onContextMenu={(e) => e.preventDefault()}
-      className="fixed z-50 min-w-52 rounded-md border border-line bg-surface py-1 shadow-lg shadow-brand/20"
+      className="fixed z-50 min-w-52 rounded-md border border-line bg-surface py-1 shadow-lg shadow-black/50"
       style={position}
     >
       {items.map((item) => (

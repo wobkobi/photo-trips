@@ -42,7 +42,7 @@ export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode
   return (
     <div className="flex flex-1 flex-col">
       <section className="px-8 pt-6 pb-5">
-        <p className="text-[30px] leading-none font-extrabold tracking-tight text-brand">
+        <p className="text-[30px] leading-none font-extrabold tracking-tight text-ink">
           {preview.files === 0
             ? "No files move"
             : `${count(preview.files, "file moves", "files move")} into ${count(
@@ -113,7 +113,7 @@ export function LeftAlone({ files }: { files: number }): ReactElement {
 export function MovingProgress({ job }: { job: JobProgress }): ReactElement {
   return (
     <div className="max-w-xl px-8 py-8">
-      <p className="mb-4 text-[26px] leading-none font-bold tracking-tight text-brand">
+      <p className="mb-4 text-[26px] leading-none font-bold tracking-tight text-ink">
         {JOB_NAMES[job.kind] ?? "Working"}
       </p>
       <Progress done={job.done} total={job.total} label={job.stage} />
@@ -212,11 +212,9 @@ export function FolderList({
   return (
     <aside
       aria-label="Folders receiving files"
-      className={`hidden w-60 shrink-0 overflow-y-auto border-r border-line py-4 lg:block ${
-        onOpen ? "pl-5" : "pl-8"
-      }`}
+      className="hidden w-56 shrink-0 overflow-y-auto border-r border-line bg-surface px-2 py-2 lg:block"
     >
-      {onOpen && <p className="mb-1 pl-3 text-[14px] text-faint">Click one to go to its photos.</p>}
+      {onOpen && <p className="mb-1 px-2.5 text-[13px] text-faint">Folders</p>}
       <FolderEntries folders={folders} onOpen={onOpen} />
     </aside>
   );
@@ -238,9 +236,9 @@ export function FolderJumpList({
   onOpen: (folder: string) => void;
 }): ReactElement {
   return (
-    <details className="group shrink-0 border-t border-line px-5 lg:hidden">
+    <details className="group shrink-0 border-t border-line px-3 lg:hidden">
       {/* A flex summary loses the browser's marker, so the chevron stands in for it. */}
-      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-[16px] font-semibold">
+      <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 px-2 text-[14px] text-muted hover:text-ink">
         <Icon
           name="chevron"
           size={16}
@@ -249,7 +247,6 @@ export function FolderJumpList({
         Where they go: {folders.length.toLocaleString()}{" "}
         {folders.length === 1 ? "folder" : "folders"}
       </summary>
-      <p className="mb-1 pl-3 text-[14px] text-faint">Click one to go to its photos.</p>
       <div className="max-h-[40vh] overflow-y-auto pb-3">
         <FolderEntries folders={folders} onOpen={onOpen} />
       </div>
@@ -283,15 +280,15 @@ function FolderEntries({
               <span className="block truncate" title={title}>
                 {title}
               </span>
-              <span className="block truncate text-[14px] text-faint" title={folder}>
+              <span className="block truncate text-[13px] text-faint" title={folder}>
                 {folder}
               </span>
             </span>
-            <span className="shrink-0 text-[15px] text-muted">{files.toLocaleString()}</span>
+            <span className="shrink-0 text-[13px] text-faint">{files.toLocaleString()}</span>
           </>
         );
         return (
-          <li key={folder} className={onOpen ? "pr-3" : "pr-5"}>
+          <li key={folder}>
             {onOpen ? (
               <button
                 type="button"
@@ -299,12 +296,14 @@ function FolderEntries({
                 aria-label={`Go to the ${files.toLocaleString()} ${
                   files === 1 ? "photo" : "photos"
                 } going into ${title}`}
-                className="flex min-h-11 w-full items-baseline justify-between gap-3 rounded-lg px-3 py-1.5 text-left hover:bg-raised"
+                className="flex min-h-10 w-full items-baseline justify-between gap-3 rounded-md px-2.5 py-1 text-left text-[14px] hover:bg-raised"
               >
                 {body}
               </button>
             ) : (
-              <div className="flex items-baseline justify-between gap-3 py-1.5">{body}</div>
+              <div className="flex items-baseline justify-between gap-3 px-2.5 py-1 text-[14px]">
+                {body}
+              </div>
             )}
           </li>
         );

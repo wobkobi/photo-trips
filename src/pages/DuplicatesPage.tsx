@@ -234,7 +234,7 @@ function Summary({
 }): ReactElement {
   return (
     <section className="border-b border-line px-8 pt-6 pb-5">
-      <p className="text-[30px] leading-none font-extrabold tracking-tight text-brand">
+      <p className="text-[30px] leading-none font-extrabold tracking-tight text-ink">
         {count(report.extra, "extra copy", "extra copies")} taking up {formatBytes(report.bytes)}
       </p>
       <div className="mt-3 flex max-w-3xl flex-col gap-1 text-muted">
@@ -477,7 +477,7 @@ function CopyCard({
           )}
           <span
             className={`absolute top-1.5 left-1.5 flex items-center gap-1 rounded-[3px] px-1.5 py-0.5 text-[13px] font-semibold ${
-              going ? "on-dark bg-ground/85 text-muted" : "bg-accent text-white"
+              going ? "on-dark bg-ground/85 text-muted" : "bg-accent text-ground"
             }`}
           >
             {going ? (

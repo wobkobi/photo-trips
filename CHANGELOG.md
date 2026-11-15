@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.23.0] - 2026-11-16
+
+### Added
+
+- A Theme choice in Settings > Display: Light, Dark, or System to follow Windows. The window's title
+  bar and menus follow it too.
+
+### Changed
+
+- A new look that reads more like a photo app: a dark grey theme, a slim toolbar along the top of
+  each page, Windows' own font, a quieter menu, and photos packed closer together in the grid.
+- The Library's filters sit in one slim row, and Look for new photos is the refresh button beside
+  Make a trip.
+- Trips show as album cards, each with a cover made from its photos.
+
+### Fixed
+
+- Checking an import with lots of notes left the photos in a short strip at the bottom. The notes
+  now fold away under Details, and the photos fill the window once you scroll down to them.
+
 ## [0.22.0] - 2026-11-16
 
 ### Added

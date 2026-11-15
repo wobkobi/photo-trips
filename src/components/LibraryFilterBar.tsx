@@ -1,9 +1,28 @@
-import { useMemo, type ReactElement } from "react";
+import { useMemo, type ReactElement, type ReactNode } from "react";
 import type { Tile } from "../lib/api";
 import { filterChoices, isFiltered, NO_FILTER, type LibraryFilter } from "../lib/libraryFilter";
-import { Field, INPUT } from "./Field";
 import { Icon } from "./Icon";
 import { Button } from "./ui";
+
+/** A compact drop-down, styled to sit in a toolbar. */
+const SELECT =
+  "min-h-9 rounded-md border border-line-strong/60 bg-raised px-2 py-1 text-[14px] text-ink hover:border-line-strong";
+
+/**
+ * A toolbar control with its name to its left.
+ * @param props - Component props.
+ * @param props.label - what the control is for
+ * @param props.children - the control
+ * @returns the label wrapping both
+ */
+function Inline({ label, children }: { label: string; children: ReactNode }): ReactElement {
+  return (
+    <label className="flex items-center gap-2 text-[14px] text-faint">
+      {label}
+      {children}
+    </label>
+  );
+}
 
 /**
  * The menus above the Library timeline that narrow it to a trip, a year, photos or videos, or
@@ -39,14 +58,14 @@ export function LibraryFilterBar({
     <div
       role="group"
       aria-label="Filters"
-      className="flex flex-wrap items-end gap-x-4 gap-y-3 border-b border-line px-8 py-4"
+      className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-line bg-surface px-5 py-1.5"
     >
       {(choices.trips.length > 0 || filter.trip !== "any") && (
-        <Field label="Trip">
+        <Inline label="Trip">
           <select
             value={tripValue}
             onChange={(e) => chooseTrip(e.target.value)}
-            className={`${INPUT} max-w-72`}
+            className={`${SELECT} max-w-60`}
           >
             <option value="any">All</option>
             <option value="none">No trip</option>
@@ -56,14 +75,14 @@ export function LibraryFilterBar({
               </option>
             ))}
           </select>
-        </Field>
+        </Inline>
       )}
       {(choices.years.length > 1 || filter.year !== "any") && (
-        <Field label="Year">
+        <Inline label="Year">
           <select
             value={filter.year}
             onChange={(e) => onChange({ ...filter, year: e.target.value })}
-            className={INPUT}
+            className={SELECT}
           >
             <option value="any">All</option>
             {choices.years.map((year) => (
@@ -72,34 +91,34 @@ export function LibraryFilterBar({
               </option>
             ))}
           </select>
-        </Field>
+        </Inline>
       )}
       {(choices.videos || filter.kind !== "all") && (
-        <Field label="Type">
+        <Inline label="Type">
           <select
             value={filter.kind}
             onChange={(e) => onChange({ ...filter, kind: e.target.value as LibraryFilter["kind"] })}
-            className={INPUT}
+            className={SELECT}
           >
             <option value="all">All</option>
             <option value="photos">Photos</option>
             <option value="videos">Videos</option>
           </select>
-        </Field>
+        </Inline>
       )}
       {(choices.uncertain || filter.uncertain) && (
-        <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-[16px]">
+        <label className="flex min-h-9 cursor-pointer items-center gap-2 text-[14px] text-muted">
           <input
             type="checkbox"
             checked={filter.uncertain}
             onChange={(e) => onChange({ ...filter, uncertain: e.target.checked })}
-            className="size-5 accent-brand"
+            className="size-4 accent-accent"
           />
           Uncertain dates
         </label>
       )}
       {isFiltered(filter) && (
-        <Button variant="ghost" onClick={() => onChange(NO_FILTER)}>
+        <Button variant="ghost" className="ml-auto" onClick={() => onChange(NO_FILTER)}>
           <Icon name="close" size={16} />
           Clear filters
         </Button>

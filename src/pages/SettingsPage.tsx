@@ -15,7 +15,7 @@ import { SuggestionSettings } from "../components/SuggestionSettings";
 import { Button, PageHeader } from "../components/ui";
 import { UpdateCheck } from "../components/UpdateCheck";
 import { api, AUTOSTART_CHANGED, errorText, type ApplySummary, type Preview } from "../lib/api";
-import { PHOTO_SIZES, photoSizeOf, TEXT_SIZES, textSizeOf } from "../lib/display";
+import { PHOTO_SIZES, photoSizeOf, TEXT_SIZES, textSizeOf, themeOf, THEMES } from "../lib/display";
 import { count } from "../lib/format";
 import { normaliseExtensions } from "../lib/settingValues";
 import { useAction } from "../lib/useAction";
@@ -170,11 +170,17 @@ export function SettingsPage({
         />
       )}
       <div className="max-w-2xl px-8 py-8">
-        <Section
-          title="Display"
-          detail="Make the words and photos bigger if they're hard to see. Changes show straight away."
-          error={display.error}
-        >
+        <Section title="Display" detail="Changes show straight away." error={display.error}>
+          <Choices
+            title="Theme"
+            detail="System follows Windows."
+            value={themeOf(settings)}
+            options={THEMES.map((theme) => ({
+              ...theme,
+              sample: <ThemeSample theme={theme.value} />,
+            }))}
+            onChange={(value) => display.run(() => save("theme", value))}
+          />
           <Choices
             title="Text size"
             detail="Buttons and spacing grow with the words."
@@ -300,5 +306,31 @@ export function SettingsPage({
         </div>
       </div>
     </>
+  );
+}
+
+/** Seasalt and the dark ground, as in index.css, so each sample shows its theme in either one. */
+const LIGHT = "#f6f7f8";
+const DARK = "#121417";
+
+/**
+ * A small swatch for a theme choice: pale, dark, or split across the diagonal for System.
+ * @param props - Component props.
+ * @param props.theme - the theme's stored value
+ * @returns the swatch, hidden from screen readers since the label names it
+ */
+function ThemeSample({ theme }: { theme: string }): ReactElement {
+  const background =
+    theme === "light"
+      ? LIGHT
+      : theme === "dark"
+        ? DARK
+        : `linear-gradient(135deg, ${LIGHT} 50%, ${DARK} 50%)`;
+  return (
+    <span
+      aria-hidden="true"
+      className="size-6 rounded-full border border-line-strong"
+      style={{ background }}
+    />
   );
 }

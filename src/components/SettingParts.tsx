@@ -26,7 +26,7 @@ export function Section({
 }): ReactElement {
   return (
     <section className="mt-12 first:mt-0">
-      <h2 className="text-[22px] font-bold tracking-tight text-brand">{title}</h2>
+      <h2 className="text-[22px] font-bold tracking-tight text-ink">{title}</h2>
       {detail && <div className="mt-1.5 space-y-2 text-[15px] text-muted">{detail}</div>}
       {error && (
         <p role="alert" className="mt-3 text-[15px] text-danger">

@@ -84,32 +84,25 @@ export function Sidebar({
     // window.
     <nav
       aria-label="Pages"
-      className={`on-brand flex shrink-0 flex-col overflow-hidden pb-5 ${
-        iconsOnly ? "w-20 px-2" : "w-60 px-3"
+      className={`flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface pb-3 ${
+        iconsOnly ? "w-16 px-2" : "w-52 px-2"
       }`}
     >
       <div
-        className={`mb-4 flex shrink-0 items-center gap-3 border-b border-line pt-5 pb-4 ${
-          iconsOnly ? "justify-center" : "px-2"
+        className={`flex min-h-14 shrink-0 items-center gap-2.5 ${
+          iconsOnly ? "justify-center" : "px-2.5"
         }`}
-        title={iconsOnly ? "Pic Cabinet, by To the Point Tech" : undefined}
+        title="Pic Cabinet, by To the Point Tech"
       >
-        <BrandMark size={34} className="shrink-0" />
+        <BrandMark size={22} className="shrink-0 text-accent" />
         {!iconsOnly && (
-          <div className="min-w-0">
-            <p className="text-[19px] leading-none font-extrabold tracking-tight">Pic Cabinet</p>
-            <p className="mt-1.5 text-[14px] leading-none font-semibold text-accent">
-              To the Point Tech
-            </p>
-          </div>
+          <p className="font-brand text-[16px] leading-none font-bold tracking-tight">
+            Pic Cabinet
+          </p>
         )}
       </div>
       {/* The side padding moves inside the scroller, so focus rings aren't clipped by it. */}
-      <ul
-        className={`flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto py-1 ${
-          iconsOnly ? "-mx-2 px-2" : "-mx-3 px-3"
-        }`}
-      >
+      <ul className="-mx-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-1">
         {NAV.map((item) => (
           <li key={item.id}>
             {/* The active page gets a moonstone rule on its left edge, as on the website's
@@ -120,21 +113,21 @@ export function Sidebar({
               aria-current={page === item.id ? "page" : undefined}
               data-nav={item.id}
               title={iconsOnly ? item.label : undefined}
-              className={`relative flex min-h-12 w-full items-center rounded-lg py-2.5 text-[18px] font-semibold transition-colors ${
-                iconsOnly ? "justify-center px-0" : "gap-3 px-3 text-left"
+              className={`relative flex min-h-10 w-full items-center rounded-md py-2 text-[15px] transition-colors ${
+                iconsOnly ? "justify-center px-0" : "gap-3 px-2.5 text-left"
               } ${
                 page === item.id
-                  ? "bg-raised text-ink before:absolute before:inset-y-2 before:left-0 before:w-0.75 before:rounded-r-sm before:bg-accent"
-                  : "text-muted hover:bg-raised hover:text-ink"
+                  ? "bg-raised font-semibold text-ink before:absolute before:inset-y-2.5 before:left-0 before:w-0.75 before:rounded-r-sm before:bg-accent"
+                  : "text-muted hover:bg-raised/60 hover:text-ink"
               } ${highlight === item.id ? "ring-2 ring-accent" : ""}`}
             >
-              <Icon name={item.icon} size={iconsOnly ? 22 : 18} />
+              <Icon name={item.icon} size={iconsOnly ? 20 : 18} />
               <span className={iconsOnly ? "sr-only" : undefined}>{item.label}</span>
             </button>
           </li>
         ))}
       </ul>
-      <div className="flex shrink-0 flex-col gap-3 pt-4">
+      <div className="flex shrink-0 flex-col gap-1 border-t border-line pt-2">
         <JobStatus narrow={iconsOnly} onWiden={widen} />
         {/* The folder's own name, since the full path rarely fits; it opens in Explorer. */}
         <button
@@ -142,8 +135,8 @@ export function Sidebar({
           onClick={() => api.menuAction("menu-open-library").catch(() => undefined)}
           title={`${libraryRoot}\nClick to open it in File Explorer.`}
           aria-label={`Open the library folder, ${folder}, in File Explorer`}
-          className={`flex min-h-11 items-center gap-2 rounded-lg text-[14px] text-faint hover:bg-raised hover:text-ink ${
-            iconsOnly ? "justify-center" : "px-3 text-left"
+          className={`flex min-h-10 items-center gap-2 rounded-md text-[14px] text-faint hover:bg-raised/60 hover:text-ink ${
+            iconsOnly ? "justify-center" : "px-2.5 text-left"
           }`}
         >
           <Icon name="folder" size={iconsOnly ? 20 : 16} className="shrink-0" />
@@ -154,8 +147,8 @@ export function Sidebar({
           onClick={iconsOnly ? widen : narrowIt}
           title={iconsOnly ? "Widen the menu" : undefined}
           aria-expanded={!iconsOnly}
-          className={`flex min-h-11 items-center gap-2 rounded-lg text-[15px] text-muted hover:bg-raised hover:text-ink ${
-            iconsOnly ? "justify-center" : "px-3 text-left"
+          className={`flex min-h-10 items-center gap-2 rounded-md text-[14px] text-faint hover:bg-raised/60 hover:text-ink ${
+            iconsOnly ? "justify-center" : "px-2.5 text-left"
           }`}
         >
           <Icon

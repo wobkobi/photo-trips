@@ -2,6 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState, type ReactElement } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { Tour } from "./components/Tour";
+import { themeOf } from "./lib/display";
 import { JobsProvider } from "./lib/jobs";
 import { NO_FILTER, type FilterTrip, type LibraryFilter } from "./lib/libraryFilter";
 import { useMenuBar, type MenuRequest } from "./lib/menu";
@@ -58,6 +59,12 @@ function Shell(): ReactElement | null {
   const { settings, save, reload } = useSettings();
   // A folder name change saves its presets with the batch, and undoing it puts them back.
   useJobDone(["apply", "undo"], reload);
+  // The stylesheet picks light or dark from this; until settings load it follows Windows, which
+  // the backend has already set the window to.
+  const theme = themeOf(settings);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
   const { runCheck } = useUpdates();
   const [page, setPage] = useState<PageId>("library");
   // A trip started in the Library or Suggestions, until the Trips page opens it.

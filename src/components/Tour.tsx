@@ -96,17 +96,17 @@ export function Tour({
   }, [onClose]);
 
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center bg-ink/30 p-6">
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 p-6">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-lg shadow-brand/20"
+        className="w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-lg shadow-black/50"
       >
         <p className="text-[14px] font-semibold text-faint">
           {index + 1} of {STEPS.length}
         </p>
-        <h2 id={titleId} className="mt-1 text-[24px] font-extrabold tracking-tight text-brand">
+        <h2 id={titleId} className="mt-1 text-[24px] font-extrabold tracking-tight text-ink">
           {step.title}
         </h2>
         <p className="mt-2 text-muted">{step.text}</p>

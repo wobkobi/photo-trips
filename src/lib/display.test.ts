@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PHOTO_SIZES, photoSizeOf, TEXT_SIZES, textSizeOf, tileSizeOf } from "./display";
+import { PHOTO_SIZES, photoSizeOf, TEXT_SIZES, textSizeOf, themeOf, tileSizeOf } from "./display";
 
 describe("textSizeOf", () => {
   it("defaults to Standard when unset or not offered", () => {
@@ -29,5 +29,16 @@ describe("photo size", () => {
   it("gives each size a bigger tile than the last", () => {
     const tiles = PHOTO_SIZES.map((size) => tileSizeOf({ photo_size: size.value }));
     expect(tiles).toEqual([150, 210, 290]);
+  });
+});
+
+describe("themeOf", () => {
+  it("follows Windows when unset or not offered", () => {
+    expect(themeOf(null)).toBe("system");
+    expect(themeOf({ theme: "blue" })).toBe("system");
+  });
+
+  it("keeps an offered theme", () => {
+    expect(themeOf({ theme: "dark" })).toBe("dark");
   });
 });
