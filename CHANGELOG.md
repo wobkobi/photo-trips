@@ -37,6 +37,9 @@ All notable changes to this project are documented here. The format follows
 - The viewer's map draws straight away when stepping between photos: the map tiles around the next photos are fetched ahead.
 - Videos in the viewer start at 40% volume instead of full, and keep whatever volume or mute was last set.
 - A date taken from when the file last changed is no longer flagged as a warning. Downloads, screenshots and photos from some apps have no date of their own; the reason shows on hover.
+- Videos have their own control bar under the picture: play, a seek bar, mute and volume. Click the
+  video or press Space to play and pause.
+- The viewer's arrows are small round buttons instead of labelled ones.
 
 ### Fixed
 
@@ -48,6 +51,9 @@ All notable changes to this project are documented here. The format follows
   name is looked up from OpenStreetMap; without an internet connection the nearest town is shown
   as before.
 - The map's credits no longer pop open over the map each time you move to another photo.
+- A photo or video deleted or moved while the viewer is open says so instead of showing a broken
+  picture.
+- Checking a locked phone says to unlock it instead of reporting nothing new.
 
 ## [0.22.0] - 2026-11-16
 

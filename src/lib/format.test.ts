@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Tile } from "./api";
 import {
+  clockTime,
   count,
   dateNote,
   folderName,
@@ -154,5 +155,18 @@ describe("dateNote", () => {
     expect(dateNote("video")).toBeNull();
     expect(dateNote("filename")).toBe("From the file name");
     expect(dateNote("modified")).toBe("When the file last changed");
+  });
+});
+
+describe("clockTime", () => {
+  it("reads like a player clock", () => {
+    expect(clockTime(7.9)).toBe("0:07");
+    expect(clockTime(754)).toBe("12:34");
+    expect(clockTime(3723)).toBe("1:02:03");
+  });
+
+  it("shows zero for a time not known yet", () => {
+    expect(clockTime(NaN)).toBe("0:00");
+    expect(clockTime(Infinity)).toBe("0:00");
   });
 });

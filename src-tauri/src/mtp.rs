@@ -237,15 +237,25 @@ impl Phone {
     /// Every file `table` recognises in the phone's camera roll (see `camera_roll`).
     pub fn list(&self, table: &FormatTable, cancel: &AtomicBool, report: Report) -> Result<Vec<PhoneFile>> {
         let mut storages = Vec::new();
+        let mut readable = false;
         for storage in self.children(WPD_DEVICE_OBJECT_ID)? {
             if !storage.is_storage() {
                 continue;
             }
-            let dcim = self
-                .children(PCWSTR(storage.id.as_ptr()))?
+            let top = self.children(PCWSTR(storage.id.as_ptr()))?;
+            readable |= !top.is_empty();
+            let dcim = top
                 .into_iter()
                 .find(|e| e.is_folder() && e.name.eq_ignore_ascii_case("DCIM"));
             storages.push((storage, dcim));
+        }
+        // A locked phone (or one set to charge only) shows no storage, or storage with nothing
+        // in it, which would otherwise pass for a phone with no new photos.
+        if !readable {
+            return Err(Error::msg(format!(
+                "Can't see any photos on {}. Unlock it, tap Trust or Allow if it asks, then check again.",
+                self.name
+            )));
         }
         let mut files = Vec::new();
         for (folder, path) in camera_roll(storages) {

@@ -211,3 +211,16 @@ export function jumpRow(rows: TimelineRow[], tile: number): number {
   }
   return at;
 }
+
+/**
+ * A playback time as a clock, e.g. "0:07", "12:34" or "1:02:03".
+ * @param seconds - the time; anything not a finite number reads as zero
+ * @returns the clock text
+ */
+export function clockTime(seconds: number): string {
+  const total = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api, errorText, type MediaKind } from "../lib/api";
-import { savedVolume, saveVolume } from "../lib/videoVolume";
 import { Icon } from "./Icon";
 import { Button } from "./ui";
+import { VideoPlayer } from "./VideoPlayer";
 
 /** One file, ready for the viewer to show. */
 export interface ViewItem {
@@ -11,6 +11,8 @@ export interface ViewItem {
   kind: MediaKind;
   /** The original file's URL, when the webview can show (photos) or play (videos) it as it is. */
   original: string | null;
+  /** The file has gone from disk, deleted or moved outside Pic Cabinet. */
+  missing: boolean;
   /**
    * A large image Windows drew: shown instead of a photo without an original, and as a video's
    * poster or a failed file's stand-in.
@@ -84,6 +86,8 @@ export interface ViewSource {
   open: (index: number) => Promise<void>;
   /** Show the file selected in Explorer. Missing when there's no folder to show, e.g. a phone. */
   reveal?: (index: number) => Promise<void>;
+  /** What to do about a file that has gone from disk, shown under the notice. */
+  gone: string;
 }
 
 /**
@@ -193,6 +197,21 @@ export function Viewer({
     }
   }
 
+  /**
+   * After the photo or video fails to load, ask again whether the file is still there: it may
+   * have been deleted while open, or since the look-ahead loaded it.
+   * @returns true when it has gone, and the viewer now says so
+   */
+  async function recheck(): Promise<boolean> {
+    try {
+      const fresh = await source.load(index);
+      if (fresh.missing) setItems((prev) => new Map(prev).set(key, fresh));
+      return fresh.missing;
+    } catch {
+      return false;
+    }
+  }
+
   const reveal = source.reveal;
   const openLabel = useOpenLabel(item?.name);
   return createPortal(
@@ -209,6 +228,8 @@ export function Viewer({
           <Media
             key={key}
             item={item}
+            gone={source.gone}
+            onBroken={recheck}
             openLabel={openLabel}
             onOpen={() => run(() => source.open(index))}
           />
@@ -247,7 +268,7 @@ export function Viewer({
               </h2>
               {controls && <div className="mt-4">{controls}</div>}
               {item.facts}
-              <div className="mt-6 flex flex-wrap gap-2">
+              <div className="mt-6 flex flex-wrap gap-2" hidden={item.missing}>
                 {reveal && (
                   <Button onClick={() => run(() => reveal(index))}>
                     <Icon name="folder" size={16} />
@@ -270,19 +291,26 @@ export function Viewer({
 
 /**
  * The photo or video itself, or a button to open it in its own app when Pic Cabinet can't. A
- * photo opens in its app when clicked.
+ * photo opens in its app when clicked. A file that has gone from disk says so instead.
  * @param props - Component props.
  * @param props.item - the file on show
+ * @param props.gone - what to do about a file that has gone, from the source
+ * @param props.onBroken - ask whether the file has gone after it failed to load; resolves true
+ * when it has, and the item is then marked missing
  * @param props.openLabel - text for the open-in-app button
  * @param props.onOpen - open the file in its default app
  * @returns the media, or the fallback with its open button
  */
 function Media({
   item,
+  gone,
+  onBroken,
   openLabel,
   onOpen,
 }: {
   item: ViewItem;
+  gone: string;
+  onBroken: () => Promise<boolean>;
   openLabel: string;
   onOpen: () => void;
 }): ReactElement {
@@ -290,6 +318,24 @@ function Media({
   const [sharp, setSharp] = useState(false);
   const mediaClass = "max-h-full max-w-full object-contain";
   const video = item.kind === "video";
+
+  /** A load failed: a gone file shows its notice, anything else the can't-show fallback. */
+  function broken(): void {
+    onBroken().then(
+      (missing) => !missing && setFailed(true),
+      () => setFailed(true),
+    );
+  }
+
+  if (item.missing) {
+    return (
+      <div className="max-w-sm text-center">
+        <Icon name="warn" size={32} className="mx-auto mb-4 text-faint" />
+        <p className="text-[17px] font-semibold">This file has been moved or deleted</p>
+        <p className="mt-2 text-muted">{gone}</p>
+      </div>
+    );
+  }
 
   if (failed || (video && !item.original)) {
     return (
@@ -315,23 +361,11 @@ function Media({
 
   if (video) {
     return (
-      <video
-        src={item.original ?? undefined}
+      <VideoPlayer
+        src={item.original ?? ""}
         poster={item.preview}
-        controls
-        autoPlay
-        // Set before playback starts, so a video never begins at the browser's full volume.
-        ref={(el) => {
-          if (!el) return;
-          const { volume, muted } = savedVolume();
-          el.volume = volume;
-          el.muted = muted;
-        }}
-        onVolumeChange={(e) =>
-          saveVolume({ volume: e.currentTarget.volume, muted: e.currentTarget.muted })
-        }
-        onError={() => setFailed(true)}
-        className={mediaClass}
+        label={item.name}
+        onError={broken}
       />
     );
   }
@@ -361,7 +395,7 @@ function Media({
         alt={item.name}
         draggable={false}
         onLoad={() => setSharp(true)}
-        onError={() => setFailed(true)}
+        onError={broken}
         className={`pointer-events-auto relative cursor-pointer ${mediaClass}`}
       />
     </button>
@@ -369,10 +403,11 @@ function Media({
 }
 
 /**
- * Previous or next button over one side of the photo, hidden at that end of the source.
+ * Previous or next arrow over one side of the photo, hidden at that end of the source. Just
+ * the arrow, so it covers little of the photo; the label is its tooltip.
  * @param props - Component props.
  * @param props.side - which edge it sits on
- * @param props.label - what the button says
+ * @param props.label - what it does, e.g. "Older", for the tooltip and screen readers
  * @param props.hidden - at that end of the source, so there's nowhere to step
  * @param props.onClick - step to the neighbouring file
  * @returns the button
@@ -394,14 +429,12 @@ function NavButton({
       onClick={onClick}
       disabled={hidden}
       title={label}
-      className={`absolute top-1/2 flex min-h-12 min-w-12 -translate-y-1/2 items-center justify-center gap-2 rounded-full bg-surface/90 px-3 text-[17px] font-semibold text-ink hover:bg-raised disabled:invisible md:px-5 ${
-        side === "left" ? "left-3 md:left-6" : "right-3 md:right-6"
+      aria-label={label}
+      className={`absolute top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-surface/70 text-ink hover:bg-raised disabled:invisible ${
+        side === "left" ? "left-3" : "right-3"
       }`}
     >
-      {side === "left" && <Icon name="back" />}
-      {/* Icon only on a narrow window, where the two labels would meet over the photo. */}
-      <span className="sr-only md:not-sr-only">{label}</span>
-      {side === "right" && <Icon name="chevron" />}
+      <Icon name={side === "left" ? "back" : "chevron"} size={22} />
     </button>
   );
 }

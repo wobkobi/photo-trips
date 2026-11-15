@@ -52,6 +52,8 @@ export interface MediaDetail {
   kind: MediaKind;
   viewable: boolean;
   playable: boolean;
+  /** Gone from disk since the library was last looked through (deleted or moved in Explorer). */
+  missing: boolean;
   version: number;
   members: MediaMember[];
 }
@@ -315,6 +317,8 @@ export interface ImportFile {
   viewable: boolean;
   /** A video the webview can play. */
   playable: boolean;
+  /** Gone since the preview was made (deleted, or the card removed). */
+  missing: boolean;
 }
 
 /**

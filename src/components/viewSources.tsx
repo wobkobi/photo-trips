@@ -48,6 +48,7 @@ export function useLibrarySource(ids: number[]): ViewSource {
        * @returns resolves once Explorer has been asked to show it
        */
       reveal: (index) => api.revealMedia(ids[index]),
+      gone: "Look for new photos (F5) to bring the library up to date.",
     }),
     [ids],
   );
@@ -67,6 +68,7 @@ function libraryItem(detail: MediaDetail): ViewItem {
     name: detail.name,
     kind: detail.kind,
     original: shown ? fileUrl(detail.path) : null,
+    missing: detail.missing,
     preview: thumbUrl(detail.id, detail.version, true),
     thumb: thumbUrl(detail.id, detail.version),
     facts: <LibraryFacts detail={detail} />,
@@ -111,6 +113,7 @@ export function useImportSource(preview: ImportPreview, order: number[]): ViewSo
        */
       open: (index) => api.openImportFile(id, at(index)),
       reveal: spec.kind === "phone" ? undefined : (index) => api.revealImportFile(id, at(index)),
+      gone: "Check again to bring this import up to date.",
     };
   }, [preview, order]);
 }
@@ -137,6 +140,7 @@ function importItem(
     name: splitPath(item.from).name,
     kind: item.kind,
     original: shown ? fileUrl(file.path) : null,
+    missing: file.missing,
     preview: thumbUrl(item.thumb, item.version, true),
     thumb: thumbUrl(item.thumb, item.version),
     facts: <ImportFacts previewId={previewId} index={index} item={item} />,

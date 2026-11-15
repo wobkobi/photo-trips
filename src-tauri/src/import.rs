@@ -832,6 +832,8 @@ pub struct ImportFile {
     pub viewable: bool,
     /// A video the webview can play.
     pub playable: bool,
+    /// The file has gone since the preview was made, as when it was deleted or the card removed.
+    pub missing: bool,
 }
 
 /// The file behind item `item` of import preview `id`. Phone files are already copied into
@@ -859,6 +861,7 @@ pub fn import_file(
         path: path.to_string_lossy().into_owned(),
         viewable: kind == Kind::Photo.as_str() && formats::web_viewable(path),
         playable: kind == Kind::Video.as_str() && formats::web_playable(path),
+        missing: !path.exists(),
     })
 }
 
