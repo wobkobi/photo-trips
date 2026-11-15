@@ -1,11 +1,12 @@
 // Building blocks of the Settings page: sections, rows, switches and text boxes that save.
 
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useState, type KeyboardEvent, type ReactElement, type ReactNode } from "react";
 import { INPUT } from "./Field";
 import { Icon } from "./Icon";
 
 /**
  * A group of related settings under a heading.
+ * @param props - Component props.
  * @param props.title - section heading
  * @param props.detail - what the section is for, under the heading
  * @param props.error - the last failed save in this section
@@ -22,7 +23,7 @@ export function Section({
   detail?: ReactNode;
   error?: string | null;
   children: ReactNode;
-}) {
+}): ReactElement {
   return (
     <section className="mt-12 first:mt-0">
       <h2 className="text-[22px] font-bold tracking-tight text-brand">{title}</h2>
@@ -39,6 +40,7 @@ export function Section({
 
 /**
  * One setting: title and explanation on the left, control on the right.
+ * @param props - Component props.
  * @param props.title - setting name
  * @param props.detail - what it does
  * @param props.children - the control
@@ -52,7 +54,7 @@ export function Row({
   title: string;
   detail?: ReactNode;
   children: ReactNode;
-}) {
+}): ReactElement {
   return (
     // The control drops under the words when both can't share a line, rather than squeezing the
     // words to one per line.
@@ -68,6 +70,7 @@ export function Row({
 
 /**
  * On/off switch with its state written beside it, so it doesn't rely on position or colour.
+ * @param props - Component props.
  * @param props.checked - current state
  * @param props.label - accessible name
  * @param props.disabled - greys the switch out
@@ -84,7 +87,7 @@ export function Toggle({
   label: string;
   disabled?: boolean;
   onChange: (on: boolean) => void;
-}) {
+}): ReactElement {
   return (
     <button
       type="button"
@@ -116,6 +119,7 @@ export function Toggle({
 /**
  * A text box that saves when it loses focus or on Enter. Escape puts the saved value back.
  * Assumes nothing else changes the setting while the page is open.
+ * @param props - Component props.
  * @param props.value - the saved value
  * @param props.label - accessible name
  * @param props.placeholder - shown while empty
@@ -141,7 +145,7 @@ export function SavedText({
   tidy?: (text: string) => string;
   onSave: (text: string) => void;
   onRevert?: () => void;
-}) {
+}): ReactElement {
   const [text, setText] = useState(value);
   return (
     <input
@@ -175,6 +179,7 @@ export function SavedText({
  * A setting picked from a few named sizes, shown as a row of large buttons with the title and
  * explanation above, so every option is visible without opening a list. Arrow keys move between
  * options, as in any radio group.
+ * @param props - Component props.
  * @param props.title - setting name
  * @param props.detail - what it does
  * @param props.value - the chosen option's value
@@ -194,8 +199,12 @@ export function Choices({
   value: string;
   options: { value: string; label: string; sample?: ReactNode }[];
   onChange: (value: string) => void;
-}) {
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+}): ReactElement {
+  /**
+   * Arrow keys pick the next or previous option, wrapping round, and move focus with it.
+   * @param event - the key press on the radio group
+   */
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
     if (!step) return;
     event.preventDefault();

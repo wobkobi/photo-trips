@@ -30,3 +30,6 @@ src-tauri/resources/THIRD_PARTY_NOTICES.txt
 
 # Git Bash crash dumps
 *.stackdump
+
+# ESLint cache
+.eslintcache

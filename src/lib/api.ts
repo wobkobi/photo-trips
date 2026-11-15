@@ -463,81 +463,288 @@ export const UPDATE_AVAILABLE = "update://available";
 export const UPDATE_PROGRESS = "update://progress";
 
 export const api = {
-  /** Tells the engine the page loaded, so it doesn't restart to fix a blank window. */
+  /**
+   * Tells the engine the page loaded, so it doesn't restart to fix a blank window.
+   * @returns resolves once the engine has noted it
+   */
   frontendReady: () => invoke<void>("frontend_ready"),
+  /**
+   * Read every stored setting.
+   * @returns the settings
+   */
   getSettings: () => invoke<Settings>("get_settings"),
+  /**
+   * Store one setting; the engine refuses unknown keys and invalid values.
+   * @param key - setting name
+   * @param value - new value, as text
+   * @returns resolves once stored, rejects with the reason it was refused
+   */
   setSetting: (key: string, value: string) => invoke<void>("set_setting", { key, value }),
-  /** Turn Start with Windows on or off; the menu bar's tick follows. */
+  /**
+   * Turn Start with Windows on or off; the menu bar's tick follows.
+   * @param enabled - whether the app starts with Windows
+   * @returns resolves once changed
+   */
   setAutostart: (enabled: boolean) => invoke<void>("set_autostart", { enabled }),
-  /** Run a menu bar item by id, for its keyboard shortcut. */
+  /**
+   * Run a menu bar item by id, for its keyboard shortcut.
+   * @param id - menu item id
+   * @returns resolves once the item has run
+   */
   menuAction: (id: string) => invoke<void>("menu_action", { id }),
-  /** The update the last check found, without checking again. */
+  /**
+   * The update the last check found, without checking again.
+   * @returns the update, or null when none was found
+   */
   updateStatus: () => invoke<UpdateAvailable | null>("update_status"),
-  /** Ask the releases page for a newer version; null when this is the latest. */
+  /**
+   * Ask the releases page for a newer version; null when this is the latest.
+   * @returns the newer version, or null
+   */
   checkForUpdate: () => invoke<UpdateAvailable | null>("check_for_update"),
-  /** Download and install the update, then reopen the app (progress on UPDATE_PROGRESS). */
+  /**
+   * Download and install the update, then reopen the app (progress on UPDATE_PROGRESS).
+   * @returns resolves once the install has started
+   */
   installUpdate: () => invoke<void>("install_update"),
+  /**
+   * Start indexing the library in the background.
+   * @returns resolves once the job has started
+   */
   indexLibrary: () => invoke<void>("index_library"),
+  /**
+   * The running job's latest progress.
+   * @returns the progress, or null when idle
+   */
   jobStatus: () => invoke<JobProgress | null>("job_status"),
+  /**
+   * Ask the running job to stop.
+   * @returns resolves once the request is sent
+   */
   cancelJob: () => invoke<void>("cancel_job"),
+  /**
+   * Every group in the library, newest first.
+   * @returns the tiles
+   */
   libraryTiles: () => invoke<Tile[]>("library_tiles"),
+  /**
+   * One indexed file's path, date and where the date came from.
+   * @param id - media id
+   * @returns the detail
+   */
   mediaDetail: (id: number) => invoke<MediaDetail>("media_detail", { id }),
-  /** Camera, size and settings, read from the file itself. */
+  /**
+   * Camera, size and settings, read from the file itself.
+   * @param id - media id
+   * @returns the file's details
+   */
   mediaDetails: (id: number) => invoke<FileDetails>("media_details", { id }),
-  /** The offline map around a location, `spanKm` from top to bottom. */
+  /**
+   * The offline map around a location, `spanKm` from top to bottom.
+   * @param lat - latitude in degrees
+   * @param lon - longitude in degrees
+   * @param spanKm - map height in kilometres
+   * @returns the map
+   */
   locationMap: (lat: number, lon: number, spanKm: number) =>
     invoke<MapView>("location_map", { lat, lon, spanKm }),
+  /**
+   * Open an indexed file in its default Windows app.
+   * @param id - media id
+   * @returns resolves once opened
+   */
   openMedia: (id: number) => invoke<void>("open_media", { id }),
+  /**
+   * Show an indexed file selected in Explorer.
+   * @param id - media id
+   * @returns resolves once shown
+   */
   revealMedia: (id: number) => invoke<void>("reveal_media", { id }),
+  /**
+   * Open the third-party notices installed with the app.
+   * @returns resolves once opened
+   */
   openNotices: () => invoke<void>("open_notices"),
-  /** Name of the app Windows opens this extension with, or null when it would ask. */
+  /**
+   * Name of the app Windows opens this extension with, or null when it would ask.
+   * @param ext - file extension
+   * @returns the app name, or null
+   */
   defaultApp: (ext: string) => invoke<string | null>("default_app", { ext }),
+  /**
+   * The codecs this user already has, so the Library only suggests ones that would help.
+   * @returns the installed codecs
+   */
   installedExtensions: () => invoke<Codec[]>("installed_extensions"),
+  /**
+   * Open an extension's page in the Microsoft Store app.
+   * @param product - the extension
+   * @returns resolves once opened
+   */
   openStorePage: (product: StoreProduct) => invoke<void>("open_store_page", { product }),
+  /**
+   * Work out the moves that would put every file in its trip or year and month folder.
+   * @returns the preview; apply it with {@link api.applyPlan}
+   */
   planOrganise: () => invoke<Preview>("plan_organise"),
+  /**
+   * Run a previewed plan in the background as one undoable batch.
+   * @param id - preview id
+   * @returns resolves once the job has started
+   */
   applyPlan: (id: number) => invoke<void>("apply_plan", { id }),
+  /**
+   * Every undoable change, for History.
+   * @returns the batches
+   */
   listBatches: () => invoke<BatchInfo[]>("list_batches"),
+  /**
+   * The files one batch touched, in the order it touched them.
+   * @param batchId - batch id
+   * @returns the entries
+   */
   batchEntries: (batchId: number) => invoke<BatchEntry[]>("batch_entries", { batchId }),
+  /**
+   * Put back the files a batch moved, in the background.
+   * @param batchId - batch id
+   * @returns resolves once the job has started, rejects when the batch can't be undone
+   */
   undoBatch: (batchId: number) => invoke<void>("undo_batch", { batchId }),
+  /**
+   * Every saved trip.
+   * @returns the trips
+   */
   listTrips: () => invoke<TripInfo[]>("list_trips"),
+  /**
+   * The photos a draft's dates take in, and whether the dates can be used.
+   * @param startAt - first moment of the trip
+   * @param endAt - last moment of the trip
+   * @param editing - id of the trip being edited, so it doesn't overlap itself; null for a new one
+   * @returns the matches
+   */
   tripMatches: (startAt: string, endAt: string, editing: number | null) =>
     invoke<TripMatches>("trip_matches", { startAt, endAt, editing }),
-  /** Preview a trip change; apply it with {@link api.applyPlan}. */
+  /**
+   * Preview a trip change; apply it with {@link api.applyPlan}.
+   * @param change - the trip to create, update or delete
+   * @returns the preview
+   */
   planTrip: (change: TripChange) => invoke<Preview>("plan_trip", { change }),
-  /** Preview renaming every sorted folder to new presets; apply it with {@link api.applyPlan}. */
+  /**
+   * Preview renaming every sorted folder to new presets; apply it with {@link api.applyPlan}.
+   * @param naming - the new presets
+   * @returns the preview
+   */
   planNaming: (naming: Naming) => invoke<Preview>("plan_naming", { naming }),
-  /** Compare same-size files in the background (job kind "duplicates"). */
+  /**
+   * Compare same-size files in the background (job kind "duplicates").
+   * @returns resolves once the job has started
+   */
   findDuplicates: () => invoke<void>("find_duplicates"),
+  /**
+   * Every duplicate set found so far, with a suggested keeper for each.
+   * @returns the report
+   */
   listDuplicates: () => invoke<DupReport>("list_duplicates"),
-  /** Send copies to the Recycle Bin in the background (job kind "remove"). */
+  /**
+   * Send copies to the Recycle Bin in the background (job kind "remove").
+   * @param choices - which file to keep in each set
+   * @returns resolves once the job has started
+   */
   removeDuplicates: (choices: DupChoice[]) => invoke<void>("remove_duplicates", { choices }),
+  /**
+   * Cards and phones connected now.
+   * @returns the devices
+   */
   importSources: () => invoke<ImportDevice[]>("import_sources"),
-  /** Look through a source in the background (job kind "import-scan", result ImportPreview). */
+  /**
+   * Look through a source in the background (job kind "import-scan", result ImportPreview).
+   * @param source - the card, phone or folder to scan
+   * @returns resolves once the job has started
+   */
   scanImport: (source: ImportSource) => invoke<void>("scan_import", { source }),
-  /** The latest import preview, if it hasn't been used. */
+  /**
+   * The latest import preview, if it hasn't been used.
+   * @returns the preview, or null
+   */
   importPreview: () => invoke<ImportPreview | null>("import_preview"),
   /**
    * Bring a previewed import in (job kind "import", result ApplySummary), leaving out the
    * items at the `skip` indexes.
+   * @param id - import preview id
+   * @param skip - indexes of the items to leave out
+   * @returns resolves once the job has started
    */
   applyImport: (id: number, skip: number[]) => invoke<void>("apply_import", { id, skip }),
-  /** Drop an import preview (and any phone files copied off for it). */
+  /**
+   * Drop an import preview (and any phone files copied off for it).
+   * @param id - import preview id
+   * @returns resolves once dropped
+   */
   discardImport: (id: number) => invoke<void>("discard_import", { id }),
+  /**
+   * Show a file from an import preview in the viewer; its path is let into the asset protocol.
+   * @param id - import preview id
+   * @param item - index of the item in the preview
+   * @returns the file's path and whether the webview can show it
+   */
   importFile: (id: number, item: number) => invoke<ImportFile>("import_file", { id, item }),
+  /**
+   * What a file from an import preview says about itself: camera, size, settings and location.
+   * @param id - import preview id
+   * @param item - index of the item in the preview
+   * @returns the file's details
+   */
   importFileDetails: (id: number, item: number) =>
     invoke<FileDetails>("import_file_details", { id, item }),
+  /**
+   * Open a file from an import preview in its default Windows app.
+   * @param id - import preview id
+   * @param item - index of the item in the preview
+   * @returns resolves once opened
+   */
   openImportFile: (id: number, item: number) => invoke<void>("open_import_file", { id, item }),
+  /**
+   * Show a file from an import preview selected in Explorer.
+   * @param id - import preview id
+   * @param item - index of the item in the preview
+   * @returns resolves once shown
+   */
   revealImportFile: (id: number, item: number) => invoke<void>("reveal_import_file", { id, item }),
+  /**
+   * Trips the library looks like it holds, with photo counts, names and sample photos.
+   * @returns the suggestions
+   */
   suggestTrips: () => invoke<Suggestions>("suggest_trips"),
-  /** Hide a suggestion while its dates overlap these. */
+  /**
+   * Hide a suggestion while its dates overlap these.
+   * @param startDay - first day of the suggestion
+   * @param endDay - last day of the suggestion
+   * @returns resolves once dismissed
+   */
   dismissSuggestion: (startDay: string, endDay: string) =>
     invoke<void>("dismiss_suggestion", { startDay, endDay }),
-  /** Show every dismissed suggestion again. */
+  /**
+   * Show every dismissed suggestion again.
+   * @returns resolves once restored
+   */
   restoreDismissed: () => invoke<void>("restore_dismissed"),
+  /**
+   * The inbox watcher's state, for the Settings page.
+   * @returns the watcher's state
+   */
   watchStatus: () => invoke<WatchStatus>("watch_status"),
-  /** Pause or resume the inbox watcher (job kind "inbox" moves in what arrives). */
+  /**
+   * Pause or resume the inbox watcher (job kind "inbox" moves in what arrives).
+   * @param paused - whether the watcher should be paused
+   * @returns the watcher's new state
+   */
   setWatchPaused: (paused: boolean) => invoke<WatchStatus>("set_watch_paused", { paused }),
-  /** The town nearest a typed "lat, lon", e.g. "Auckland, New Zealand"; null out at sea. */
+  /**
+   * The town nearest a typed "lat, lon", e.g. "Auckland, New Zealand"; null out at sea.
+   * @param location - the typed coordinates
+   * @returns the place name, or null
+   */
   homePlace: (location: string) => invoke<string | null>("home_place", { location }),
 };
 
@@ -561,7 +768,11 @@ export function fileUrl(path: string): string {
   return convertFileSrc(path);
 }
 
-/** Error text from a rejected command (commands reject with a plain string). */
+/**
+ * Error text from a rejected command (commands reject with a plain string).
+ * @param err - the rejection reason
+ * @returns text to show the user
+ */
 export function errorText(err: unknown): string {
   if (typeof err === "string") return err;
   if (err instanceof Error) return err.message;

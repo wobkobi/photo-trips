@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { Tile } from "./api";
 import { filterChoices, filterTiles, isFiltered, NO_FILTER } from "./libraryFilter";
 
+/**
+ * A photo tile, with any fields overridden.
+ * @param id - media id
+ * @param takenAt - when it was taken
+ * @param extra - fields to override
+ * @returns the tile
+ */
 function tile(id: number, takenAt: string, extra: Partial<Tile> = {}): Tile {
   return {
     id,
@@ -23,7 +30,12 @@ const tiles = [
   tile(3, "2025-01-02T10:00:00", { uncertain: true }),
   tile(4, "2024-07-01T10:00:00", { kind: "raw", ext: "nef" }),
 ];
-const ids = (list: Tile[]) => list.map((t) => t.id);
+/**
+ * The ids of a list of tiles, in order.
+ * @param list - the tiles
+ * @returns their ids
+ */
+const ids = (list: Tile[]): number[] => list.map((t) => t.id);
 
 describe("filterTiles", () => {
   it("leaves the list alone with no filter", () => {

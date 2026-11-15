@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactElement } from "react";
 import { Icon } from "../components/Icon";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { api, errorText, type BatchEntry, type BatchInfo, type EntryStatus } from "../lib/api";
@@ -8,8 +8,11 @@ import { useJobDone, useJobs } from "../lib/useJobs";
 /** Files listed per batch by the backend (history.rs ENTRY_LIMIT). */
 const ENTRY_LIMIT = 2000;
 
-/** Every change Pic Cabinet made to the library, newest first, each with undo. */
-export function HistoryPage() {
+/**
+ * Every change Pic Cabinet made to the library, newest first, each with undo.
+ * @returns the page
+ */
+export function HistoryPage(): ReactElement {
   const { running } = useJobs();
   const [batches, setBatches] = useState<BatchInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +32,11 @@ export function HistoryPage() {
   useEffect(load, [load]);
   useJobDone(["apply", "undo", "remove", "import", "inbox"], load);
 
-  async function undo(batchId: number) {
+  /**
+   * Undo a batch and reload the list, showing any failure as the page error.
+   * @param batchId - the batch to undo
+   */
+  async function undo(batchId: number): Promise<void> {
     setConfirming(null);
     setError(null);
     try {
@@ -77,6 +84,19 @@ export function HistoryPage() {
   );
 }
 
+/**
+ * One batch: what it did, where it stands, and its undo with a confirm step.
+ * @param props - Component props.
+ * @param props.batch - the batch shown
+ * @param props.busy - a job is running, so undo is disabled
+ * @param props.expanded - its file list is open
+ * @param props.confirming - the undo question is showing
+ * @param props.onToggle - open or close the file list
+ * @param props.onAskUndo - show the undo question
+ * @param props.onCancelUndo - dismiss the undo question
+ * @param props.onUndo - undo the batch
+ * @returns the row
+ */
 function BatchRow({
   batch,
   busy,
@@ -95,7 +115,7 @@ function BatchRow({
   onAskUndo: () => void;
   onCancelUndo: () => void;
   onUndo: () => void;
-}) {
+}): ReactElement {
   const trouble = batch.failed > 0 || batch.status === "interrupted";
   return (
     <li className="rounded-md border border-line bg-surface">
@@ -234,7 +254,13 @@ const OP_TEXT: Record<BatchEntry["op"], Record<EntryStatus, string>> = {
   copy: COPY_TEXT,
 };
 
-function Entries({ batch }: { batch: BatchInfo }) {
+/**
+ * The files in a batch and what happened to each, reloaded as the batch progresses.
+ * @param props - Component props.
+ * @param props.batch - the batch whose files are listed
+ * @returns the file list
+ */
+function Entries({ batch }: { batch: BatchInfo }): ReactElement {
   const [entries, setEntries] = useState<BatchEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 

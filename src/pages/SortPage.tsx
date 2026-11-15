@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
 import { LeftAlone, MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
@@ -12,10 +12,11 @@ import { useSettings } from "../lib/useSettings";
 /**
  * Sort the library into trip and year/month folders: review every move first, then apply it
  * as one change that can be undone.
+ * @param props - Component props.
  * @param props.onNavigate - switch to another page
  * @returns the page
  */
-export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void }): ReactElement {
   const { running } = useJobs();
   const naming = namingOf(useSettings().settings);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -49,12 +50,17 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
     load();
   });
 
-  function checkAgain() {
+  /** Work the plan out again, showing the buttons as busy until it's back. */
+  function checkAgain(): void {
     setChecking(true);
     load();
   }
 
-  async function run(action: () => Promise<void>) {
+  /**
+   * Run an action, showing any failure as the page error.
+   * @param action - the API call to make
+   */
+  async function run(action: () => Promise<void>): Promise<void> {
     setError(null);
     try {
       await action();
@@ -119,7 +125,13 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
   );
 }
 
-function NothingToDo({ preview }: { preview: Preview }) {
+/**
+ * Shown when every photo is already where the plan would put it, or the library is empty.
+ * @param props - Component props.
+ * @param props.preview - the plan with no moves in it
+ * @returns the empty state
+ */
+function NothingToDo({ preview }: { preview: Preview }): ReactElement {
   if (preview.inPlace === 0) {
     return (
       <EmptyState title="Nothing to sort">

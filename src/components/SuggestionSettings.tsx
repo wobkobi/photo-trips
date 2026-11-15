@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { api } from "../lib/api";
 import { busyChoices, DEFAULT_MIN_PHOTOS, minPhotosOf } from "../lib/settingValues";
 import { useAction } from "../lib/useAction";
@@ -6,8 +6,11 @@ import { useSettings } from "../lib/useSettings";
 import { INPUT } from "./Field";
 import { Row, SavedText, Section } from "./SettingParts";
 
-/** Trip suggestion settings: how busy a day must be, and where home is. */
-export function SuggestionSettings() {
+/**
+ * Trip suggestion settings: how busy a day must be, and where home is.
+ * @returns the settings section
+ */
+export function SuggestionSettings(): ReactElement {
   const { settings, save } = useSettings();
   const { error, run, clear } = useAction();
   const minPhotos = minPhotosOf(settings);

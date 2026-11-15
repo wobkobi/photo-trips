@@ -20,7 +20,10 @@ export interface UpdatesContextValue {
 
 export const UpdatesContext = createContext<UpdatesContextValue | null>(null);
 
-/** Update checks and installs. Must be used under UpdatesProvider. */
+/**
+ * Update checks and installs. Must be used under UpdatesProvider.
+ * @returns the update state and the actions that change it
+ */
 export function useUpdates(): UpdatesContextValue {
   const ctx = useContext(UpdatesContext);
   if (!ctx) throw new Error("useUpdates outside UpdatesProvider");

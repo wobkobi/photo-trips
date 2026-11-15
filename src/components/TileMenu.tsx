@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactElement,
+} from "react";
 
 export interface MenuItem {
   label: string;
@@ -10,6 +17,7 @@ const EDGE = 8;
 
 /**
  * Right-click menu at the pointer. Closes on Escape, a click elsewhere, scrolling or resizing.
+ * @param props - Component props.
  * @param props.x - pointer x in viewport pixels
  * @param props.y - pointer y in viewport pixels
  * @param props.items - menu entries, in order
@@ -26,7 +34,7 @@ export function TileMenu({
   y: number;
   items: MenuItem[];
   onClose: () => void;
-}) {
+}): ReactElement {
   const ref = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: x, top: y });
 
@@ -43,10 +51,17 @@ export function TileMenu({
   }, [x, y]);
 
   useEffect(() => {
-    const away = (event: Event) => {
+    /**
+     * Close on a mouse press outside the menu.
+     * @param event - the window's mousedown
+     */
+    const away = (event: Event): void => {
       if (!ref.current?.contains(event.target as Node)) onClose();
     };
-    const close = () => onClose();
+    /** Close on any scroll, resize or loss of focus. */
+    const close = (): void => {
+      onClose();
+    };
     window.addEventListener("mousedown", away);
     window.addEventListener("wheel", close, { passive: true });
     window.addEventListener("resize", close);
@@ -59,7 +74,11 @@ export function TileMenu({
     };
   }, [onClose]);
 
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+  /**
+   * Escape closes the menu; the arrow keys move focus between items, wrapping at the ends.
+   * @param event - the key press inside the menu
+   */
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key === "Escape") {
       event.stopPropagation();
       onClose();

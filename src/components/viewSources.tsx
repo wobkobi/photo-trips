@@ -1,6 +1,6 @@
 // What the viewer shows for library photos and for files waiting in an import preview.
 
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import {
   api,
   fileUrl,
@@ -10,11 +10,9 @@ import {
   type ImportPreview,
   type MediaDetail,
 } from "../lib/api";
-import { count, formatBytes, formatTaken, sourceText, splitPath } from "../lib/format";
-import { located, useFileDetails } from "../lib/useFileDetails";
-import { CameraFact, Measures } from "./FileFacts";
-import { LocationFact } from "./LocationFact";
-import { Fact, KIND_NAMES, type ViewItem, type ViewSource } from "./Viewer";
+import { splitPath } from "../lib/format";
+import type { ViewItem, ViewSource } from "./Viewer";
+import { ImportFacts, LibraryFacts } from "./ViewerFacts";
 
 /**
  * Viewer source for library files.
@@ -25,15 +23,41 @@ export function useLibrarySource(ids: number[]): ViewSource {
   return useMemo(
     () => ({
       count: ids.length,
+      /**
+       * Keyed by media id, so a load for a file no longer at this index is dropped.
+       * @param index - position in `ids`
+       * @returns the file's key
+       */
       key: (index) => `m${ids[index]}`,
+      /**
+       * Fetch the file's indexed details and build what the viewer shows.
+       * @param index - position in `ids`
+       * @returns the file, ready to show
+       */
       load: async (index) => libraryItem(await api.mediaDetail(ids[index])),
+      /**
+       * Open the file in its default Windows app.
+       * @param index - position in `ids`
+       * @returns resolves once Windows has been asked to open it
+       */
       open: (index) => api.openMedia(ids[index]),
+      /**
+       * Show the file selected in Explorer.
+       * @param index - position in `ids`
+       * @returns resolves once Explorer has been asked to show it
+       */
       reveal: (index) => api.revealMedia(ids[index]),
     }),
     [ids],
   );
 }
 
+/**
+ * What the viewer shows for a library file. Videos and photos the webview can't handle get no
+ * original, so the viewer falls back to the large thumbnail.
+ * @param detail - the file's indexed details
+ * @returns the viewer item
+ */
 function libraryItem(detail: MediaDetail): ViewItem {
   const shown = detail.kind === "video" ? detail.playable : detail.viewable;
   return {
@@ -43,52 +67,6 @@ function libraryItem(detail: MediaDetail): ViewItem {
     preview: thumbUrl(detail.id, detail.version, true),
     facts: <LibraryFacts detail={detail} />,
   };
-}
-
-function LibraryFacts({ detail }: { detail: MediaDetail }) {
-  const load = useCallback(() => api.mediaDetails(detail.id), [detail.id]);
-  const details = useFileDetails(`m${detail.id}`, load);
-  // The index keeps the location; the file's own is used only when the index has none.
-  const spot =
-    detail.lat !== null && detail.lon !== null
-      ? { lat: detail.lat, lon: detail.lon }
-      : located(details);
-  return (
-    <>
-      <Fact label="Taken">
-        <p>{formatTaken(detail.takenAt)}</p>
-        <p
-          className={`mt-1 text-[14px] ${detail.dateSource === "modified" ? "text-warn" : "text-faint"}`}
-        >
-          {sourceText(detail.dateSource)}
-        </p>
-      </Fact>
-
-      {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
-      {details && <CameraFact details={details} />}
-
-      <Fact label="File">
-        <p>
-          {KIND_NAMES[detail.kind]}, {formatBytes(detail.size)}
-        </p>
-        <Measures details={details} video={detail.kind === "video"} />
-        <p className="selectable mt-1 text-[14px] break-all text-faint">{detail.folder}</p>
-      </Fact>
-
-      {detail.members.length > 1 && (
-        <Fact label="Moves together with">
-          <ul className="flex flex-col gap-1">
-            {detail.members.slice(1).map((m) => (
-              <li key={m.id} className="flex justify-between gap-3 text-[15px]">
-                <span className="selectable truncate">{m.name}</span>
-                <span className="shrink-0 text-faint">{KIND_NAMES[m.kind]}</span>
-              </li>
-            ))}
-          </ul>
-        </Fact>
-      )}
-    </>
-  );
 }
 
 /**
@@ -101,18 +79,47 @@ function LibraryFacts({ detail }: { detail: MediaDetail }) {
 export function useImportSource(preview: ImportPreview, order: number[]): ViewSource {
   return useMemo(() => {
     const { id, items, spec } = preview;
-    const at = (index: number) => order[index];
+    /**
+     * Map a viewer position to the preview's item index.
+     * @param index - position in `order`
+     * @returns the item index
+     */
+    const at = (index: number): number => order[index];
     return {
       count: order.length,
+      /**
+       * Keyed by preview and item, so a load for a file no longer at this position is dropped.
+       * @param index - position in `order`
+       * @returns the file's key
+       */
       key: (index) => `i${id}-${at(index)}`,
+      /**
+       * Fetch the file's details and build what the viewer shows.
+       * @param index - position in `order`
+       * @returns the file, ready to show
+       */
       load: async (index) =>
         importItem(id, at(index), items[at(index)], await api.importFile(id, at(index))),
+      /**
+       * Open the file in its default Windows app.
+       * @param index - position in `order`
+       * @returns resolves once Windows has been asked to open it
+       */
       open: (index) => api.openImportFile(id, at(index)),
       reveal: spec.kind === "phone" ? undefined : (index) => api.revealImportFile(id, at(index)),
     };
   }, [preview, order]);
 }
 
+/**
+ * What the viewer shows for a file in an import preview. Videos and photos the webview can't
+ * handle get no original, so the viewer falls back to the large thumbnail.
+ * @param previewId - the import preview the file belongs to
+ * @param index - the file's index in the preview's items
+ * @param item - the preview's entry for the file
+ * @param file - where the file can be read and whether the webview can show it
+ * @returns the viewer item
+ */
 function importItem(
   previewId: number,
   index: number,
@@ -127,53 +134,4 @@ function importItem(
     preview: thumbUrl(item.thumb, item.version, true),
     facts: <ImportFacts previewId={previewId} index={index} item={item} />,
   };
-}
-
-function ImportFacts({
-  previewId,
-  index,
-  item,
-}: {
-  previewId: number;
-  index: number;
-  item: ImportItem;
-}) {
-  const load = useCallback(() => api.importFileDetails(previewId, index), [previewId, index]);
-  const details = useFileDetails(`i${previewId}-${index}`, load);
-  const spot = located(details);
-  const { folder } = splitPath(item.to);
-  return (
-    <>
-      <Fact label="Taken">
-        <p>{formatTaken(item.takenAt)}</p>
-        {item.uncertain && <p className="mt-1 text-[14px] text-warn">{sourceText("modified")}</p>}
-      </Fact>
-
-      {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
-      {details && <CameraFact details={details} />}
-
-      <Fact label="Goes into">
-        <p className="selectable break-all">{folder || "The library folder"}</p>
-        {item.renamed && (
-          <p className="mt-1 text-[14px] text-faint">
-            Gets a number added to its name, because a different file with that name is already
-            there.
-          </p>
-        )}
-      </Fact>
-
-      <Fact label="File">
-        <p>
-          {KIND_NAMES[item.kind]}, {formatBytes(item.bytes)}
-        </p>
-        <Measures details={details} video={item.kind === "video"} />
-        {item.extra > 0 && (
-          <p className="mt-1 text-[14px] text-faint">
-            Comes in with {count(item.extra, "other file", "other files")}, such as a Live Photo
-            video or RAW copy.
-          </p>
-        )}
-      </Fact>
-    </>
-  );
 }

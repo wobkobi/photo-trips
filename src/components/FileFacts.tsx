@@ -1,11 +1,23 @@
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
 import type { FileDetails } from "../lib/api";
 import { cameraName, cameraSettings, durationText, sizeText } from "../lib/details";
 import { Icon } from "./Icon";
 import { Fact } from "./Viewer";
 
-/** A video's length and a picture's size in pixels, under the file's type. */
-export function Measures({ details, video }: { details: FileDetails | null; video: boolean }) {
+/**
+ * A video's length and a picture's size in pixels, under the file's type.
+ * @param props - Component props.
+ * @param props.details - the file's details, or null while they load
+ * @param props.video - the file is a video, so its length shows too
+ * @returns the line, or nothing when neither is known
+ */
+export function Measures({
+  details,
+  video,
+}: {
+  details: FileDetails | null;
+  video: boolean;
+}): ReactElement | null {
   if (!details) return null;
   const size = sizeText(details, video);
   const length = video && details.duration ? durationText(details.duration) : null;
@@ -16,14 +28,20 @@ export function Measures({ details, video }: { details: FileDetails | null; vide
 /** Whether the camera settings are showing; kept as the viewer steps from file to file. */
 let settingsOpen = false;
 
-/** The camera or phone, with its settings for the shot behind "More details". */
-export function CameraFact({ details }: { details: FileDetails }) {
+/**
+ * The camera or phone, with its settings for the shot behind "More details".
+ * @param props - Component props.
+ * @param props.details - the file's details
+ * @returns the fact, or nothing when neither the camera nor its settings were recorded
+ */
+export function CameraFact({ details }: { details: FileDetails }): ReactElement | null {
   const [open, setOpen] = useState(settingsOpen);
   const camera = cameraName(details.make, details.model);
   const settings = cameraSettings(details);
   if (!camera && settings.length === 0) return null;
 
-  function toggle() {
+  /** Show or hide the settings, remembering the choice for the next file. */
+  function toggle(): void {
     settingsOpen = !open;
     setOpen(!open);
   }

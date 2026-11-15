@@ -1,27 +1,31 @@
 {
   "name": "pic-cabinet",
+  "version": "0.20.1",
   "private": true,
-  "version": "0.20.0",
+  "description": "Windows app that sorts photos into year, month and trip folders",
   "license": "SEE LICENSE IN LICENSE",
   "author": "To the Point Tech <harrison@tothepoint.co.nz> (https://www.tothepoint.co.nz)",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "tauri": "tauri",
-    "predev": "node scripts/fetch-exiftool.mjs && node scripts/notices.mjs",
     "prebuild": "node scripts/fetch-exiftool.mjs && node scripts/notices.mjs",
+    "build": "tsc && vite build",
+    "predev": "node scripts/fetch-exiftool.mjs && node scripts/notices.mjs",
+    "dev": "vite",
     "fetch-exiftool": "node scripts/fetch-exiftool.mjs",
-    "release": "node scripts/release.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "eslint . && npm run lint:rust",
-    "lint:fix": "eslint . --fix && npm run lint:rust",
-    "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
     "format": "prettier --write . && cargo fmt --manifest-path src-tauri/Cargo.toml",
-    "test": "node scripts/vitest.mjs run --passWithNoTests && cargo test --manifest-path src-tauri/Cargo.toml",
+    "lint": "eslint --cache --max-warnings=0 . && npm run lint:rust",
+    "lint:fix": "eslint --cache --fix . && npm run lint:rust",
+    "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
+    "map-data": "node scripts/map-data.mjs",
     "notices": "node scripts/notices.mjs",
-    "map-data": "node scripts/map-data.mjs"
+    "preview": "vite preview",
+    "release": "node scripts/release.mjs",
+    "tauri": "tauri",
+    "test": "node scripts/vitest.mjs run --passWithNoTests && cargo test --manifest-path src-tauri/Cargo.toml",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "overrides": {
+    "minimatch": "^11.0.5"
   },
   "dependencies": {
     "@fontsource-variable/exo": "^5.3.0",
@@ -43,18 +47,21 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
     "eslint": "^10.15.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsdoc": "^65.4.7",
+    "eslint-plugin-prettier": "^5.5.7",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
+    "eslint-plugin-tailwind-canonical-classes": "^1.6.1",
     "globals": "^17.14.0",
     "prettier": "^3.10.1",
+    "prettier-plugin-organize-imports": "^4.3.0",
+    "prettier-plugin-packagejson": "^3.1.0",
+    "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4.3.5",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.2",
     "vite": "^8.0.16",
     "vitest": "^5.1.0"
-  },
-  "description": "Windows app that sorts photos into year, month and trip folders",
-  "overrides": {
-    "minimatch": "^11.0.5"
   }
 }

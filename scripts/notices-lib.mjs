@@ -9,6 +9,33 @@
  * @property {string[]} texts - contents of the licence files the package ships, if any
  */
 
+/**
+ * A package as `cargo metadata` lists it; only the fields these scripts read.
+ * @typedef {object} CargoPackage
+ * @property {string} id - package id, as the resolve graph refers to it
+ * @property {string} name - package name
+ * @property {string} version - package version
+ * @property {string | null} [license] - SPDX expression from the manifest
+ * @property {string | null} [license_file] - licence file named in the manifest instead
+ * @property {string} [manifest_path] - path to the package's Cargo.toml
+ * @property {{ kind: string[] }[]} targets - build targets, e.g. lib or proc-macro
+ */
+
+/**
+ * A node in the `cargo metadata` resolve graph: one package and its dependencies.
+ * @typedef {object} CargoNode
+ * @property {string} id - package id
+ * @property {{ pkg: string, dep_kinds: { kind: string | null }[] }[]} deps - each dependency,
+ *   with null as the kind for a normal one
+ */
+
+/**
+ * Output of `cargo metadata --format-version 1`; only the fields these scripts read.
+ * @typedef {object} CargoMetadata
+ * @property {CargoPackage[]} packages - every package in the graph
+ * @property {{ root: string, nodes: CargoNode[] }} resolve - the resolved dependency graph
+ */
+
 /** Licence, copying and notice files, e.g. LICENSE, LICENCE.md, LICENSE-APACHE, COPYING, NOTICE. */
 export const LICENCE_FILE = /^(un)?licen[cs]e|^copying|^notice|^copyright/i;
 
@@ -16,8 +43,8 @@ export const LICENCE_FILE = /^(un)?licen[cs]e|^copying|^notice|^copyright/i;
  * Rust packages compiled into the app: everything reachable from the root through normal
  * dependencies. Build and dev dependencies never ship, and neither does a proc-macro or anything
  * only a proc-macro uses, since those run inside the compiler.
- * @param {any} metadata - output of `cargo metadata --format-version 1`
- * @returns {any[]} the shipped packages from `metadata.packages`, root excluded
+ * @param {CargoMetadata} metadata - output of `cargo metadata --format-version 1`
+ * @returns {CargoPackage[]} the shipped packages from `metadata.packages`, root excluded
  */
 export function shippedCrates(metadata) {
   const packages = new Map(metadata.packages.map((p) => [p.id, p]));
@@ -135,6 +162,12 @@ const THIN = "-".repeat(100);
  * @returns {string} the file contents
  */
 export function renderNotices({ product, extras, npm, crates }) {
+  /**
+   * A titled list of packages, sorted by name, each with its licence in a column.
+   * @param {string} title - the list's heading
+   * @param {Shipped[]} list - the packages
+   * @returns {string} the list as text
+   */
   const summary = (title, list) =>
     [title, "", ...[...list].sort(byName).map((p) => `  ${label(p).padEnd(48)} ${p.licence}`)].join(
       "\n",

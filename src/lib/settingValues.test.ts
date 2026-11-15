@@ -65,6 +65,11 @@ describe("busy days", () => {
 });
 
 describe("watchSummary", () => {
+  /**
+   * A watcher state with one inbox folder, with any fields overridden.
+   * @param over - fields to override
+   * @returns the state
+   */
   const status = (over: Partial<WatchStatus>): WatchStatus => ({
     folders: ["C:\\Inbox"],
     missing: [],

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from "react";
 import type { Tile } from "../lib/api";
 import { count } from "../lib/format";
 import { setPicked } from "../lib/picker";
@@ -12,6 +12,7 @@ import { Viewer, type ViewSource } from "./Viewer";
  * ticks or unticks one photo, Shift+click sets a run of photos to match the last one clicked,
  * and each month has a button to tick or untick all of it. Each photo's magnifier opens it in
  * the viewer, which has its own tick.
+ * @param props - Component props.
  * @param props.tiles - photos, newest first
  * @param props.left - ids of the photos left out (everything else is ticked)
  * @param props.onChange - called with the new left-out ids
@@ -40,7 +41,7 @@ export function PhotoPicker({
   source: ViewSource;
   tickLabel: string;
   jump?: TileJump | null;
-}) {
+}): ReactElement {
   const [anchor, setAnchor] = useState<number | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
   const closeViewer = useCallback(() => setViewing(null), []);
@@ -49,7 +50,12 @@ export function PhotoPicker({
     [tiles, left],
   );
 
-  function onTileClick(index: number, event: TileEvent) {
+  /**
+   * Tick or untick one photo, or with Shift set the run from the anchor to match the anchor.
+   * @param index - position of the clicked tile in `tiles`
+   * @param event - the click's modifier keys
+   */
+  function onTileClick(index: number, event: TileEvent): void {
     if (event.shiftKey && anchor !== null && anchor < tiles.length) {
       const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
       const run = tiles.slice(from, to + 1).map((t) => t.id);
@@ -61,7 +67,12 @@ export function PhotoPicker({
     setAnchor(index);
   }
 
-  function monthAction(month: MonthRow) {
+  /**
+   * Button in a month heading that ticks the whole month, or unticks it when all are ticked.
+   * @param month - the month row the button belongs to
+   * @returns the month's tick button
+   */
+  function monthAction(month: MonthRow): ReactElement {
     const ids = tiles.slice(month.start, month.end).map((t) => t.id);
     const allPicked = ids.every((id) => picked.has(id));
     return (
@@ -117,7 +128,14 @@ export function PhotoPicker({
   );
 }
 
-/** The viewer's tick for the photo on show: a large switch, ticked like its tile. */
+/**
+ * The viewer's tick for the photo on show: a large switch, ticked like its tile.
+ * @param props - Component props.
+ * @param props.label - what ticking means, shown beside the switch
+ * @param props.ticked - whether the photo on show is ticked
+ * @param props.onToggle - called to flip the tick
+ * @returns the switch
+ */
 function TickSwitch({
   label,
   ticked,
@@ -126,7 +144,7 @@ function TickSwitch({
   label: string;
   ticked: boolean;
   onToggle: () => void;
-}) {
+}): ReactElement {
   return (
     <button
       type="button"
@@ -152,6 +170,7 @@ function TickSwitch({
 /**
  * The bar above a {@link PhotoPicker}: how many photos are ticked, what happens to the rest,
  * and buttons to tick or untick everything.
+ * @param props - Component props.
  * @param props.ticked - photos still ticked
  * @param props.total - photos in the picker
  * @param props.extra - shown after the count, e.g. the ticked size
@@ -171,7 +190,7 @@ export function PickBar({
   extra?: ReactNode;
   hint: ReactNode;
   onAll: (pick: boolean) => void;
-}) {
+}): ReactElement {
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line px-8 py-3">
       <div>

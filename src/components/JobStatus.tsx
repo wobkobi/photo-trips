@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactElement } from "react";
 import { api } from "../lib/api";
 import { JOB_NAMES, useJobs } from "../lib/useJobs";
 import { Icon } from "./Icon";
@@ -8,11 +8,18 @@ import { Progress } from "./ui";
  * Sidebar footer: progress of the running job, or the error from the last one. In a narrow
  * sidebar the job shows as a bar and a percentage, and an error as a warning button that widens
  * the sidebar to show it.
+ * @param props - Component props.
  * @param props.narrow - the sidebar shows icons only
  * @param props.onWiden - widen the sidebar
  * @returns the footer, or nothing when there's nothing to say
  */
-export function JobStatus({ narrow = false, onWiden }: { narrow?: boolean; onWiden?: () => void }) {
+export function JobStatus({
+  narrow = false,
+  onWiden,
+}: {
+  narrow?: boolean;
+  onWiden?: () => void;
+}): ReactElement | null {
   const { running, lastDone, clearLastDone } = useJobs();
   // Set when the narrow warning button widens the menu, so focus lands on the message it
   // replaced rather than dropping to the page.

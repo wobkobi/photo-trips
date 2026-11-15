@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.20.1] - 2026-11-16
+
+### Changed
+
+- Behind the scenes only: the code now follows the same formatting and documentation checks as the
+  To the Point Tech website, and Tailwind classes use their standard names. Nothing changes in how
+  the app works.
+
 ## [0.20.0] - 2026-11-16
 
 ### Changed

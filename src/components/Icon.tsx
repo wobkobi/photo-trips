@@ -1,5 +1,7 @@
 // Line icons drawn on a 20px grid, stroked with the current text colour.
 
+import type { ReactElement } from "react";
+
 const PATHS = {
   library: "M3 4h6v6H3zM11 4h6v6h-6zM3 12h6v4H3zM11 12h6v4h-6z",
   trips: "M4 17V4l6 3 6-3v13l-6 3-6-3zM10 7v13",
@@ -33,6 +35,7 @@ export type IconName = keyof typeof PATHS;
 
 /**
  * Inline SVG icon.
+ * @param props - Component props.
  * @param props.name - which icon to draw
  * @param props.size - rendered size in px (default 18)
  * @param props.className - extra classes
@@ -46,7 +49,7 @@ export function Icon({
   name: IconName;
   size?: number;
   className?: string;
-}) {
+}): ReactElement {
   return (
     <svg
       width={size}

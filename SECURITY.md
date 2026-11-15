@@ -2,13 +2,13 @@
 
 ## Supported versions
 
-Only the latest release of Pic Cabinet gets security fixes. Installed copies check for updates
-daily and offer new versions in Settings > About, so the fix for a problem is to update.
+Only the latest release of Pic Cabinet gets security fixes. Installed copies check for updates daily
+and offer new versions in Settings > About, so the fix for a problem is to update.
 
 ## Reporting a vulnerability
 
-Please report security problems privately, not in a public issue. Email
-harrison@tothepoint.co.nz with:
+Please report security problems privately, not in a public issue. Email harrison@tothepoint.co.nz
+with:
 
 - what the problem is and what someone could do with it
 - the version affected (Settings > About)

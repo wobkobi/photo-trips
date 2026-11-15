@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactElement,
+} from "react";
 import type { PageId } from "../App";
 import { Field, INPUT } from "../components/Field";
 import { Icon } from "../components/Icon";
@@ -80,6 +87,7 @@ interface Review {
 /**
  * Trips: date ranges whose photos live together in their own folder. Create, edit and delete
  * them, each previewed as file moves before anything changes.
+ * @param props - Component props.
  * @param props.draft - a trip started elsewhere (a Library selection or a suggestion) to open
  * @param props.onDraftUsed - called once the draft has opened in the editor
  * @param props.onNavigate - switch to another page
@@ -96,7 +104,7 @@ export function TripsPage({
   onDraftUsed: () => void;
   onNavigate: (page: PageId) => void;
   onShowTrip: (trip: FilterTrip) => void;
-}) {
+}): ReactElement {
   const { running } = useJobs();
   const { settings } = useSettings();
   const [trips, setTrips] = useState<TripInfo[] | null>(null);
@@ -138,7 +146,15 @@ export function TripsPage({
     load();
   });
 
-  async function preview(change: TripChange, describe: (preview: Preview) => Review) {
+  /**
+   * Plan a trip change and show its moves for review before anything changes.
+   * @param change - the create, update or delete to plan
+   * @param describe - turns the planned moves into the review's wording
+   */
+  async function preview(
+    change: TripChange,
+    describe: (preview: Preview) => Review,
+  ): Promise<void> {
     setError(null);
     setChecking(true);
     try {
@@ -150,7 +166,12 @@ export function TripsPage({
     }
   }
 
-  function reviewSave(current: Editor, excluded: number[]) {
+  /**
+   * Preview saving the editor's trip, new or changed.
+   * @param current - the editor being saved
+   * @param excluded - ids of the photos unticked
+   */
+  function reviewSave(current: Editor, excluded: number[]): void {
     const draftTrip = { ...toDraft(current.form), excluded };
     const name = draftTrip.name;
     const change: TripChange = current.trip
@@ -165,7 +186,11 @@ export function TripsPage({
     }));
   }
 
-  function reviewDelete(trip: TripInfo) {
+  /**
+   * Preview deleting a trip, which sends its photos back to their month folders.
+   * @param trip - the trip to delete
+   */
+  function reviewDelete(trip: TripInfo): void {
     void preview({ action: "delete", id: trip.id }, (p) => ({
       preview: p,
       note: "Deleting the trip doesn't delete any photos. They go back to their year and month folders.",
@@ -176,7 +201,11 @@ export function TripsPage({
     }));
   }
 
-  async function apply(current: Review) {
+  /**
+   * Apply the reviewed change; the apply job's end shows the result and closes the editor.
+   * @param current - the change under review
+   */
+  async function apply(current: Review): Promise<void> {
     setError(null);
     setApplying(current.done);
     try {
@@ -187,7 +216,11 @@ export function TripsPage({
     }
   }
 
-  async function undo(batchId: number) {
+  /**
+   * Undo the trip change just made, showing any failure as the page error.
+   * @param batchId - the batch to undo
+   */
+  async function undo(batchId: number): Promise<void> {
     setError(null);
     try {
       await api.undoBatch(batchId);
@@ -314,6 +347,7 @@ export function TripsPage({
 
 /**
  * One trip in the list. Its name opens the Library at the trip's photos, as does the button.
+ * @param props - Component props.
  * @param props.trip - the trip
  * @param props.busy - a job or check is running, so editing waits
  * @param props.onShow - open the Library showing only this trip
@@ -333,7 +367,7 @@ function TripRow({
   onShow: () => void;
   onEdit: () => void;
   onDelete: () => void;
-}) {
+}): ReactElement {
   return (
     <li className="flex overflow-hidden rounded-md border border-line bg-surface">
       <span aria-hidden="true" className={`w-1.5 shrink-0 ${tripBg(trip.colour)}`} />
@@ -376,6 +410,7 @@ function TripRow({
 /**
  * The trip form: name and dates at the top, then every photo from those dates with a tick, so
  * photos that weren't part of the trip can be left out of it.
+ * @param props - Component props.
  * @param props.editor - the trip, form and unticked photos so far
  * @param props.busy - a job or check is running, so the buttons wait
  * @param props.onChange - called with the editor after each change
@@ -395,7 +430,7 @@ function TripEditor({
   onChange: (editor: Editor) => void;
   onReview: (excluded: number[]) => void;
   onCancel: () => void;
-}) {
+}): ReactElement {
   const { settings } = useSettings();
   const { form, trip, left, picked } = editor;
   const matches = useTripMatches(form, trip?.id ?? null);
@@ -405,9 +440,22 @@ function TripEditor({
   const ready =
     form.name.trim() !== "" && hasValidRange(form) && matches !== null && !matches.problem;
   const ticked = tiles.filter((t) => !left.has(t.id)).length;
-  const set = (field: keyof TripForm) => (value: string) =>
-    onChange({ ...editor, form: { ...form, [field]: value } });
-  const setLeft = (next: ReadonlySet<number>) => onChange({ ...editor, left: next, picked: null });
+  /**
+   * Setter for one form field, for the inputs' change handlers.
+   * @param field - the form field to set
+   * @returns a function that stores a new value for that field
+   */
+  const set =
+    (field: keyof TripForm) =>
+    (value: string): void =>
+      onChange({ ...editor, form: { ...form, [field]: value } });
+  /**
+   * Store new unticked photos; a manual change ends the Library picks' hold on the ticks.
+   * @param next - ids of the photos unticked
+   */
+  const setLeft = (next: ReadonlySet<number>): void => {
+    onChange({ ...editor, left: next, picked: null });
+  };
 
   // Photos picked in the Library become the ticked ones once their days have loaded. Later date
   // changes then tick the new days' photos as usual.
@@ -420,7 +468,11 @@ function TripEditor({
     });
   }, [editor, picked, matches, onChange]);
 
-  function submit(event: FormEvent) {
+  /**
+   * Preview the save with the unticked photos left out, once the form is usable.
+   * @param event - the form submit, kept from reloading the page
+   */
+  function submit(event: FormEvent): void {
     event.preventDefault();
     if (ready && !busy) onReview(tiles.filter((t) => left.has(t.id)).map((t) => t.id));
   }
@@ -498,15 +550,21 @@ function TripEditor({
   );
 }
 
-
 /**
  * What the dates take in, when there's no photo grid to show it: why the dates can't be used
  * yet, or that no photos match them.
+ * @param props - Component props.
  * @param props.form - the trip form
  * @param props.matches - the photos the dates take in, or null while counting
  * @returns the message, or nothing when the grid shows the photos
  */
-function MatchSummary({ form, matches }: { form: TripForm; matches: TripMatches | null }) {
+function MatchSummary({
+  form,
+  matches,
+}: {
+  form: TripForm;
+  matches: TripMatches | null;
+}): ReactElement | null {
   if (!hasValidRange(form)) {
     const backwards = form.startDate !== "" && form.endDate !== "";
     return (

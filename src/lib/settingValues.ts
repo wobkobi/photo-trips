@@ -31,7 +31,12 @@ export function parseFolders(text: string | undefined): string[] {
  * @returns true when they match
  */
 export function samePath(a: string, b: string): boolean {
-  const norm = (path: string) => path.replace(/[\\/]+$/, "").toLowerCase();
+  /**
+   * Lower-case a path and strip its trailing slashes.
+   * @param path - a Windows path
+   * @returns the comparable form
+   */
+  const norm = (path: string): string => path.replace(/[\\/]+$/, "").toLowerCase();
   return norm(a) === norm(b);
 }
 

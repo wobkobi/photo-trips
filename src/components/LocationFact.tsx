@@ -1,5 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { api, errorText, type MapView } from "../lib/api";
 import { Icon } from "./Icon";
 import { Fact } from "./Viewer";
@@ -20,11 +20,12 @@ let lastZoom = 1;
  * Where a photo was taken: the nearest town's name and the built-in map around it, with buttons
  * to zoom and to open the spot on OpenStreetMap. The map is drawn from data inside the app; only
  * the OpenStreetMap button sends the location anywhere, and only when it's clicked.
+ * @param props - Component props.
  * @param props.lat - latitude in degrees
  * @param props.lon - longitude in degrees
  * @returns the block for the viewer's side panel
  */
-export function LocationFact({ lat, lon }: { lat: number; lon: number }) {
+export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactElement {
   const [zoom, setZoom] = useState(lastZoom);
   const spot = `${lat},${lon}`;
   const key = `${spot},${zoom}`;
@@ -47,12 +48,17 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }) {
   const error = failure?.key === key ? failure.message : null;
   const coords = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
 
-  function changeZoom(next: number) {
+  /**
+   * Switch to another zoom step, kept for the next photo.
+   * @param next - index into {@link ZOOMS}
+   */
+  function changeZoom(next: number): void {
     lastZoom = next;
     setZoom(next);
   }
 
-  function openMap() {
+  /** Open the spot on OpenStreetMap in the browser at about the same zoom. */
+  function openMap(): void {
     const at = `${lat.toFixed(5)}/${lon.toFixed(5)}`;
     const url = `https://www.openstreetmap.org/?mlat=${lat.toFixed(5)}&mlon=${lon.toFixed(5)}#map=${ZOOMS[zoom].osm}/${at}`;
     openUrl(url).catch((err) => setFailure({ key, message: errorText(err) }));
@@ -63,11 +69,7 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }) {
       {/* A blank line while loading, so the map doesn't jump down when the name arrives. */}
       <p className="selectable">{view?.place ?? (view ? coords : "\u00a0")}</p>
       <div className="mt-2 overflow-hidden rounded-[3px] border border-line bg-map-water">
-        {view ? (
-          <MapPicture view={view} />
-        ) : (
-          <div className="aspect-280/180" aria-hidden="true" />
-        )}
+        {view ? <MapPicture view={view} /> : <div className="aspect-280/180" aria-hidden="true" />}
       </div>
       {view?.place && <p className="selectable mt-1 text-[14px] text-faint">{coords}</p>}
       {error && (
@@ -93,8 +95,13 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }) {
   );
 }
 
-/** The map itself: water, land, lakes, borders, towns, the pin at the centre and a scale bar. */
-function MapPicture({ view }: { view: MapView }) {
+/**
+ * The map itself: water, land, lakes, borders, towns, the pin at the centre and a scale bar.
+ * @param props - Component props.
+ * @param props.view - the map drawn for this spot and zoom
+ * @returns the map as an SVG
+ */
+function MapPicture({ view }: { view: MapView }): ReactElement {
   const { width, height, labels } = view;
   const halo = {
     paintOrder: "stroke" as const,
@@ -150,8 +157,14 @@ function MapPicture({ view }: { view: MapView }) {
   );
 }
 
-/** A map pin whose point is on the spot. Labels in map.rs are placed clear of its outline. */
-function Pin({ x, y }: { x: number; y: number }) {
+/**
+ * A map pin whose point is on the spot. Labels in map.rs are placed clear of its outline.
+ * @param props - Component props.
+ * @param props.x - the spot's x in map units
+ * @param props.y - the spot's y in map units
+ * @returns the pin as an SVG group
+ */
+function Pin({ x, y }: { x: number; y: number }): ReactElement {
   return (
     <g>
       <path

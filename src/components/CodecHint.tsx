@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { api, type Codec, type StoreProduct, type Tile } from "../lib/api";
 import { missingCodecs } from "../lib/codecs";
 import { Icon } from "./Icon";
@@ -30,17 +30,25 @@ const LISTINGS: Record<Codec, Listing> = {
 /**
  * Banner shown when Windows couldn't draw thumbnails and a Store extension that isn't installed
  * would fix them.
+ * @param props - Component props.
  * @param props.failed - tiles whose thumbnails failed this session
  * @param props.onDismiss - hide the hint for good
  * @returns the banner, or nothing when no missing extension is implicated
  */
-export function CodecHint({ failed, onDismiss }: { failed: Tile[]; onDismiss: () => void }) {
+export function CodecHint({
+  failed,
+  onDismiss,
+}: {
+  failed: Tile[];
+  onDismiss: () => void;
+}): ReactElement | null {
   const [installed, setInstalled] = useState<Codec[] | null>(null);
   const anyFailed = failed.length > 0;
 
   useEffect(() => {
     if (!anyFailed) return;
-    const check = () => {
+    /** Ask which Store extensions are installed; a failed check counts as none. */
+    const check = (): void => {
       api.installedExtensions().then(setInstalled, () => setInstalled([]));
     };
     check();

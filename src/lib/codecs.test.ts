@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { Tile } from "./api";
 import { missingCodecs } from "./codecs";
 
-const tile = (ext: string, kind: Tile["kind"] = "photo") => ({ ext, kind }) as Tile;
+/**
+ * A tile with just the fields {@link missingCodecs} reads.
+ * @param ext - file extension
+ * @param kind - media kind
+ * @returns the tile
+ */
+const tile = (ext: string, kind: Tile["kind"] = "photo"): Tile => ({ ext, kind }) as Tile;
 
 describe("missingCodecs", () => {
   it("suggests nothing when the codecs a failure points to are installed", () => {

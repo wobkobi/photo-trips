@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
 import { api, errorText, type Naming, type Preview } from "../lib/api";
 import { MONTH_STYLES, monthFolder, namingOf, TRIP_STYLES, tripFolder } from "../lib/naming";
 import { useSettings } from "../lib/useSettings";
@@ -14,6 +14,7 @@ const EXAMPLE_DAY = `${EXAMPLE_YEAR}-03-12`;
  * Settings section for how month and trip folders are named. Each drop-down lists its presets
  * as example folders, and a sentence underneath shows where a photo and a trip would go. A
  * change only takes effect through a previewed batch that renames the folders already there.
+ * @param props - Component props.
  * @param props.busy - a job or check is running, so the button waits
  * @param props.onReview - called with the preview of the renames
  * @returns the section
@@ -24,7 +25,7 @@ export function FolderNames({
 }: {
   busy: boolean;
   onReview: (preview: Preview) => void;
-}) {
+}): ReactElement {
   const { settings } = useSettings();
   const saved = namingOf(settings);
   const [picked, setPicked] = useState<Naming | null>(null);
@@ -33,12 +34,17 @@ export function FolderNames({
   const naming = picked ?? saved;
   const changed = naming.months !== saved.months || naming.trips !== saved.trips;
 
-  function choose(next: Naming) {
+  /**
+   * Pick a naming to preview, clearing the last error.
+   * @param next - the month and trip styles chosen
+   */
+  function choose(next: Naming): void {
     setError(null);
     setPicked(next);
   }
 
-  async function check() {
+  /** Plan the renames for the picked naming and hand the preview on for review. */
+  async function check(): Promise<void> {
     setError(null);
     setChecking(true);
     try {

@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { shortcutFor } from "./menu";
 
-const press = (key: string, mods: { ctrl?: boolean; shift?: boolean; alt?: boolean } = {}) => ({
+/**
+ * A fake key press for {@link shortcutFor}.
+ * @param key - the key value, e.g. "i" or "F5"
+ * @param mods - modifier keys held down
+ * @param mods.ctrl - Ctrl held
+ * @param mods.shift - Shift held
+ * @param mods.alt - Alt held
+ * @returns the key press
+ */
+const press = (
+  key: string,
+  mods: { ctrl?: boolean; shift?: boolean; alt?: boolean } = {},
+): Parameters<typeof shortcutFor>[0] => ({
   key,
   code: /^\d$/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`,
   ctrlKey: mods.ctrl ?? false,
