@@ -2,6 +2,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { lazy, Suspense, useEffect, useState, type ReactElement } from "react";
 import { api, errorText, type MapView } from "../lib/api";
 import { themeOf } from "../lib/display";
+import { currentZoomStep, keepZoomStep, loadPhotoMap, ZOOMS } from "../lib/mapAhead";
 import { googleMapsUrl } from "../lib/maps";
 import { knownPlace, lookUpPlace } from "../lib/places";
 import { useMediaQuery } from "../lib/useMediaQuery";
@@ -10,22 +11,8 @@ import { Icon } from "./Icon";
 import { Fact } from "./Viewer";
 import { Button } from "./ui";
 
-const PhotoMap = lazy(() => import("./PhotoMap").then((m) => ({ default: m.PhotoMap })));
+const PhotoMap = lazy(() => loadPhotoMap().then((m) => ({ default: m.PhotoMap })));
 
-/**
- * Zoom steps, closest first: the online map's zoom, and the height in km of the built-in map
- * used offline (it doesn't go closer than 15 km).
- */
-const ZOOMS = [
-  { map: 15, km: 15 },
-  { map: 12, km: 15 },
-  { map: 10, km: 40 },
-  { map: 8, km: 120 },
-  { map: 6, km: 400 },
-  { map: 4, km: 1500 },
-];
-/** The zoom stays where it was left as the viewer steps from photo to photo. */
-let lastZoom = 1;
 /** Once the online map fails, the drawn one is used until the app restarts. */
 let mapOffline = false;
 
@@ -41,7 +28,7 @@ let mapOffline = false;
  * @returns the block for the viewer's side panel
  */
 export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactElement {
-  const [zoom, setZoom] = useState(lastZoom);
+  const [zoom, setZoom] = useState(currentZoomStep);
   const spot = `${lat},${lon}`;
   const key = `${spot},${zoom}`;
   const [loaded, setLoaded] = useState<{ key: string; spot: string; view: MapView } | null>(null);
@@ -93,7 +80,7 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactE
    * @param next - index into {@link ZOOMS}
    */
   function changeZoom(next: number): void {
-    lastZoom = next;
+    keepZoomStep(next);
     setZoom(next);
   }
 

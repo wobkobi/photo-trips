@@ -33,6 +33,10 @@ All notable changes to this project are documented here. The format follows
   the next two photos each way, with their suburb names, load ahead.
 - The viewer's side panel no longer jumps while stepping through photos: it lays out once, with
   Taken, File and Camera first and the map below them.
+- Clicking a photo in the viewer opens it in its app.
+- The viewer's map draws straight away when stepping between photos: the map tiles around the next photos are fetched ahead.
+- Videos in the viewer start at 40% volume instead of full, and keep whatever volume or mute was last set.
+- A date taken from when the file last changed is no longer flagged as a warning. Downloads, screenshots and photos from some apps have no date of their own; the reason shows on hover.
 
 ### Fixed
 

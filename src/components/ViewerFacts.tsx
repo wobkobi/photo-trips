@@ -48,9 +48,7 @@ export function LibraryFacts({ detail }: { detail: MediaDetail }): ReactElement 
       <Fact label="Taken">
         <p title={sourceText(detail.dateSource)}>{formatTaken(detail.takenAt)}</p>
         {note && (
-          <p
-            className={`mt-1 text-[14px] ${detail.dateSource === "modified" ? "text-warn" : "text-faint"}`}
-          >
+          <p className="mt-1 text-[14px] text-faint" title={sourceText(detail.dateSource)}>
             {note}
           </p>
         )}
@@ -111,7 +109,11 @@ export function ImportFacts({
     <>
       <Fact label="Taken">
         <p>{formatTaken(item.takenAt)}</p>
-        {item.uncertain && <p className="mt-1 text-[14px] text-warn">{dateNote("modified")}</p>}
+        {item.uncertain && (
+          <p className="mt-1 text-[14px] text-faint" title={sourceText("modified")}>
+            {dateNote("modified")}
+          </p>
+        )}
       </Fact>
 
       <Fact label="Goes into">

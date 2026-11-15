@@ -76,7 +76,8 @@ const SOURCE_TEXT: Record<DateSource, string> = {
   windows: "From the date Windows reads from the file.",
   exiftool: "From the date stored inside the file.",
   filename: "From the date in the file name.",
-  modified: "Guessed from when the file was last changed, so it may be wrong.",
+  modified:
+    "The file has no date of its own, so this is when it last changed. Common for downloads, screenshots and photos from apps that don't save camera details.",
 };
 
 /**
@@ -96,7 +97,7 @@ export function sourceText(source: DateSource): string {
  */
 export function dateNote(source: DateSource): string | null {
   if (source === "filename") return "From the file name";
-  if (source === "modified") return "Guessed from when the file last changed";
+  if (source === "modified") return "When the file last changed";
   return null;
 }
 

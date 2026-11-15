@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api, errorText, type MediaKind } from "../lib/api";
+import { savedVolume, saveVolume } from "../lib/videoVolume";
 import { Icon } from "./Icon";
 import { Button } from "./ui";
 
@@ -268,7 +269,8 @@ export function Viewer({
 }
 
 /**
- * The photo or video itself, or a button to open it in its own app when Pic Cabinet can't.
+ * The photo or video itself, or a button to open it in its own app when Pic Cabinet can't. A
+ * photo opens in its app when clicked.
  * @param props - Component props.
  * @param props.item - the file on show
  * @param props.openLabel - text for the open-in-app button
@@ -318,6 +320,16 @@ function Media({
         poster={item.preview}
         controls
         autoPlay
+        // Set before playback starts, so a video never begins at the browser's full volume.
+        ref={(el) => {
+          if (!el) return;
+          const { volume, muted } = savedVolume();
+          el.volume = volume;
+          el.muted = muted;
+        }}
+        onVolumeChange={(e) =>
+          saveVolume({ volume: e.currentTarget.volume, muted: e.currentTarget.muted })
+        }
         onError={() => setFailed(true)}
         className={mediaClass}
       />
@@ -326,16 +338,22 @@ function Media({
 
   // The tile underneath is the same picture smaller, so the photo shows at once, a little soft,
   // and sharpens when the full one has loaded. It goes once that's in, since a small or
-  // transparent full picture wouldn't cover it.
+  // transparent full picture wouldn't cover it. Clicking the photo opens it in its app; the space
+  // around it lets clicks through.
   return (
-    <div className="relative flex size-full items-center justify-center">
+    <button
+      type="button"
+      onClick={onOpen}
+      title={openLabel}
+      className="pointer-events-none relative flex size-full items-center justify-center"
+    >
       {!sharp && (
         <img
           src={item.thumb}
           alt=""
           aria-hidden="true"
           draggable={false}
-          className="absolute inset-0 size-full object-contain"
+          className="pointer-events-auto absolute inset-0 size-full cursor-pointer object-contain"
         />
       )}
       <img
@@ -344,9 +362,9 @@ function Media({
         draggable={false}
         onLoad={() => setSharp(true)}
         onError={() => setFailed(true)}
-        className={`relative ${mediaClass}`}
+        className={`pointer-events-auto relative cursor-pointer ${mediaClass}`}
       />
-    </div>
+    </button>
   );
 }
 

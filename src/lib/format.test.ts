@@ -153,6 +153,6 @@ describe("dateNote", () => {
     expect(dateNote("exif")).toBeNull();
     expect(dateNote("video")).toBeNull();
     expect(dateNote("filename")).toBe("From the file name");
-    expect(dateNote("modified")).toBe("Guessed from when the file last changed");
+    expect(dateNote("modified")).toBe("When the file last changed");
   });
 });
