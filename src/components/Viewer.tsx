@@ -177,7 +177,7 @@ export function Viewer({
         />
       </div>
 
-      <aside className="flex w-80 shrink-0 flex-col border-l border-line bg-surface">
+      <aside className="flex w-80 max-w-[45%] shrink-0 flex-col border-l border-line bg-surface">
         <div className="flex items-center justify-between px-5 pt-4">
           <span className="text-[14px] text-faint">
             {(index + 1).toLocaleString()} of {source.count.toLocaleString()}
@@ -294,12 +294,14 @@ function NavButton({
       type="button"
       onClick={onClick}
       disabled={hidden}
-      className={`absolute top-1/2 flex min-h-12 -translate-y-1/2 items-center gap-2 rounded-full bg-surface/90 px-5 text-[17px] font-semibold text-ink hover:bg-raised disabled:invisible ${
-        side === "left" ? "left-6" : "right-6"
+      title={label}
+      className={`absolute top-1/2 flex min-h-12 min-w-12 -translate-y-1/2 items-center justify-center gap-2 rounded-full bg-surface/90 px-3 text-[17px] font-semibold text-ink hover:bg-raised disabled:invisible md:px-5 ${
+        side === "left" ? "left-3 md:left-6" : "right-3 md:right-6"
       }`}
     >
       {side === "left" && <Icon name="back" />}
-      {label}
+      {/* Icon only on a narrow window, where the two labels would meet over the photo. */}
+      <span className="sr-only md:not-sr-only">{label}</span>
       {side === "right" && <Icon name="chevron" />}
     </button>
   );

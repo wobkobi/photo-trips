@@ -5,7 +5,7 @@ import { Icon } from "../components/Icon";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
 import { SampleStrip } from "../components/SampleStrip";
-import { Button, EmptyState, PageHeader } from "../components/ui";
+import { Button, EmptyState, LIST_FILL, PageHeader } from "../components/ui";
 import { useLibrarySource } from "../components/viewSources";
 import {
   api,
@@ -344,17 +344,17 @@ function TripRow({
               type="button"
               onClick={onShow}
               title="See this trip's photos in the Library"
-              className="text-left text-[22px] leading-tight font-bold tracking-tight text-brand hover:underline hover:underline-offset-4"
+              className="max-w-full text-left text-[22px] leading-tight font-bold tracking-tight break-words text-brand hover:underline hover:underline-offset-4"
             >
               {trip.name}
             </button>
             <p className="mt-1 flex flex-wrap gap-x-4 text-[15px] text-muted">
               <span>{rangeText(trip.startAt, trip.endAt)}</span>
               <span>{count(trip.files, "photo or video", "photos and videos")}</span>
-              <span className="selectable truncate text-faint">Trips\{trip.folder}</span>
+              <span className="selectable min-w-0 break-all text-faint">Trips\{trip.folder}</span>
             </p>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <Button onClick={onShow} className="mr-1">
               <Icon name="library" size={18} />
               See in Library
@@ -426,7 +426,7 @@ function TripEditor({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex flex-1 flex-col">
       <form onSubmit={submit} className="flex flex-col gap-5 px-8 pt-6 pb-5">
         <h2 className="text-[26px] leading-none font-bold tracking-tight text-brand">
           {trip ? `Edit ${trip.name}` : "New trip"}
@@ -440,28 +440,28 @@ function TripEditor({
               placeholder="Japan"
               maxLength={80}
               autoFocus
-              className={`${INPUT} w-72`}
+              className={`${INPUT} w-72 max-w-full`}
             />
           </Field>
-          <DateTime
-            label="Starts"
-            date={form.startDate}
-            time={form.startTime}
-            onDate={set("startDate")}
-            onTime={set("startTime")}
-          />
-          <DateTime
-            label="Ends"
-            date={form.endDate}
-            time={form.endTime}
-            onDate={set("endDate")}
-            onTime={set("endTime")}
-          />
+          <Field label="Starts">
+            <input
+              type="date"
+              value={form.startDate}
+              onChange={(e) => set("startDate")(e.target.value)}
+              required
+              className={INPUT}
+            />
+          </Field>
+          <Field label="Ends">
+            <input
+              type="date"
+              value={form.endDate}
+              onChange={(e) => set("endDate")(e.target.value)}
+              required
+              className={INPUT}
+            />
+          </Field>
         </div>
-        <p className="-mt-2 max-w-3xl text-[15px] text-muted">
-          Leave the times empty to take in whole days. Add them for travel days, when the trip
-          starts or ends partway through the day.
-        </p>
 
         <MatchSummary form={form} matches={matches} />
 
@@ -482,7 +482,7 @@ function TripEditor({
             hint="Untick any that weren't part of the trip. They stay in their month folders, and you can tick them again by editing the trip."
             onAll={(pick) => setLeft(pick ? NONE_LEFT : new Set(tiles.map((t) => t.id)))}
           />
-          <div className="flex min-h-0 flex-1 border-t border-line">
+          <div className={`flex border-t border-line ${LIST_FILL}`}>
             <PhotoPicker
               tiles={tiles}
               left={left}
@@ -498,42 +498,6 @@ function TripEditor({
   );
 }
 
-function DateTime({
-  label,
-  date,
-  time,
-  onDate,
-  onTime,
-}: {
-  label: string;
-  date: string;
-  time: string;
-  onDate: (value: string) => void;
-  onTime: (value: string) => void;
-}) {
-  return (
-    <fieldset className="flex flex-col gap-1.5">
-      <legend className="mb-1.5 text-[15px] font-semibold text-muted">{label}</legend>
-      <div className="flex gap-2">
-        <input
-          type="date"
-          aria-label={`${label} on`}
-          value={date}
-          onChange={(e) => onDate(e.target.value)}
-          required
-          className={INPUT}
-        />
-        <input
-          type="time"
-          aria-label={`${label} at (optional)`}
-          value={time}
-          onChange={(e) => onTime(e.target.value)}
-          className={INPUT}
-        />
-      </div>
-    </fieldset>
-  );
-}
 
 /**
  * What the dates take in, when there's no photo grid to show it: why the dates can't be used

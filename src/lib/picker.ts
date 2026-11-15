@@ -107,5 +107,7 @@ export function firstInFolder(
   folder: string,
   left: ReadonlySet<number>,
 ): number {
-  return tiles.findIndex((tile) => !left.has(tile.id) && splitPath(items[tile.id].to).folder === folder);
+  return tiles.findIndex(
+    (tile) => !left.has(tile.id) && splitPath(items[tile.id].to).folder === folder,
+  );
 }

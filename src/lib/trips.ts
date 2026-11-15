@@ -1,15 +1,13 @@
-// Trip form maths: turning dates and optional times into the inclusive range the backend
+// Trip form maths: turning a trip's first and last days into the inclusive range the backend
 // stores, and back, plus the short range text and colour classes shared by every trip view.
 
 import type { Tile, TripDraft, TripInfo } from "./api";
 
-/** What the trip form edits. Dates are "YYYY-MM-DD"; times are "HH:MM" or "" for whole days. */
+/** What the trip form edits. Dates are "YYYY-MM-DD"; a trip always takes in whole days. */
 export interface TripForm {
   name: string;
   startDate: string;
-  startTime: string;
   endDate: string;
-  endTime: string;
 }
 
 /** A date range picked outside the Trips page (Library selection, a suggestion). */
@@ -31,9 +29,7 @@ export interface TripStart {
 export const EMPTY_FORM: TripForm = {
   name: "",
   startDate: "",
-  startTime: "",
   endDate: "",
-  endTime: "",
 };
 
 /**
@@ -83,33 +79,30 @@ export function hasValidRange(form: TripForm): boolean {
 }
 
 /**
- * The inclusive range the form describes. An empty start time means the start of the day; an
- * empty end time means its last second, and a set end time takes in that whole minute.
+ * The inclusive range the form describes: from the start of the first day to the last second of
+ * the last.
  * @param form - the trip form
  * @returns the draft to send to the backend
  */
 export function toDraft(form: TripForm): TripDraft {
   return {
     name: form.name.trim(),
-    startAt: `${form.startDate}T${form.startTime || "00:00"}:00`,
-    endAt: `${form.endDate}T${form.endTime ? `${form.endTime}:59` : "23:59:59"}`,
+    startAt: `${form.startDate}T00:00:00`,
+    endAt: `${form.endDate}T23:59:59`,
   };
 }
 
 /**
- * The form for editing a saved trip: whole-day bounds show as empty times.
+ * The form for editing a saved trip. Only the days are kept, so a trip saved with times becomes
+ * whole days once it's saved again.
  * @param trip - the saved trip
  * @returns the form values
  */
 export function formFromTrip(trip: TripInfo): TripForm {
-  const startTime = trip.startAt.slice(11, 16);
-  const endTime = trip.endAt.slice(11, 16);
   return {
     name: trip.name,
     startDate: trip.startAt.slice(0, 10),
-    startTime: startTime === "00:00" ? "" : startTime,
     endDate: trip.endAt.slice(0, 10),
-    endTime: trip.endAt.slice(11) === "23:59:59" ? "" : endTime,
   };
 }
 

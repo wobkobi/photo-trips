@@ -12,10 +12,13 @@ import { thumbUrl, type Tile } from "../lib/api";
 import { jumpRow, timelineRows, type TimelineRow } from "../lib/format";
 import { tripBg } from "../lib/trips";
 import { Icon } from "./Icon";
+import { LIST_FILL } from "./ui";
 
 const GAP = 6;
 const SIDE_PADDING = 32;
 const HEADER_HEIGHT = 64;
+/** Frames to wait for a jumped-to tile to be drawn before giving up on focusing it. */
+const JUMP_FRAMES = 6;
 
 /** Click or right-click on a tile, with the modifier keys that decide what it does. */
 export type TileEvent = ReactMouseEvent<HTMLButtonElement>;
@@ -53,6 +56,8 @@ function libraryThumb(tile: Tile): string {
  * @param props.fadeUnselected - fade tiles that aren't selected, for when most are
  * @param props.jump - scroll to this tile, with its month heading when it's in the month's first
  *   row, and move keyboard focus to it
+ * @param props.ownsHeight - the grid sits straight in a page column, so it keeps its own minimum
+ *   height ({@link LIST_FILL}); otherwise its parent row does
  * @returns the scrolling grid
  */
 export function TimelineGrid({
@@ -68,6 +73,7 @@ export function TimelineGrid({
   monthAction,
   fadeUnselected = false,
   jump,
+  ownsHeight = false,
 }: {
   tiles: Tile[];
   tileSize: number;
@@ -81,6 +87,7 @@ export function TimelineGrid({
   monthAction?: (month: MonthRow) => ReactNode;
   fadeUnselected?: boolean;
   jump?: TileJump | null;
+  ownsHeight?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -113,29 +120,43 @@ export function TimelineGrid({
     virtualizer.measure();
   }, [virtualizer, tileSize, rows]);
 
-  // Only the rows on screen exist, so the tile can be focused only once the scroll has drawn it:
-  // the first frame scrolls, the second renders the new rows. Focus is moved without scrolling
-  // again, so the month heading stays in view above it.
+  // Only the rows on screen exist, so the tile can be focused only once the scroll has drawn it,
+  // usually a frame or two later; it's looked for each frame, up to JUMP_FRAMES. Focus is moved
+  // without scrolling again, so the month heading stays in view above it. Each request is handled
+  // once, so a later re-layout (the grid hidden and shown again) doesn't replay an old jump.
   const laidOut = width > 0;
+  const handledJump = useRef<TileJump | null>(null);
   useEffect(() => {
-    if (!jump || !laidOut) return;
+    if (!jump || !laidOut || handledJump.current === jump) return;
+    handledJump.current = jump;
     const row = jumpRow(rows, jump.index);
     if (row < 0) return;
     virtualizer.scrollToIndex(row, { align: "start" });
-    let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => {
-        scrollRef.current
-          ?.querySelector<HTMLButtonElement>(`[data-tile="${jump.index}"]`)
-          ?.focus({ preventScroll: true });
-      });
-    });
-    return () => cancelAnimationFrame(frame);
+    let tries = 0;
+    let done = false;
+    const focusTile = () => {
+      const tile = scrollRef.current?.querySelector<HTMLButtonElement>(
+        `[data-tile="${jump.index}"]`,
+      );
+      if (tile) tile.focus({ preventScroll: true });
+      else if (++tries < JUMP_FRAMES) frame = requestAnimationFrame(focusTile);
+      done = tile != null || tries >= JUMP_FRAMES;
+    };
+    let frame = requestAnimationFrame(focusTile);
+    return () => {
+      cancelAnimationFrame(frame);
+      // Cut short before the tile was found (as in Strict Mode's double run), so let it run again.
+      if (!done) handledJump.current = null;
+    };
     // Only a new request scrolls; a resize or new tiles shouldn't pull the view back.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jump, laidOut]);
 
   return (
-    <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+    <div
+      ref={scrollRef}
+      className={`overflow-y-auto ${ownsHeight ? LIST_FILL : "min-h-0 flex-1"}`}
+    >
       {width > 0 && (
         <div className="relative w-full" style={{ height: virtualizer.getTotalSize() + 32 }}>
           {virtualizer.getVirtualItems().map((item) => {
@@ -151,12 +172,14 @@ export function TimelineGrid({
                 }}
               >
                 {row.type === "month" ? (
+                  // The row has a fixed height (HEADER_HEIGHT), so nothing in it may wrap: a long
+                  // month name is cut short instead of growing up over the photos above.
                   <div className="flex h-full items-end gap-4 pb-3">
-                    <h2 className="flex items-end gap-3">
-                      <span className="text-[26px] leading-none font-extrabold tracking-tight text-brand">
+                    <h2 className="flex min-w-0 items-end gap-3">
+                      <span className="truncate text-[26px] leading-none font-extrabold tracking-tight text-brand">
                         {row.label}
                       </span>
-                      <span className="pb-0.5 text-[15px] text-faint">
+                      <span className="shrink-0 pb-0.5 text-[15px] text-faint">
                         {row.count.toLocaleString()}
                       </span>
                     </h2>

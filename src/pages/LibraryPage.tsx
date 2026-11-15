@@ -251,6 +251,7 @@ export function LibraryPage({
       )}
       {tiles !== null && count > 0 && (
         <TimelineGrid
+          ownsHeight
           tiles={tiles}
           tileSize={tileSizeOf(settings)}
           selecting={selecting}

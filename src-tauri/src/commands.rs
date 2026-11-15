@@ -120,6 +120,9 @@ pub fn set_setting(
         "photo_size" if !PHOTO_SIZES.contains(&value.as_str()) => {
             return Err(Error::msg("Choose one of the photo sizes shown"));
         }
+        "menu_narrow" if value != "true" && value != "false" => {
+            return Err(Error::msg("The menu width must be true or false"));
+        }
         _ => {}
     }
     db::set_setting(&*lock_db(&state)?, &key, &value)?;

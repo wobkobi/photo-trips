@@ -8,7 +8,7 @@ import { thumbUrl, type ApplySummary, type JobProgress, type Preview } from "../
 import { count, monthLabel, splitPath } from "../lib/format";
 import { JOB_NAMES } from "../lib/useJobs";
 import { Icon } from "./Icon";
-import { Button, Progress } from "./ui";
+import { Button, LIST_FILL, Progress } from "./ui";
 
 const ROW_HEIGHT = 60;
 
@@ -39,7 +39,7 @@ const VERBS = {
  */
 export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex flex-1 flex-col">
       <section className="px-8 pt-6 pb-5">
         <p className="text-[30px] leading-none font-extrabold tracking-tight text-brand">
           {preview.files === 0
@@ -71,7 +71,7 @@ export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode
         </div>
       </section>
       {preview.files > 0 && (
-        <div className="flex min-h-0 flex-1 gap-6 border-t border-line">
+        <div className={`flex gap-6 border-t border-line ${LIST_FILL}`}>
           <FolderList folders={preview.folders} />
           <MoveList
             label="Files that will move"
@@ -195,7 +195,7 @@ export function ResultBanner({
  * for jumping to its photos in a grid beside the list.
  * @param props.folders - folders relative to the library, with file counts
  * @param props.onOpen - called with the folder that was clicked
- * @returns the side list (hidden on narrow windows)
+ * @returns the side list (hidden on narrow windows; see {@link FolderJumpList})
  */
 export function FolderList({
   folders,
@@ -212,15 +212,62 @@ export function FolderList({
       }`}
     >
       {onOpen && <p className="mb-1 pl-3 text-[14px] text-faint">Click one to go to its photos.</p>}
-      <ul className="flex flex-col">
+      <FolderEntries folders={folders} onOpen={onOpen} />
+    </aside>
+  );
+}
+
+/**
+ * {@link FolderList} for windows too narrow for the side list (including any window at a large
+ * text size): a closed "Where they go" line above the grid that opens to the same buttons.
+ * @param props.folders - folders relative to the library, with file counts
+ * @param props.onOpen - called with the folder that was clicked
+ * @returns the fold-out list (hidden where the side list shows)
+ */
+export function FolderJumpList({
+  folders,
+  onOpen,
+}: {
+  folders: Preview["folders"];
+  onOpen: (folder: string) => void;
+}) {
+  return (
+    <details className="group shrink-0 border-t border-line px-5 lg:hidden">
+      {/* A flex summary loses the browser's marker, so the chevron stands in for it. */}
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-[16px] font-semibold">
+        <Icon name="chevron" size={16} className="shrink-0 transition-transform group-open:rotate-90" />
+        Where they go: {folders.length.toLocaleString()}{" "}
+        {folders.length === 1 ? "folder" : "folders"}
+      </summary>
+      <p className="mb-1 pl-3 text-[14px] text-faint">Click one to go to its photos.</p>
+      <div className="max-h-[40vh] overflow-y-auto pb-3">
+        <FolderEntries folders={folders} onOpen={onOpen} />
+      </div>
+    </details>
+  );
+}
+
+function FolderEntries({
+  folders,
+  onOpen,
+}: {
+  folders: Preview["folders"];
+  onOpen?: (folder: string) => void;
+}) {
+  return (
+    <ul className="flex flex-col">
         {folders.map(({ folder, files }) => {
           const name = splitPath(folder).name;
           const title = /^\d{4}-\d{2}$/.test(name) ? monthLabel(name) : name;
           const body = (
             <>
               <span className="min-w-0">
-                <span className="block truncate">{title}</span>
-                <span className="block truncate text-[14px] text-faint">{folder}</span>
+                <span className="block truncate" title={title}>
+                  {title}
+                </span>
+                <span className="block truncate text-[14px] text-faint" title={folder}>
+                  {folder}
+                </span>
               </span>
               <span className="shrink-0 text-[15px] text-muted">{files.toLocaleString()}</span>
             </>
@@ -231,7 +278,9 @@ export function FolderList({
                 <button
                   type="button"
                   onClick={() => onOpen(folder)}
-                  aria-label={`Go to the ${files === 1 ? "photo" : "photos"} going into ${title}`}
+                  aria-label={`Go to the ${files.toLocaleString()} ${
+                    files === 1 ? "photo" : "photos"
+                  } going into ${title}`}
                   className="flex min-h-11 w-full items-baseline justify-between gap-3 rounded-lg px-3 py-1.5 text-left hover:bg-raised"
                 >
                   {body}
@@ -243,7 +292,6 @@ export function FolderList({
           );
         })}
       </ul>
-    </aside>
   );
 }
 
@@ -319,7 +367,9 @@ function MoveRow({ item, origin, top }: { item: MoveRowData; origin: string; top
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="selectable truncate">{to.name}</span>
+          <span className="selectable min-w-0 truncate" title={to.name}>
+            {to.name}
+          </span>
           {item.extra > 0 && (
             <span
               className="shrink-0 text-[14px] text-muted"
@@ -329,13 +379,26 @@ function MoveRow({ item, origin, top }: { item: MoveRowData; origin: string; top
             </span>
           )}
           {item.renamed && (
-            <span className="shrink-0 truncate text-[14px] text-faint">was {from.name}</span>
+            // Gives way before the new name does: shrink-[4] takes most of any squeeze.
+            <span
+              className="min-w-0 shrink-[4] truncate text-[14px] text-faint"
+              title={`was ${from.name}`}
+            >
+              was {from.name}
+            </span>
           )}
         </span>
         <span className="flex min-w-0 items-center gap-1.5 text-[14px] text-muted">
-          <span className="selectable truncate">{from.folder || origin}</span>
+          <span
+            className="selectable min-w-0 shrink-[4] truncate"
+            title={from.folder || origin}
+          >
+            {from.folder || origin}
+          </span>
           <Icon name="chevron" size={12} className="shrink-0 text-faint" />
-          <span className="selectable shrink-0 text-ink">{to.folder}</span>
+          <span className="selectable min-w-0 truncate text-ink" title={to.folder}>
+            {to.folder}
+          </span>
         </span>
       </span>
     </div>

@@ -18,7 +18,7 @@ export function UpdateCheck() {
     <div className="mt-5 border-t border-line pt-4">
       {update ? (
         <>
-          <div className="flex items-center justify-between gap-6">
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
             <h3 className="font-semibold">Version {update.version} is available</h3>
             <Button variant="primary" disabled={progress !== null} onClick={install}>
               Install and restart
@@ -32,7 +32,7 @@ export function UpdateCheck() {
           )}
         </>
       ) : (
-        <div className="flex items-center justify-between gap-6">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <p className="text-[15px] text-muted">
             {check === "latest"
               ? "You have the latest version."

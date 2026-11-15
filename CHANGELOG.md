@@ -4,14 +4,45 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.20.0] - 2026-11-16
+
+### Changed
+
+- Trips always cover whole days: the start and end times are gone from the trip editor. A trip saved
+  with times takes in the whole of its first and last days the next time it's saved.
+
+## [0.19.1] - 2026-11-16
+
+### Fixed
+
+- At a large text size or on a small window, the photos on the Library, Trips, Import and
+  Duplicates pages, and the list of files on the review pages, could shrink to nothing under the
+  writing above them, and the mouse wheel did nothing. They now always keep a usable height and
+  the page scrolls instead.
+- Buttons at the top of a page move onto a new line when they don't fit, instead of squeezing
+  their words, and settings put their controls under the words when the window is narrow.
+- History, the Trips list and the Import review show whole folder paths instead of cutting them
+  off, and long file and folder names elsewhere show in full when the mouse rests on them.
+- The viewer's Newer and Older buttons show just their arrows on a narrow window, so they no
+  longer cover the photo, and the details panel gives the photo more room.
+- The Tick all and Untick all buttons beside each month are shorter ("Tick month"), so a long
+  month name can't push them over the photos above.
+
 ## [0.19.0] - 2026-11-15
 
 ### Added
 
 - The folder list beside an import's photos is clickable: clicking a month or trip scrolls to the
-  photos going into it.
+  photos going into it. On a narrower window, or at a large text size, the list folds away above
+  the photos under "Where they go".
 - The menu down the left can be narrowed to just its icons, giving the pages more room. The
-  button for it is at the bottom of the menu, and the choice is remembered.
+  button for it is at the bottom of the menu, and the choice is remembered. On a small window, or
+  at a large text size, the menu narrows by itself.
+
+### Fixed
+
+- The job progress and its Stop button at the bottom of the menu stay in view on a short window;
+  only the list of pages scrolls.
 
 ## [0.18.0] - 2026-11-15
 
