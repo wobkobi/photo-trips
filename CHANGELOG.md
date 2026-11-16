@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.24.0] - 2026-11-16
+
+### Added
+
+- One busy day away from home is suggested as a day trip.
+
 ## [0.23.0] - 2026-11-16
 
 ### Added

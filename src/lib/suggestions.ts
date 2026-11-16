@@ -35,10 +35,12 @@ export function daysIn(startDay: string, endDay: string): number {
  */
 export function reasonText(suggestion: Suggestion): string {
   const days = daysIn(suggestion.startDay, suggestion.endDay);
-  const photos = `${count(suggestion.files, "photo or video", "photos and videos")} over ${days} days.`;
+  const files = count(suggestion.files, "photo or video", "photos and videos");
   const { awayDays, awayKm } = suggestion;
+  const far = `about ${count(awayKm ?? 0, "km", "km")} from home.`;
+  if (days === 1) return awayKm === null ? `${files} in one day.` : `${files} in one day, ${far}`;
+  const photos = `${files} over ${days} days.`;
   if (awayDays === 0 || awayKm === null) return photos;
-  const far = `about ${count(awayKm, "km", "km")} from home.`;
   if (awayDays >= days) return `${photos} All ${days} days were ${far}`;
   if (awayDays === 1) return `${photos} 1 of the days was ${far}`;
   return `${photos} ${awayDays} of the days were ${far}`;
@@ -53,7 +55,9 @@ export function howFound(found: Pick<Suggestions, "home" | "minPhotos" | "locate
   const busy =
     `A day with ${found.minPhotos.toLocaleString("en-NZ")} or more photos and videos counts as busy. ` +
     "Two or more busy days in a row make a suggestion, even with a quiet day between them.";
-  const away = `A day spent more than ${AWAY_KM} km from home counts as well, however few photos it has.`;
+  const away =
+    `A day spent more than ${AWAY_KM} km from home counts as well, however few photos it has, ` +
+    "and a busy one makes a suggestion on its own as a day trip. Busy days at home don't count.";
   const { home } = found;
   if (home?.set) {
     const near = home.place ? `, near ${home.place}` : "";
