@@ -65,6 +65,8 @@ All notable changes to this project are documented here. The format follows
 - Review pages with a photo grid don't scroll the whole page when everything fits.
 - A photo opened for the first time sharpens sooner: its full picture is drawn before the ones
   fetched ahead and before grid tiles.
+- A settings text box shows a value saved from a button beside it, such as Use my location, instead
+  of staying empty.
 
 ## [0.22.0] - 2026-11-16
 

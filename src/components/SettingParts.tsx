@@ -117,8 +117,8 @@ export function Toggle({
 }
 
 /**
- * A text box that saves when it loses focus or on Enter. Escape puts the saved value back.
- * Assumes nothing else changes the setting while the page is open.
+ * A text box that saves when it loses focus or on Enter. Escape puts the saved value back. When
+ * the setting is saved from elsewhere (a button beside it, say), the box shows the new value.
  * @param props - Component props.
  * @param props.value - the saved value
  * @param props.label - accessible name
@@ -147,6 +147,13 @@ export function SavedText({
   onRevert?: () => void;
 }): ReactElement {
   const [text, setText] = useState(value);
+  // Follow a value saved from elsewhere. Set during render (React's pattern for state that
+  // tracks a prop), so the box never shows the old value for a frame.
+  const [shown, setShown] = useState(value);
+  if (value !== shown) {
+    setShown(value);
+    setText(value);
+  }
   return (
     <input
       type="text"
