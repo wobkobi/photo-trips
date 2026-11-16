@@ -12,6 +12,8 @@ All notable changes to this project are documented here. The format follows
   bar and menus follow it too.
 - Settings > Suggestions has a Use my location button that asks Windows where you are, once, and
   saves that as home.
+- A date rail beside the photo grid: drag or click it to jump to a month, or use the arrow and Page
+  keys.
 
 ### Changed
 

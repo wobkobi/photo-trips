@@ -12,6 +12,7 @@ import {
 import { thumbUrl, type Tile } from "../lib/api";
 import { count, jumpRow, timelineRows, type TimelineRow } from "../lib/format";
 import { tripBg } from "../lib/trips";
+import { DateRail, type RailMonth } from "./DateRail";
 import { Icon } from "./Icon";
 import { LIST_FILL } from "./ui";
 
@@ -21,6 +22,8 @@ const SIDE_PADDING = 12;
 const HEADER_HEIGHT = 48;
 /** Frames to wait for a jumped-to tile to be drawn before giving up on focusing it. */
 const JUMP_FRAMES = 6;
+/** Space left under the last row, so it doesn't sit hard against the bottom edge. */
+const END_SPACE = 32;
 
 /** Click or right-click on a tile, with the modifier keys that decide what it does. */
 export type TileEvent = ReactMouseEvent<HTMLButtonElement>;
@@ -94,11 +97,15 @@ export function TimelineGrid({
 }): ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
+  const [viewHeight, setViewHeight] = useState(0);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    const observer = new ResizeObserver(([entry]) => {
+      setWidth(entry.contentRect.width);
+      setViewHeight(entry.contentRect.height);
+    });
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
@@ -107,6 +114,20 @@ export function TimelineGrid({
   const columns = Math.max(2, Math.floor((inner + GAP) / (target + GAP)));
   const tileSize = Math.floor((inner - GAP * (columns - 1)) / columns);
   const rows = useMemo(() => timelineRows(tiles, columns), [tiles, columns]);
+  // Where each month starts, from the same row heights the list lays out with, for the date rail.
+  const { months, total } = useMemo(() => {
+    const found: RailMonth[] = [];
+    let top = 0;
+    for (const row of rows) {
+      if (row.type === "month") {
+        found.push({ key: row.key, label: row.label, top });
+        top += HEADER_HEIGHT;
+      } else top += tileSize + GAP;
+    }
+    return { months: found, total: top + END_SPACE };
+  }, [rows, tileSize]);
+  // Only worth showing when there's somewhere to jump to.
+  const showRail = months.length > 1 && total > viewHeight * 1.5;
 
   // TanStack Virtual returns fresh functions each render, which the React Compiler can't
   // memoise; it skips this component, which is the documented, intended outcome.
@@ -166,60 +187,66 @@ export function TimelineGrid({
   }, [jump, laidOut]);
 
   return (
-    <div ref={scrollRef} className={`overflow-y-auto ${ownsHeight ? LIST_FILL : "min-h-0 flex-1"}`}>
-      {width > 0 && (
-        <div className="relative w-full" style={{ height: virtualizer.getTotalSize() + 32 }}>
-          {virtualizer.getVirtualItems().map((item) => {
-            const row = rows[item.index];
-            return (
-              <div
-                key={row.key}
-                className="absolute left-0 w-full"
-                style={{
-                  transform: `translateY(${item.start}px)`,
-                  height: item.size,
-                  paddingInline: SIDE_PADDING,
-                }}
-              >
-                {row.type === "month" ? (
-                  // The row has a fixed height (HEADER_HEIGHT), so nothing in it may wrap: a long
-                  // month name is cut short instead of growing up over the photos above.
-                  <div className="flex h-full items-end gap-4 px-1 pb-1">
-                    <h2 className="flex min-w-0 items-baseline gap-2.5 pb-2.5">
-                      <span className="truncate text-[16px] leading-none font-semibold">
-                        {row.label}
-                      </span>
-                      <span className="shrink-0 text-[13px] leading-none text-faint">
-                        {row.count.toLocaleString()}
-                      </span>
-                    </h2>
-                    {monthAction?.(row)}
-                  </div>
-                ) : (
-                  <div className="flex" style={{ gap: GAP }}>
-                    {tiles.slice(row.start, row.end).map((tile, offset) => (
-                      <TileButton
-                        key={tile.id}
-                        index={row.start + offset}
-                        tile={tile}
-                        size={tileSize}
-                        selecting={selecting}
-                        thumb={thumbOf(tile)}
-                        selected={selected.has(tile.id)}
-                        faded={fadeUnselected && !selected.has(tile.id)}
-                        onClick={(event) => onTileClick(row.start + offset, event)}
-                        onMenu={(event) => onTileMenu(row.start + offset, event)}
-                        onZoom={onTileZoom && (() => onTileZoom(row.start + offset))}
-                        onThumbError={onThumbError}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+    <div className={`flex ${ownsHeight ? LIST_FILL : "min-h-0 flex-1"}`}>
+      <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto">
+        {width > 0 && (
+          <div
+            className="relative w-full"
+            style={{ height: virtualizer.getTotalSize() + END_SPACE }}
+          >
+            {virtualizer.getVirtualItems().map((item) => {
+              const row = rows[item.index];
+              return (
+                <div
+                  key={row.key}
+                  className="absolute left-0 w-full"
+                  style={{
+                    transform: `translateY(${item.start}px)`,
+                    height: item.size,
+                    paddingInline: SIDE_PADDING,
+                  }}
+                >
+                  {row.type === "month" ? (
+                    // The row has a fixed height (HEADER_HEIGHT), so nothing in it may wrap: a long
+                    // month name is cut short instead of growing up over the photos above.
+                    <div className="flex h-full items-end gap-4 px-1 pb-1">
+                      <h2 className="flex min-w-0 items-baseline gap-2.5 pb-2.5">
+                        <span className="truncate text-[16px] leading-none font-semibold">
+                          {row.label}
+                        </span>
+                        <span className="shrink-0 text-[13px] leading-none text-faint">
+                          {row.count.toLocaleString()}
+                        </span>
+                      </h2>
+                      {monthAction?.(row)}
+                    </div>
+                  ) : (
+                    <div className="flex" style={{ gap: GAP }}>
+                      {tiles.slice(row.start, row.end).map((tile, offset) => (
+                        <TileButton
+                          key={tile.id}
+                          index={row.start + offset}
+                          tile={tile}
+                          size={tileSize}
+                          selecting={selecting}
+                          thumb={thumbOf(tile)}
+                          selected={selected.has(tile.id)}
+                          faded={fadeUnselected && !selected.has(tile.id)}
+                          onClick={(event) => onTileClick(row.start + offset, event)}
+                          onMenu={(event) => onTileMenu(row.start + offset, event)}
+                          onZoom={onTileZoom && (() => onTileZoom(row.start + offset))}
+                          onThumbError={onThumbError}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      {showRail && <DateRail months={months} total={total} scrollRef={scrollRef} />}
     </div>
   );
 }
