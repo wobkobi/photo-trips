@@ -3,7 +3,7 @@ import type { PageId } from "../App";
 import { api } from "../lib/api";
 import { folderName } from "../lib/format";
 import { useMediaQuery } from "../lib/useMediaQuery";
-import { BrandMark } from "./BrandMark";
+import { AppIcon } from "./AppIcon";
 import { Icon, type IconName } from "./Icon";
 import { JobStatus } from "./JobStatus";
 
@@ -94,7 +94,7 @@ export function Sidebar({
         }`}
         title="Pic Cabinet, by To the Point Tech"
       >
-        <BrandMark size={22} className="shrink-0 text-accent" />
+        <AppIcon size={24} className="shrink-0" />
         {!iconsOnly && (
           <p className="font-brand text-[16px] leading-none font-bold tracking-tight">
             Pic Cabinet

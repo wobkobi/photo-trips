@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import type { PageId } from "../App";
+import { AppIcon } from "../components/AppIcon";
 import { BrandMark } from "../components/BrandMark";
 import { FolderNames } from "../components/FolderNames";
 import { Icon } from "../components/Icon";
@@ -327,12 +328,13 @@ export function SettingsPage({
           <>
             <Section title="About">
               <div className="flex items-center gap-4">
-                <BrandMark size={48} className="shrink-0 text-brand" />
+                <AppIcon size={56} className="shrink-0" />
                 <div>
                   <p className="font-brand text-[17px] leading-tight font-bold">Pic Cabinet</p>
                   {version && <p className="mt-1 text-[15px] text-muted">Version {version}</p>}
-                  <p className="mt-0.5 text-[15px] text-muted">
-                    © 2026 To the Point Tech. All rights reserved.
+                  <p className="mt-0.5 flex items-center gap-1.5 text-[15px] text-muted">
+                    <BrandMark size={16} className="shrink-0 text-logo" />© 2026 To the Point Tech.
+                    All rights reserved.
                   </p>
                   <LegalLinks />
                 </div>

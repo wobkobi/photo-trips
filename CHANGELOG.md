@@ -10,6 +10,8 @@ All notable changes to this project are documented here. The format follows
 
 - A Theme choice in Settings > Display: Light, Dark, or System to follow Windows. The window's title
   bar and menus follow it too.
+- Settings > Suggestions has a Use my location button that asks Windows where you are, once, and
+  saves that as home.
 
 ### Changed
 
@@ -40,6 +42,9 @@ All notable changes to this project are documented here. The format follows
 - Videos have their own control bar under the picture: play, a seek bar, mute and volume. Click the
   video or press Space to play and pause.
 - The viewer's arrows are small round buttons instead of labelled ones.
+- The menu and About show the Pic Cabinet icon, matching the taskbar; the To the Point Tech chip
+  sits by the copyright, in russian-violet on light and white on dark as on the website.
+- Settings has a gear icon in the menu.
 
 ### Fixed
 
@@ -57,6 +62,9 @@ All notable changes to this project are documented here. The format follows
 - The Import review counts photos everywhere: the button, the title and the folder list now match
   the tick count and the month headings. The total of files, with the videos and edits that go with
   them, shows when you hover over the button.
+- Review pages with a photo grid don't scroll the whole page when everything fits.
+- A photo opened for the first time sharpens sooner: its full picture is drawn before the ones
+  fetched ahead and before grid tiles.
 
 ## [0.22.0] - 2026-11-16
 

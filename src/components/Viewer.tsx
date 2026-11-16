@@ -150,7 +150,6 @@ export function Viewer({
             }
             return next;
           });
-          if (i !== index) preload(loadedItem);
         },
         (err) => {
           pending.current.delete(k);
@@ -159,6 +158,24 @@ export function Viewer({
       );
     }
   }, [source, index, items]);
+
+  // The neighbours' pictures are fetched only once the one on show is in. Windows draws them on
+  // the same few threads, newest request first, so fetching them straight away would draw all
+  // four neighbours before the photo that was opened.
+  const [shown, setShown] = useState<string | null>(null);
+  const preloaded = useRef(new Set<string>());
+  useEffect(() => {
+    if (shown !== key) return;
+    for (let step = 1; step <= AHEAD; step++) {
+      for (const i of [index + step, index - step]) {
+        if (i < 0 || i >= source.count) continue;
+        const near = items.get(source.key(i));
+        if (!near || preloaded.current.has(source.key(i))) continue;
+        preloaded.current.add(source.key(i));
+        preload(near);
+      }
+    }
+  }, [shown, key, index, items, source]);
 
   // Capture phase, so Escape closes only the viewer, not the selection or menu of the page behind.
   useEffect(() => {
@@ -230,6 +247,7 @@ export function Viewer({
             item={item}
             gone={source.gone}
             onBroken={recheck}
+            onShown={() => setShown(key)}
             openLabel={openLabel}
             onOpen={() => run(() => source.open(index))}
           />
@@ -297,6 +315,7 @@ export function Viewer({
  * @param props.gone - what to do about a file that has gone, from the source
  * @param props.onBroken - ask whether the file has gone after it failed to load; resolves true
  * when it has, and the item is then marked missing
+ * @param props.onShown - the file is on screen as fully as it will be, so neighbours can load
  * @param props.openLabel - text for the open-in-app button
  * @param props.onOpen - open the file in its default app
  * @returns the media, or the fallback with its open button
@@ -305,12 +324,14 @@ function Media({
   item,
   gone,
   onBroken,
+  onShown,
   openLabel,
   onOpen,
 }: {
   item: ViewItem;
   gone: string;
   onBroken: () => Promise<boolean>;
+  onShown: () => void;
   openLabel: string;
   onOpen: () => void;
 }): ReactElement {
@@ -318,6 +339,11 @@ function Media({
   const [sharp, setSharp] = useState(false);
   const mediaClass = "max-h-full max-w-full object-contain";
   const video = item.kind === "video";
+
+  // Only a picture waits for its full image; anything else is as shown as it gets at once.
+  useEffect(() => {
+    if (item.missing || failed || video) onShown();
+  }, [item.missing, failed, video, onShown]);
 
   /** A load failed: a gone file shows its notice, anything else the can't-show fallback. */
   function broken(): void {
@@ -394,8 +420,14 @@ function Media({
         src={item.original ?? item.preview}
         alt={item.name}
         draggable={false}
-        onLoad={() => setSharp(true)}
-        onError={broken}
+        onLoad={() => {
+          setSharp(true);
+          onShown();
+        }}
+        onError={() => {
+          onShown();
+          broken();
+        }}
         className={`pointer-events-auto relative cursor-pointer ${mediaClass}`}
       />
     </button>

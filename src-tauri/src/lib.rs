@@ -17,6 +17,7 @@ mod import;
 mod index;
 mod jobs;
 mod library;
+mod location;
 mod map;
 mod menu;
 mod metadata;
@@ -188,6 +189,7 @@ pub fn run() {
             suggest::dismiss_suggestion,
             suggest::restore_dismissed,
             suggest::home_place,
+            location::current_location,
             watch::watch_status,
             watch::set_watch_paused,
             menu::menu_action,

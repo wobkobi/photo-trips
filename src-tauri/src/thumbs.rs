@@ -2,7 +2,7 @@
 // any format with an installed handler (HEIC, RAW, most video) gets a picture, already turned
 // upright. Rendered on a small pool of COM threads, cached as JPEGs and served on thumb://.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 
@@ -39,14 +39,22 @@ type Callback = Box<dyn FnOnce(Option<Vec<u8>>) + Send>;
 struct Job {
     source: PathBuf,
     cache: PathBuf,
-    size: i32,
-    background: [u8; 3],
-    done: Callback,
+    /// The viewer's full-size picture rather than a grid tile.
+    full: bool,
+    /// Everyone waiting for this rendering: a picture asked for again while queued joins it.
+    done: Vec<Callback>,
+}
+
+#[derive(Default)]
+struct Queue {
+    jobs: Vec<Job>,
+    /// Renderings being drawn, with callers who asked for them meanwhile.
+    running: HashMap<PathBuf, Vec<Callback>>,
 }
 
 #[derive(Default)]
 struct Shared {
-    queue: Mutex<Vec<Job>>,
+    queue: Mutex<Queue>,
     ready: Condvar,
     /// Cache paths the shell couldn't render this session, so they aren't retried on every scroll.
     failed: Mutex<HashSet<PathBuf>>,
@@ -114,19 +122,34 @@ impl Pool {
         }
         let dropped = {
             let mut queue = lock(&self.shared.queue);
-            queue.push(Job {
-                source,
-                cache,
-                size: if full { PREVIEW_SIZE } else { THUMB_SIZE },
-                background: if full { VIEWER_BACKGROUND } else { TILE_BACKGROUND },
-                done,
-            });
-            let excess = queue.len().saturating_sub(MAX_QUEUE);
-            queue.drain(..excess).collect::<Vec<_>>()
+            if let Some(waiting) = queue.running.get_mut(&cache) {
+                waiting.push(done);
+                return;
+            }
+            // Asked for again while queued (the viewer stepping onto a picture it fetched ahead):
+            // one rendering serves both, and it moves up as the newest request.
+            let job = match queue.jobs.iter().position(|j| j.cache == cache) {
+                Some(at) => {
+                    let mut job = queue.jobs.remove(at);
+                    job.done.push(done);
+                    job
+                }
+                None => Job {
+                    source,
+                    cache,
+                    full,
+                    done: vec![done],
+                },
+            };
+            queue.jobs.push(job);
+            let excess = queue.jobs.len().saturating_sub(MAX_QUEUE);
+            queue.jobs.drain(..excess).collect::<Vec<_>>()
         };
         self.shared.ready.notify_one();
         for job in dropped {
-            (job.done)(None);
+            for done in job.done {
+                done(None);
+            }
         }
     }
 }
@@ -146,8 +169,9 @@ fn worker(shared: &Shared) {
         let job = {
             let mut queue = lock(&shared.queue);
             loop {
-                // Newest first: that is the tile the user has just scrolled to.
-                if let Some(job) = queue.pop() {
+                if let Some(at) = next_job(&queue.jobs) {
+                    let job = queue.jobs.remove(at);
+                    queue.running.insert(job.cache.clone(), Vec::new());
                     break job;
                 }
                 queue = shared
@@ -156,15 +180,35 @@ fn worker(shared: &Shared) {
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
             }
         };
-        let jpeg = render(&job.source, job.size, job.background);
+        let jpeg = if job.full {
+            render(&job.source, PREVIEW_SIZE, VIEWER_BACKGROUND)
+        } else {
+            render(&job.source, THUMB_SIZE, TILE_BACKGROUND)
+        };
         match &jpeg {
             Some(bytes) => write_atomic(&job.cache, bytes),
             None => {
                 lock(&shared.failed).insert(job.cache.clone());
             }
         }
-        (job.done)(jpeg);
+        let waiting = lock(&shared.queue)
+            .running
+            .remove(&job.cache)
+            .unwrap_or_default();
+        for done in job.done.into_iter().chain(waiting) {
+            done(jpeg.clone());
+        }
     }
+}
+
+/// Which queued job to draw next. The viewer's full-size pictures go before grid tiles, since
+/// one of them is the photo on screen and a backlog of tiles from scrolling would otherwise hold
+/// it up for seconds. Within each, newest first: the photo just opened or the tile just scrolled
+/// to.
+fn next_job(jobs: &[Job]) -> Option<usize> {
+    jobs.iter()
+        .rposition(|j| j.full)
+        .or_else(|| jobs.len().checked_sub(1))
 }
 
 /// Write through a temp file so a crash mid-write never leaves a half JPEG in the cache.
@@ -404,6 +448,20 @@ mod tests {
             flatten(&[0, 0, 0, 0, 10, 20, 30, 255], bg),
             vec![bg[0], bg[1], bg[2], 30, 20, 10]
         );
+    }
+
+    #[test]
+    fn full_pictures_go_before_tiles_and_newest_first() {
+        let job = |name: &str, full| Job {
+            source: PathBuf::from(name),
+            cache: PathBuf::from(name),
+            full,
+            done: Vec::new(),
+        };
+        assert_eq!(next_job(&[]), None);
+        assert_eq!(next_job(&[job("a", false), job("b", false)]), Some(1));
+        let jobs = [job("full-old", true), job("full-new", true), job("tile", false)];
+        assert_eq!(next_job(&jobs), Some(1));
     }
 
     #[test]

@@ -5,16 +5,16 @@ import { Icon } from "./Icon";
 
 /**
  * For the photo grid or move list that fills the rest of a page. It grows into the space left
- * under the page's header and notes, but never below nearly the whole window (less room for the
- * toolbar and a bar above the list), so tall notes (a large text size, a small window) can't
- * squeeze it to a strip; the page scrolls instead, and once scrolled down the list fills the view.
+ * under the page's header and notes, so the page itself doesn't scroll while everything fits. It
+ * never goes below 60% of the window (or 18rem), so tall notes (Details open, a large text size,
+ * a small window) can't squeeze it to a strip; the page scrolls instead.
  *
  * The boxes between the page and the list must not have `min-h-0`, or they shrink and the list
  * overflows them. Without that they size to their content, which would include every row of a
  * virtual list; size containment makes the list count as empty there, so only its minimum height
  * reaches them.
  */
-export const LIST_FILL = "min-h-[max(18rem,calc(100vh-9rem))] flex-1 contain-size";
+export const LIST_FILL = "min-h-[max(18rem,60vh)] flex-1 contain-size";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 

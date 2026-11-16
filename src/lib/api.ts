@@ -750,6 +750,11 @@ export const api = {
    * @returns the place name, or null
    */
   homePlace: (location: string) => invoke<string | null>("home_place", { location }),
+  /**
+   * Where Windows says the computer is, read once.
+   * @returns "lat, lon"
+   */
+  currentLocation: () => invoke<string>("current_location"),
 };
 
 /**

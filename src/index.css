@@ -24,6 +24,8 @@
      it stands out from the ground. */
   --color-brand: light-dark(#0c0a3e, #5450e2);
   --color-brand-hover: light-dark(#191584, #6763e6);
+  /* The To the Point Tech chip, as the website shows it: russian-violet on light, white on dark. */
+  --color-logo: light-dark(#0c0a3e, #ffffff);
   /* moonstone-600 on light (3:1 on seasalt for rings and fills), moonstone-400 on dark. */
   --color-accent: light-dark(#2b93a1, #5ec6d4);
   /* Mustard itself can't be read on a pale ground, so light uses mustard-800. */
