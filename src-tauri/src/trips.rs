@@ -32,8 +32,9 @@ pub const TRIPS_DIR: &str = "Trips";
 const COLOURS: i64 = 6;
 /// Longest trip name used in a folder name, in characters.
 const MAX_NAME: usize = 80;
-/// Thumbnails shown under the trip form.
-const SAMPLE_SIZE: usize = 8;
+/// Sample photos sent with a trip or suggestion: the Trips page covers use four, and a
+/// suggestion's strip as many as fit across a wide window.
+const SAMPLE_SIZE: usize = 12;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

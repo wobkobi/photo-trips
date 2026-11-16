@@ -34,6 +34,7 @@ import {
   formFromTrip,
   hasValidRange,
   rangeText,
+  spreadPick,
   toDraft,
   tripBg,
   type TripForm,
@@ -413,7 +414,7 @@ function TripRow({
  */
 function Cover({ sample }: { sample: SampleTile[] }): ReactElement | null {
   if (sample.length === 0) return null;
-  const shown = sample.length >= 4 ? sample.slice(0, 4) : sample.slice(0, 1);
+  const shown = sample.length >= 4 ? spreadPick(sample, 4) : sample.slice(0, 1);
   return (
     <span
       className={`grid h-full w-full gap-0.5 ${shown.length === 4 ? "grid-cols-2 grid-rows-2" : ""}`}

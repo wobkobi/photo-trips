@@ -232,7 +232,7 @@ export function SuggestionsPage({
         </EmptyState>
       )}
       {listing && data !== null && suggestions.length > 0 && (
-        <div className="flex max-w-4xl flex-col gap-3 px-8 py-6">
+        <div className="flex max-w-6xl flex-col gap-3 px-8 py-6">
           <p className="max-w-2xl text-[15px] text-muted">{howFound(data)}</p>
           <ul className="mt-2 flex flex-col gap-3">
             {suggestions.map((suggestion) => {
@@ -290,8 +290,10 @@ function SuggestionCard({
 }): ReactElement {
   return (
     <li className="flex flex-col gap-3 rounded-md border border-dashed border-line bg-surface p-4">
+      {/* The buttons drop under the words when both can't share a line, rather than squeezing the
+          words into a narrow column. */}
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-72">
           <p className="text-[17px] leading-tight font-semibold">{suggestion.name}</p>
           <p className="mt-1 text-[15px] text-muted">
             {/* A name made from the dates already says them. */}

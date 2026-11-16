@@ -115,3 +115,18 @@ export function rangeOfTiles(tiles: Tile[]): TripRange {
   const days = tiles.map((t) => t.takenAt.slice(0, 10)).sort();
   return { startDate: days[0], endDate: days[days.length - 1] };
 }
+
+/**
+ * `count` items spread evenly through `items`, keeping the first and last when there's room.
+ * @param items - the items, in order
+ * @param count - how many to keep
+ * @returns the kept items, in order
+ */
+export function spreadPick<T>(items: T[], count: number): T[] {
+  if (count >= items.length) return items;
+  if (count <= 1) return items.slice(0, Math.max(0, count));
+  return Array.from(
+    { length: count },
+    (_, i) => items[Math.round((i * (items.length - 1)) / (count - 1))],
+  );
+}
