@@ -3,15 +3,18 @@
 // 1. Count photos and videos per day. A day with at least `min_photos` of them is busy.
 // 2. With GPS, find home (where photos were taken on the most days, unless Settings has one)
 //    and mark days whose middle photo location is more than 50 km from it as away.
-// 3. Join busy and away days into runs, bridging one quiet day. A run of 2+ days is a suggestion.
-// 4. Name it after the town, region or country most of its located photos are near, or its dates.
+// 3. Join busy and away days into runs, bridging one quiet day. With a home, a run whose located
+//    days are all at home is everyday life, not a trip, and home days at either end come off.
+//    A run of 2+ days is a suggestion.
+// 4. Name it after the area, region or country its located photos fit (see `place_name`), or its
+//    dates.
 // 5. Leave out runs that overlap a trip or a dismissed suggestion.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::OnceLock;
 
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use reverse_geocoder::ReverseGeocoder;
+use reverse_geocoder::{Record, ReverseGeocoder};
 use rusqlite::{Connection, params};
 use serde::Serialize;
 use tauri::State;
@@ -40,6 +43,11 @@ const MIN_HOME_DAYS: usize = 5;
 /// A photo further than this from the nearest town in the place list gets no place name
 /// (out at sea, or somewhere remote).
 const PLACE_MAX_KM: f64 = 100.0;
+/// Photos within this of one town count as a stay there: the town, its beaches and day walks.
+const AREA_KM: f64 = 25.0;
+/// A suburb within this of its city is named after the city.
+const CITY_KM: f64 = 15.0;
+const KM_PER_DEG_LAT: f64 = 111.2;
 /// Located photos looked up per suggestion, spread evenly; plenty to find the main place.
 const PLACE_LOOKUPS: usize = 200;
 const EARTH_RADIUS_KM: f64 = 6371.0;
@@ -102,8 +110,28 @@ pub fn find(shots: &[Shot], min_photos: usize, home: Option<Point>) -> Found {
         .iter()
         .filter(|(day, (photos, _))| *photos >= min_photos || away.contains_key(*day))
         .map(|(day, _)| *day);
+    // Days with photos placing them near home. Without a home nothing can be placed there.
+    let at_home = |day: &NaiveDate| {
+        home.is_some() && middles.contains_key(day) && !away.contains_key(day)
+    };
     let runs = join_runs(wanted)
         .into_iter()
+        .filter(|(start, end)| {
+            // Busy days at home (a party, a weekend in the garden) aren't a trip. Days without
+            // locations can't be placed, so a run of only those stays.
+            let located = middles.range(*start..=*end).count();
+            located == 0 || away.range(*start..=*end).next().is_some()
+        })
+        .filter_map(|(mut start, mut end)| {
+            // A busy day at home before leaving or after getting back isn't part of the trip.
+            while start < end && at_home(&start) {
+                start = start.succ_opt()?;
+            }
+            while end > start && at_home(&end) {
+                end = end.pred_opt()?;
+            }
+            ((end - start).num_days() + 1 >= MIN_RUN_DAYS).then_some((start, end))
+        })
         .map(|(start, end)| {
             let mut kms: Vec<f64> = away.range(start..=end).map(|(_, km)| *km).collect();
             Run {
@@ -225,6 +253,8 @@ pub struct Place {
     pub region: String,
     /// The country's name.
     pub country: String,
+    /// Where the town is.
+    pub at: Point,
 }
 
 /// A place at one level of [`place_name`]: its name, then the levels above that tell it apart
@@ -249,29 +279,90 @@ fn place_key(place: &Place, level: Level) -> Option<PlaceKey> {
     (!name.is_empty()).then(|| (name.clone(), above.0, above.1))
 }
 
-/// A name for photos taken at `places`: the town most of them are near, else the region, else
-/// the country. When no single answer has half, two that share three quarters make the name
-/// ("Tokyo and Kyoto", "France and Italy"). `None` when there's nothing to go on.
-pub fn place_name(places: &[Place]) -> Option<String> {
-    let total = places.len();
-    [Level::Town, Level::Region, Level::Country].into_iter().find_map(|level| {
-        let mut counts: HashMap<PlaceKey, usize> = HashMap::new();
+/// Photos per place at `level`, most first (ties by name, so the answer never depends on hash
+/// order).
+fn ranked(places: &[Place], level: Level) -> Vec<(PlaceKey, usize)> {
+    let mut counts: HashMap<PlaceKey, usize> = HashMap::new();
+    for place in places {
+        if let Some(k) = place_key(place, level) {
+            *counts.entry(k).or_default() += 1;
+        }
+    }
+    let mut ranked: Vec<(PlaceKey, usize)> = counts.into_iter().collect();
+    ranked.sort_by(|(a, n), (b, m)| m.cmp(n).then_with(|| a.cmp(b)));
+    ranked
+}
+
+/// The one place at `level` holding at least `share` (numerator, denominator) of the photos.
+fn one_of(places: &[Place], level: Level, share: (usize, usize)) -> Option<String> {
+    match ranked(places, level).as_slice() {
+        [(first, n), ..] if n * share.1 >= places.len() * share.0 => Some(first.0.clone()),
+        _ => None,
+    }
+}
+
+/// The two places at `level` holding three quarters of the photos between them, as "A and B".
+/// Two places of the same name (a Richmond in each hemisphere) are just that name.
+fn two_of(places: &[Place], level: Level) -> Option<String> {
+    match ranked(places, level).as_slice() {
+        [(first, n), (second, m), ..] if (n + m) * 4 >= places.len() * 3 => Some(if first.0 == second.0 {
+            first.0.clone()
+        } else {
+            format!("{} and {}", first.0, second.0)
+        }),
+        _ => None,
+    }
+}
+
+/// The town whose surroundings (within `AREA_KM`) hold two thirds of the photos: a stay in
+/// one place, a town and the beaches around it. Named after the most photographed town there,
+/// which is usually where the stay was.
+fn area_name(places: &[Place]) -> Option<String> {
+    let towns: Vec<(&Place, usize)> = {
+        let mut seen: Vec<(&Place, usize)> = Vec::new();
         for place in places {
-            if let Some(k) = place_key(place, level) {
-                *counts.entry(k).or_default() += 1;
+            match seen.iter_mut().find(|(p, _)| p.town == place.town && p.at == place.at) {
+                Some((_, n)) => *n += 1,
+                None => seen.push((place, 1)),
             }
         }
-        let mut ranked: Vec<(PlaceKey, usize)> = counts.into_iter().collect();
-        ranked.sort_by(|(a, n), (b, m)| m.cmp(n).then_with(|| a.cmp(b)));
-        match ranked.as_slice() {
-            [(first, n), ..] if n * 2 >= total => Some(first.0.clone()),
-            // "Richmond and Richmond" says nothing; the next level up names them better.
-            [(first, n), (second, m), ..] if first.0 != second.0 && (n + m) * 4 >= total * 3 => {
-                Some(format!("{} and {}", first.0, second.0))
-            }
-            _ => None,
-        }
-    })
+        seen
+    };
+    let around = |centre: Point| {
+        towns.iter().filter(move |(p, _)| distance_km(p.at, centre) <= AREA_KM)
+    };
+    let (_, best, in_area) = towns
+        .iter()
+        .map(|(centre, own)| (*own, *centre, around(centre.at).map(|(_, n)| n).sum::<usize>()))
+        .max_by(|a, b| a.2.cmp(&b.2).then(a.0.cmp(&b.0)).then_with(|| b.1.town.cmp(&a.1.town)))?;
+    if in_area * 3 < places.len() * 2 {
+        return None;
+    }
+    around(best.at)
+        .max_by(|(a, n), (b, m)| n.cmp(m).then_with(|| b.town.cmp(&a.town)))
+        .map(|(p, _)| p.town.clone())
+}
+
+/// A name for photos taken at `places`, as specific as the photos allow and no more:
+///
+/// 1. One area holding two thirds of them (see [`area_name`]): "Tairua".
+/// 2. One region holding two thirds: a road trip down the coast is "California", not the town
+///    with the most stops.
+/// 3. Two towns holding three quarters: "Tokyo and Kyoto".
+/// 4. Two regions holding three quarters.
+/// 5. The country holding half, or two countries holding three quarters: "France and Italy".
+///
+/// `None` when there's nothing to go on.
+pub fn place_name(places: &[Place]) -> Option<String> {
+    if places.is_empty() {
+        return None;
+    }
+    area_name(places)
+        .or_else(|| one_of(places, Level::Region, (2, 3)))
+        .or_else(|| two_of(places, Level::Town))
+        .or_else(|| two_of(places, Level::Region))
+        .or_else(|| one_of(places, Level::Country, (1, 2)))
+        .or_else(|| two_of(places, Level::Country))
 }
 
 /// The offline place list, loaded on first use (it takes a moment).
@@ -280,27 +371,85 @@ fn geocoder() -> &'static ReverseGeocoder {
     GEOCODER.get_or_init(ReverseGeocoder::new)
 }
 
-/// The town nearest `point`, with its region and country, unless it's too far to mean much.
+/// Where `point` is, for naming trips and home: the nearest town, or the city it's part of
+/// (see [`main_town`]), unless it's too far from anywhere to mean much.
 fn place_of(point: Point) -> Option<Place> {
-    town_near(point).map(|(place, _)| place)
+    let found = nearest(point)?;
+    Some(place_from(main_town(found).unwrap_or(found)))
 }
 
-/// The town nearest `point` and where that town is, unless it's too far to mean much.
+/// The town nearest `point` and where that town is, unless it's too far to mean much. Exact,
+/// for the map beside one photo, where a suburb is the right answer.
 pub fn town_near(point: Point) -> Option<(Place, Point)> {
+    nearest(point).map(|found| {
+        let place = place_from(found);
+        let at = place.at;
+        (place, at)
+    })
+}
+
+/// The place-list entry nearest `point`, within `PLACE_MAX_KM`.
+fn nearest(point: Point) -> Option<&'static Record> {
     let found = geocoder().search((point.lat, point.lon)).record;
-    let town = Point {
-        lat: found.lat,
-        lon: found.lon,
-    };
-    if distance_km(point, town) > PLACE_MAX_KM {
+    (distance_km(point, record_point(found)) <= PLACE_MAX_KM).then_some(found)
+}
+
+fn record_point(record: &Record) -> Point {
+    Point {
+        lat: record.lat,
+        lon: record.lon,
+    }
+}
+
+fn place_from(record: &Record) -> Place {
+    Place {
+        town: record.name.clone(),
+        region: record.admin1.clone(),
+        country: country_name(&record.cc).unwrap_or_else(|| record.cc.clone()),
+        at: record_point(record),
+    }
+}
+
+/// Whether a place-list entry is a main town: one its region or council is named after
+/// (Auckland in Auckland, Hamilton in "Hamilton City", Sydney in "City of Sydney").
+fn is_main(record: &Record) -> bool {
+    let council = record.admin2.as_str();
+    let council = council.strip_prefix("City of ").unwrap_or(council);
+    let council = [" City", " District", " County", " Municipality"]
+        .iter()
+        .find_map(|suffix| council.strip_suffix(suffix))
+        .unwrap_or(council);
+    record.name == record.admin1 || record.name == council
+}
+
+/// The main town `record` is part of, when it's a suburb: the nearest main town (see
+/// [`is_main`]) within `CITY_KM`. The place list has a few entries per city, so the nearest
+/// entry to a home or a hotel is often a suburb nobody would name a trip after.
+///
+/// The geocoder only answers "what's nearest this point", so this asks it at points on rings
+/// around the suburb (every 30 degrees, 2 to 14 km out) and keeps the main towns it finds.
+/// `None` when the town is a main town itself or none is close.
+fn main_town(record: &'static Record) -> Option<&'static Record> {
+    if is_main(record) {
         return None;
     }
-    let place = Place {
-        town: found.name.clone(),
-        region: found.admin1.clone(),
-        country: country_name(&found.cc).unwrap_or_else(|| found.cc.clone()),
-    };
-    Some((place, town))
+    let centre = record_point(record);
+    let km_per_deg_lon = KM_PER_DEG_LAT * centre.lat.to_radians().cos().max(0.01);
+    [2.0, 4.0, 7.0, 10.0, 14.0]
+        .into_iter()
+        .flat_map(|km: f64| (0..12).map(move |step| (km, f64::from(step) * 30f64.to_radians())))
+        .map(|(km, bearing)| {
+            let probe = (
+                centre.lat + km * bearing.cos() / KM_PER_DEG_LAT,
+                centre.lon + km * bearing.sin() / km_per_deg_lon,
+            );
+            geocoder().search(probe).record
+        })
+        .filter(|found| is_main(found))
+        .map(|found| (distance_km(centre, record_point(found)), found))
+        .filter(|(km, _)| *km <= CITY_KM)
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, found)| found)
 }
 
 /// A country's name from its two-letter code, in the language Windows is set to.
@@ -633,6 +782,38 @@ mod tests {
     }
 
     #[test]
+    fn busy_days_at_home_are_not_a_trip() {
+        let mut all = everyday_life(10, AUCKLAND);
+        all.extend(shots("2025-02-08", 30, Some(AUCKLAND)));
+        all.extend(shots("2025-02-09", 30, Some(AUCKLAND)));
+        assert!(find(&all, 15, None).runs.is_empty());
+        // Without locations those days can't be placed, so they're still suggested.
+        all.extend(shots("2025-03-08", 30, None));
+        all.extend(shots("2025-03-09", 30, None));
+        let found = find(&all, 15, None);
+        assert_eq!(found.runs.iter().map(range).collect::<Vec<_>>(), vec![(
+            "2025-03-08".into(),
+            "2025-03-09".into()
+        )]);
+    }
+
+    #[test]
+    fn busy_home_days_either_side_of_a_trip_come_off() {
+        let mut all = everyday_life(10, AUCKLAND);
+        all.extend(shots("2025-02-09", 30, Some(AUCKLAND)));
+        for d in ["2025-02-10", "2025-02-11", "2025-02-12"] {
+            all.extend(shots(d, 20, Some(WELLINGTON)));
+        }
+        all.extend(shots("2025-02-13", 30, Some(AUCKLAND)));
+        let found = find(&all, 15, None);
+        assert_eq!(found.runs.iter().map(range).collect::<Vec<_>>(), vec![(
+            "2025-02-10".into(),
+            "2025-02-12".into()
+        )]);
+        assert_eq!(found.runs[0].away_days, 3);
+    }
+
+    #[test]
     fn a_day_away_counts_by_where_most_of_its_photos_were() {
         // One photo at home that morning doesn't stop the day counting as away.
         let mut all = everyday_life(10, AUCKLAND);
@@ -704,31 +885,41 @@ mod tests {
         assert!(is_clear(&run, &[], &[(day("2025-03-13"), day("2025-03-20"))]));
     }
 
-    fn place(town: &str, region: &str, country: &str) -> Place {
+    fn place(town: &str, region: &str, country: &str, (lat, lon): (f64, f64)) -> Place {
         Place {
             town: town.into(),
             region: region.into(),
             country: country.into(),
+            at: Point { lat, lon },
         }
     }
 
-    #[test]
-    fn names_come_from_the_town_then_the_region_then_the_country() {
-        let tokyo = place("Tokyo", "Tokyo", "Japan");
-        let kyoto = place("Kyoto", "Kyoto", "Japan");
-        let osaka = place("Osaka", "Osaka", "Japan");
-        let paris = place("Paris", "Ile-de-France", "France");
-        let rome = place("Rome", "Lazio", "Italy");
-        let nice = place("Nice", "Provence-Alpes-Cote d'Azur", "France");
-        let florence = place("Florence", "Tuscany", "Italy");
-        let barcelona = place("Barcelona", "Catalonia", "Spain");
-        let queenstown = place("Queenstown", "Otago", "New Zealand");
-        let wanaka = place("Wanaka", "Otago", "New Zealand");
-        let cromwell = place("Cromwell", "Otago", "New Zealand");
+    /// `count` copies of `place`.
+    fn times(place: &Place, count: usize) -> Vec<Place> {
+        vec![place.clone(); count]
+    }
 
+    #[test]
+    fn names_fit_how_far_the_photos_spread() {
+        let tokyo = place("Tokyo", "Tokyo", "Japan", (35.69, 139.69));
+        let kyoto = place("Kyoto", "Kyoto", "Japan", (35.02, 135.75));
+        let osaka = place("Osaka", "Osaka", "Japan", (34.69, 135.50));
+        let paris = place("Paris", "Ile-de-France", "France", (48.85, 2.35));
+        let rome = place("Rome", "Lazio", "Italy", (41.89, 12.51));
+        let nice = place("Nice", "Provence-Alpes-Cote d'Azur", "France", (43.70, 7.27));
+        let florence = place("Florence", "Tuscany", "Italy", (43.77, 11.25));
+        let barcelona = place("Barcelona", "Catalonia", "Spain", (41.39, 2.16));
+        let queenstown = place("Queenstown", "Otago", "New Zealand", (-45.03, 168.66));
+        let wanaka = place("Wanaka", "Otago", "New Zealand", (-44.70, 169.14));
+        let cromwell = place("Cromwell", "Otago", "New Zealand", (-45.04, 169.20));
+        let te_anau = place("Te Anau", "Southland", "New Zealand", (-45.41, 167.72));
+
+        // Mostly one town.
         assert_eq!(place_name(&[tokyo.clone(), tokyo.clone(), kyoto.clone()]).as_deref(), Some("Tokyo"));
+        let fiordland = [times(&queenstown, 10), times(&te_anau, 3)].concat();
+        assert_eq!(place_name(&fiordland).as_deref(), Some("Queenstown"));
         // Two towns sharing nearly everything make a pair.
-        let pair = [vec![tokyo.clone(); 4], vec![kyoto.clone(); 4], vec![osaka.clone()]].concat();
+        let pair = [times(&tokyo, 4), times(&kyoto, 4), times(&osaka, 1)].concat();
         assert_eq!(place_name(&pair).as_deref(), Some("Kyoto and Tokyo"));
         // Spread over towns in one region.
         let otago = [queenstown, wanaka, cromwell];
@@ -742,14 +933,33 @@ mod tests {
     }
 
     #[test]
+    fn a_stay_is_named_after_its_busiest_town() {
+        // Days at the beaches around Tairua, and one day trip further off.
+        let tairua = place("Tairua", "Waikato", "New Zealand", (-37.02, 175.85));
+        let whangamata = place("Whangamata", "Waikato", "New Zealand", (-37.20, 175.87));
+        let thames = place("Thames", "Waikato", "New Zealand", (-37.14, 175.54));
+        let stay = [times(&whangamata, 3), times(&tairua, 4), times(&thames, 2)].concat();
+        assert_eq!(place_name(&stay).as_deref(), Some("Tairua"));
+    }
+
+    #[test]
+    fn a_road_trip_is_named_after_its_region_not_its_busiest_stop() {
+        let pacific_grove = place("Pacific Grove", "California", "United States", (36.62, -121.92));
+        let cambria = place("Cambria", "California", "United States", (35.56, -121.08));
+        let sausalito = place("Sausalito", "California", "United States", (37.86, -122.49));
+        let trip = [times(&pacific_grove, 6), times(&cambria, 4), times(&sausalito, 3)].concat();
+        assert_eq!(place_name(&trip).as_deref(), Some("California"));
+    }
+
+    #[test]
     fn towns_with_the_same_name_in_different_places_are_told_apart() {
-        let richmond_nz = place("Richmond", "Tasman", "New Zealand");
-        let richmond_us = place("Richmond", "Virginia", "United States");
-        let nelson = place("Nelson", "Tasman", "New Zealand");
-        // Counted by name alone, Richmond would have two of three photos. Told apart, no town
-        // has half, and the region most photos share names the trip.
-        let found = place_name(&[richmond_nz.clone(), richmond_us.clone(), nelson]);
-        assert_eq!(found.as_deref(), Some("Tasman"));
+        let richmond_nz = place("Richmond", "Tasman", "New Zealand", (-41.34, 173.18));
+        let richmond_us = place("Richmond", "Virginia", "United States", (37.54, -77.44));
+        let christchurch = place("Christchurch", "Canterbury", "New Zealand", (-43.53, 172.63));
+        // Counted by name alone, Richmond would have two of three photos. Told apart, no town or
+        // region stands out, and the country most photos share names the trip.
+        let found = place_name(&[richmond_nz.clone(), richmond_us.clone(), christchurch]);
+        assert_eq!(found.as_deref(), Some("New Zealand"));
         // Two different Richmonds never make "Richmond and Richmond".
         let found = place_name(&[richmond_nz.clone(), richmond_us.clone(), richmond_nz, richmond_us]);
         assert_eq!(found.as_deref(), Some("Richmond"));
@@ -768,6 +978,15 @@ mod tests {
         let auckland = place_of(AUCKLAND).expect("a place near Auckland");
         assert_eq!(auckland.town, "Auckland");
         assert!(!auckland.country.is_empty() && auckland.country != "NZ");
+        // Suburbs go by their city; towns that are their own main town keep their names.
+        let town = |lat, lon| place_of(Point { lat, lon }).map(|p| p.town);
+        assert_eq!(town(-36.875, 174.67).as_deref(), Some("Auckland"), "Rosebank");
+        assert_eq!(town(36.618, -121.917).as_deref(), Some("Monterey"), "Pacific Grove");
+        assert_eq!(town(-37.017, 175.85).as_deref(), Some("Tairua"));
+        assert_eq!(town(-45.03, 168.663).as_deref(), Some("Queenstown"));
+        // The map beside one photo still names the exact suburb.
+        let exact = town_near(Point { lat: -36.875, lon: 174.67 }).map(|(p, _)| p.town);
+        assert_eq!(exact.as_deref(), Some("Rosebank"));
         // The middle of the Pacific is nowhere.
         assert_eq!(place_of(Point { lat: -30.0, lon: -140.0 }), None);
     }

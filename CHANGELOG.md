@@ -45,6 +45,9 @@ All notable changes to this project are documented here. The format follows
 - The menu and About show the Pic Cabinet icon, matching the taskbar; the To the Point Tech chip
   sits by the copyright, in russian-violet on light and white on dark as on the website.
 - Settings has a gear icon in the menu.
+- Suggestions leave out busy days at home, and trim home days off either end of a trip.
+- Suggested trip names fit how far the photos spread: the town for a stay in one place, the region
+  for a road trip, then two towns, then the country.
 
 ### Fixed
 
@@ -67,6 +70,8 @@ All notable changes to this project are documented here. The format follows
   fetched ahead and before grid tiles.
 - A settings text box shows a value saved from a button beside it, such as Use my location, instead
   of staying empty.
+- Home, and trips around a city, go by the city (Auckland) rather than the nearest suburb in the
+  place list.
 
 ## [0.22.0] - 2026-11-16
 
