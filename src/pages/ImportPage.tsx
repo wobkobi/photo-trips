@@ -12,7 +12,7 @@ import {
   ResultBanner,
 } from "../components/PlanPreview";
 import type { TileJump } from "../components/TimelineGrid";
-import { Button, EmptyState, LIST_FILL, PageHeader } from "../components/ui";
+import { Button, EmptyState, LIST_FILL, PageHeader, ReviewHead } from "../components/ui";
 import { useImportSource } from "../components/viewSources";
 import {
   api,
@@ -134,7 +134,7 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
     <div className="flex h-full flex-col">
       <PageHeader
         title="Import"
-        detail="Bring in photos from a memory card, a phone or a folder. Anything already in your library stays out."
+        detail={ready ? undefined : "From a memory card, a phone or a folder"}
         actions={
           ready && (
             <>
@@ -150,15 +150,20 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
                 variant="primary"
                 onClick={() => bringIn(preview)}
                 disabled={busy || totals === null || totals.items === 0}
+                title={
+                  totals && totals.files > totals.items
+                    ? `${count(totals.files, "file", "files")}, with the videos and edits that go with them`
+                    : undefined
+                }
               >
-                {preview.moving ? "Move" : "Copy"} {count(totals?.files ?? 0, "file", "files")} in
+                {preview.moving ? "Move" : "Copy"} {count(totals?.items ?? 0, "photo", "photos")} in
               </Button>
             </>
           )
         }
       />
       {error && (
-        <p role="alert" className="mx-8 mt-4 text-danger">
+        <p role="alert" className="mx-5 mt-3 text-danger">
           {error}
         </p>
       )}
@@ -242,12 +247,9 @@ function Sources({
   onChooseFolder: () => void;
 }): ReactElement {
   return (
-    <div className="flex max-w-3xl flex-col gap-10 px-8 py-7">
+    <div className="flex max-w-3xl flex-col gap-8 px-5 py-5">
       <section aria-labelledby="import-devices">
-        <h2
-          id="import-devices"
-          className="text-[24px] leading-none font-bold tracking-tight text-brand"
-        >
+        <h2 id="import-devices" className="text-[18px] font-semibold">
           Memory cards and phones
         </h2>
         {devices !== null && devices.length === 0 && (
@@ -283,10 +285,7 @@ function Sources({
       </section>
 
       <section aria-labelledby="import-folder">
-        <h2
-          id="import-folder"
-          className="text-[24px] leading-none font-bold tracking-tight text-brand"
-        >
+        <h2 id="import-folder" className="text-[18px] font-semibold">
           A folder on this PC
         </h2>
         <p className="mt-3 text-muted">
@@ -401,51 +400,65 @@ function IncomingView({
     : `${preview.spec.kind === "folder" ? "in" : "on"} ${preview.source}`;
   return (
     <div className="flex flex-1 flex-col">
-      <section className="px-8 pt-6 pb-5">
-        <p className="text-[30px] leading-none font-extrabold tracking-tight text-brand">
-          {count(preview.files, "new file", "new files")} from {preview.source}
-        </p>
-        {preview.spec.kind === "folder" && (
-          <p className="selectable mt-2 text-[15px] break-all text-faint">{preview.spec.path}</p>
-        )}
-        <div className="mt-3 flex max-w-3xl flex-col gap-1 text-muted">
-          <p>
-            {formatBytes(preview.bytes)} into {count(preview.folders.length, "folder", "folders")}:
-            each photo goes in its trip&apos;s folder, or the folder for the month it was taken.
-          </p>
-          {preview.already > 0 && (
+      <ReviewHead
+        title={
+          <>
+            {count(preview.items.length, "new photo", "new photos")} from {preview.source}
+          </>
+        }
+        summary={
+          <>
+            {preview.spec.kind === "folder" && (
+              <p className="selectable break-all text-faint">{preview.spec.path}</p>
+            )}
             <p>
-              {count(preview.already, "file is", "files are")} already in your library (
-              {formatBytes(preview.alreadyBytes)}) and {preview.already === 1 ? "stays" : "stay"}{" "}
-              out.
+              {formatBytes(preview.bytes)} into {count(preview.folders.length, "folder", "folders")}
+              {preview.already > 0 && (
+                <> · {count(preview.already, "file", "files")} already here</>
+              )}
             </p>
-          )}
-          {preview.renamed > 0 && (
+          </>
+        }
+        notes={
+          <>
             <p>
-              {count(preview.renamed, "photo gets", "photos get")} a number added to the name, like
-              IMG_1 (1).jpg, because a different file with that name is already there.
+              {formatBytes(preview.bytes)} into {count(preview.folders.length, "folder", "folders")}
+              : each photo goes in its trip&apos;s folder, or the folder for the month it was taken.
             </p>
-          )}
-          {preview.leftAlone > 0 && <LeftAlone files={preview.leftAlone} />}
-          {preview.otherFiles > 0 && (
+            {preview.already > 0 && (
+              <p>
+                {count(preview.already, "file is", "files are")} already in your library (
+                {formatBytes(preview.alreadyBytes)}) and {preview.already === 1 ? "stays" : "stay"}{" "}
+                out.
+              </p>
+            )}
+            {preview.renamed > 0 && (
+              <p>
+                {count(preview.renamed, "photo gets", "photos get")} a number added to the name,
+                like IMG_1 (1).jpg, because a different file with that name is already there.
+              </p>
+            )}
+            {preview.leftAlone > 0 && <LeftAlone files={preview.leftAlone} />}
+            {preview.otherFiles > 0 && (
+              <p>
+                {count(
+                  preview.otherFiles,
+                  "file isn't a photo or video and is",
+                  "files aren't photos or videos and are",
+                )}{" "}
+                left out.
+              </p>
+            )}
             <p>
-              {count(
-                preview.otherFiles,
-                "file isn't a photo or video and is",
-                "files aren't photos or videos and are",
-              )}{" "}
-              left out.
+              {preview.moving
+                ? "The new photos move out of the folder."
+                : `Nothing ${preview.spec.kind === "folder" ? "in" : "on"} ${preview.source} changes.`}{" "}
+              No file in your library is ever replaced, and the whole import can be undone from
+              History.
             </p>
-          )}
-          <p>
-            {preview.moving
-              ? "The new photos move out of the folder."
-              : `Nothing ${preview.spec.kind === "folder" ? "in" : "on"} ${preview.source} changes.`}{" "}
-            No file in your library is ever replaced, and the whole import can be undone from
-            History.
-          </p>
-        </div>
-      </section>
+          </>
+        }
+      />
       <PickBar
         ticked={totals.items}
         total={preview.items.length}

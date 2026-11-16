@@ -157,7 +157,7 @@ function TickSwitch({
     >
       <span
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 ${
-          ticked ? "border-accent bg-accent text-white" : "border-ink"
+          ticked ? "border-accent bg-accent text-ground" : "border-ink"
         }`}
       >
         {ticked && <Icon name="check" size={20} />}
@@ -192,21 +192,19 @@ export function PickBar({
   onAll: (pick: boolean) => void;
 }): ReactElement {
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line px-8 py-3">
-      <div>
-        <p className="text-[18px]">
-          <strong>
-            {ticked.toLocaleString()} of {count(total, "photo", "photos")} ticked
-          </strong>
-          {extra && <> {extra}</>}
-        </p>
-        <p className="text-muted">{hint}</p>
-      </div>
-      <div className="ml-auto flex gap-2">
-        <Button onClick={() => onAll(true)} disabled={ticked === total}>
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-line bg-surface px-5 py-1.5">
+      <p className="min-w-0 flex-1 basis-80">
+        <strong className="font-semibold">
+          {ticked.toLocaleString()} of {count(total, "photo", "photos")} ticked
+        </strong>
+        {extra && <> {extra}</>}
+        <span className="ml-3 text-[14px] text-faint">{hint}</span>
+      </p>
+      <div className="ml-auto flex gap-1">
+        <Button variant="ghost" onClick={() => onAll(true)} disabled={ticked === total}>
           Tick all
         </Button>
-        <Button onClick={() => onAll(false)} disabled={ticked === 0}>
+        <Button variant="ghost" onClick={() => onAll(false)} disabled={ticked === 0}>
           Untick all
         </Button>
       </div>

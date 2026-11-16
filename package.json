@@ -1,6 +1,6 @@
 {
   "name": "pic-cabinet",
-  "version": "0.20.1",
+  "version": "0.23.0",
   "private": true,
   "description": "Windows app that sorts photos into year, month and trip folders",
   "license": "SEE LICENSE IN LICENSE",
@@ -35,6 +35,7 @@
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-notification": "^2.8.1",
     "@tauri-apps/plugin-opener": "^2",
+    "maplibre-gl": "^6.16.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

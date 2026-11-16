@@ -6,9 +6,10 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useRef, useState, type ReactElement, type ReactNode } from "react";
 import { thumbUrl, type ApplySummary, type JobProgress, type Preview } from "../lib/api";
 import { count, monthLabel, splitPath } from "../lib/format";
+import type { FolderCount } from "../lib/picker";
 import { JOB_NAMES } from "../lib/useJobs";
 import { Icon } from "./Icon";
-import { Button, LIST_FILL, Progress } from "./ui";
+import { Button, LIST_FILL, Progress, ReviewHead } from "./ui";
 
 const ROW_HEIGHT = 60;
 
@@ -41,39 +42,41 @@ const VERBS = {
 export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode }): ReactElement {
   return (
     <div className="flex flex-1 flex-col">
-      <section className="px-8 pt-6 pb-5">
-        <p className="text-[30px] leading-none font-extrabold tracking-tight text-brand">
-          {preview.files === 0
+      <ReviewHead
+        title={
+          preview.files === 0
             ? "No files move"
             : `${count(preview.files, "file moves", "files move")} into ${count(
                 preview.folders.length,
                 "folder",
                 "folders",
-              )}`}
-        </p>
-        <div className="mt-3 flex max-w-3xl flex-col gap-1 text-muted">
-          {note}
-          {preview.renamed > 0 && (
-            <p>
-              {count(preview.renamed, "photo gets", "photos get")} a number added to the name, like
-              IMG_1 (1).jpg, because a file with that name is already there.
-            </p>
-          )}
-          {preview.inPlace > 0 && (
-            <p>
-              {count(preview.inPlace, "photo is", "photos and videos are")} already in the right
-              folder.
-            </p>
-          )}
-          {preview.leftAlone > 0 && <LeftAlone files={preview.leftAlone} />}
-          {preview.files > 0 && (
-            <p>No file is ever replaced, and the whole move can be undone from History.</p>
-          )}
-        </div>
-      </section>
+              )}`
+        }
+        summary={
+          preview.inPlace > 0 &&
+          `${count(preview.inPlace, "photo is", "photos and videos are")} already in place`
+        }
+        notes={
+          <>
+            {note}
+            {preview.renamed > 0 && (
+              <p>
+                {count(preview.renamed, "photo gets", "photos get")} a number added to the name,
+                like IMG_1 (1).jpg, because a file with that name is already there.
+              </p>
+            )}
+            {preview.leftAlone > 0 && <LeftAlone files={preview.leftAlone} />}
+            {preview.files > 0 && (
+              <p>No file is ever replaced, and the whole move can be undone from History.</p>
+            )}
+          </>
+        }
+      />
       {preview.files > 0 && (
-        <div className={`flex gap-6 border-t border-line ${LIST_FILL}`}>
-          <FolderList folders={preview.folders} />
+        <div className={`flex border-t border-line ${LIST_FILL}`}>
+          <FolderList
+            folders={preview.folders.map(({ folder, files }) => ({ folder, count: files }))}
+          />
           <MoveList
             label="Files that will move"
             rows={preview.items.map((item) => ({
@@ -112,10 +115,8 @@ export function LeftAlone({ files }: { files: number }): ReactElement {
  */
 export function MovingProgress({ job }: { job: JobProgress }): ReactElement {
   return (
-    <div className="max-w-xl px-8 py-8">
-      <p className="mb-4 text-[26px] leading-none font-bold tracking-tight text-brand">
-        {JOB_NAMES[job.kind] ?? "Working"}
-      </p>
+    <div className="max-w-xl px-5 py-5">
+      <p className="mb-3 text-[18px] font-semibold">{JOB_NAMES[job.kind] ?? "Working"}</p>
       <Progress done={job.done} total={job.total} label={job.stage} />
       <p className="mt-4 text-[15px] text-muted">
         You can close this window. Pic Cabinet keeps going in the tray.
@@ -198,7 +199,8 @@ export function ResultBanner({
  * The folders receiving files, with how many each gets. Given `onOpen`, each folder is a button,
  * for jumping to its photos in a grid beside the list.
  * @param props - Component props.
- * @param props.folders - folders relative to the library, with file counts
+ * @param props.folders - folders relative to the library, with file counts (photo counts when
+ *   `onOpen` is given, to match the grid)
  * @param props.onOpen - called with the folder that was clicked
  * @returns the side list (hidden on narrow windows; see {@link FolderJumpList})
  */
@@ -206,17 +208,15 @@ export function FolderList({
   folders,
   onOpen,
 }: {
-  folders: Preview["folders"];
+  folders: FolderCount[];
   onOpen?: (folder: string) => void;
 }): ReactElement {
   return (
     <aside
       aria-label="Folders receiving files"
-      className={`hidden w-60 shrink-0 overflow-y-auto border-r border-line py-4 lg:block ${
-        onOpen ? "pl-5" : "pl-8"
-      }`}
+      className="hidden w-56 shrink-0 overflow-y-auto border-r border-line bg-surface px-2 py-2 lg:block"
     >
-      {onOpen && <p className="mb-1 pl-3 text-[14px] text-faint">Click one to go to its photos.</p>}
+      {onOpen && <p className="mb-1 px-2.5 text-[13px] text-faint">Folders</p>}
       <FolderEntries folders={folders} onOpen={onOpen} />
     </aside>
   );
@@ -226,7 +226,7 @@ export function FolderList({
  * {@link FolderList} for windows too narrow for the side list (including any window at a large
  * text size): a closed "Where they go" line above the grid that opens to the same buttons.
  * @param props - Component props.
- * @param props.folders - folders relative to the library, with file counts
+ * @param props.folders - folders relative to the library, with photo counts
  * @param props.onOpen - called with the folder that was clicked
  * @returns the fold-out list (hidden where the side list shows)
  */
@@ -234,13 +234,13 @@ export function FolderJumpList({
   folders,
   onOpen,
 }: {
-  folders: Preview["folders"];
+  folders: FolderCount[];
   onOpen: (folder: string) => void;
 }): ReactElement {
   return (
-    <details className="group shrink-0 border-t border-line px-5 lg:hidden">
+    <details className="group shrink-0 border-t border-line px-3 lg:hidden">
       {/* A flex summary loses the browser's marker, so the chevron stands in for it. */}
-      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-[16px] font-semibold">
+      <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 px-2 text-[14px] text-muted hover:text-ink">
         <Icon
           name="chevron"
           size={16}
@@ -249,7 +249,6 @@ export function FolderJumpList({
         Where they go: {folders.length.toLocaleString()}{" "}
         {folders.length === 1 ? "folder" : "folders"}
       </summary>
-      <p className="mb-1 pl-3 text-[14px] text-faint">Click one to go to its photos.</p>
       <div className="max-h-[40vh] overflow-y-auto pb-3">
         <FolderEntries folders={folders} onOpen={onOpen} />
       </div>
@@ -261,7 +260,7 @@ export function FolderJumpList({
  * The folder rows shared by {@link FolderList} and {@link FolderJumpList}: month folders show
  * their month name, and each row is a button when `onOpen` is given.
  * @param props - Component props.
- * @param props.folders - folders relative to the library, with file counts
+ * @param props.folders - folders relative to the library, with photo or file counts
  * @param props.onOpen - called with the folder that was clicked; plain rows without it
  * @returns the list of folders
  */
@@ -269,12 +268,12 @@ function FolderEntries({
   folders,
   onOpen,
 }: {
-  folders: Preview["folders"];
+  folders: FolderCount[];
   onOpen?: (folder: string) => void;
 }): ReactElement {
   return (
     <ul className="flex flex-col">
-      {folders.map(({ folder, files }) => {
+      {folders.map(({ folder, count: n }) => {
         const name = splitPath(folder).name;
         const title = /^\d{4}-\d{2}$/.test(name) ? monthLabel(name) : name;
         const body = (
@@ -283,28 +282,28 @@ function FolderEntries({
               <span className="block truncate" title={title}>
                 {title}
               </span>
-              <span className="block truncate text-[14px] text-faint" title={folder}>
+              <span className="block truncate text-[13px] text-faint" title={folder}>
                 {folder}
               </span>
             </span>
-            <span className="shrink-0 text-[15px] text-muted">{files.toLocaleString()}</span>
+            <span className="shrink-0 text-[13px] text-faint">{n.toLocaleString()}</span>
           </>
         );
         return (
-          <li key={folder} className={onOpen ? "pr-3" : "pr-5"}>
+          <li key={folder}>
             {onOpen ? (
               <button
                 type="button"
                 onClick={() => onOpen(folder)}
-                aria-label={`Go to the ${files.toLocaleString()} ${
-                  files === 1 ? "photo" : "photos"
-                } going into ${title}`}
-                className="flex min-h-11 w-full items-baseline justify-between gap-3 rounded-lg px-3 py-1.5 text-left hover:bg-raised"
+                aria-label={`Go to the ${count(n, "photo", "photos")} going into ${title}`}
+                className="flex min-h-10 w-full items-baseline justify-between gap-3 rounded-md px-2.5 py-1 text-left text-[14px] hover:bg-raised"
               >
                 {body}
               </button>
             ) : (
-              <div className="flex items-baseline justify-between gap-3 py-1.5">{body}</div>
+              <div className="flex items-baseline justify-between gap-3 px-2.5 py-1 text-[14px]">
+                {body}
+              </div>
             )}
           </li>
         );

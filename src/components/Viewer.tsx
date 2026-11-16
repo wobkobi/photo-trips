@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { api, errorText, type MediaKind } from "../lib/api";
 import { Icon } from "./Icon";
 import { Button } from "./ui";
+import { VideoPlayer } from "./VideoPlayer";
 
 /** One file, ready for the viewer to show. */
 export interface ViewItem {
@@ -10,13 +11,36 @@ export interface ViewItem {
   kind: MediaKind;
   /** The original file's URL, when the webview can show (photos) or play (videos) it as it is. */
   original: string | null;
+  /** The file has gone from disk, deleted or moved outside Pic Cabinet. */
+  missing: boolean;
   /**
    * A large image Windows drew: shown instead of a photo without an original, and as a video's
    * poster or a failed file's stand-in.
    */
   preview: string;
+  /** The grid tile, usually cached already: shown scaled up until the full picture is ready. */
+  thumb: string;
   /** Details shown beside the photo, made with {@link Fact}. */
   facts: ReactNode;
+}
+
+/** How many loaded files the viewer keeps, so stepping back and forth doesn't load them again. */
+const KEEP = 10;
+/**
+ * Files loaded ahead on each side. Two, because a HEIC's full picture takes Windows over a second
+ * to draw, longer than a step usually takes; the four render threads draw them side by side.
+ */
+const AHEAD = 2;
+
+/**
+ * Start fetching a file's picture so it's already decoded when the viewer steps to it. Videos
+ * are left alone; they stream when shown.
+ * @param item - a neighbouring file
+ */
+function preload(item: ViewItem): void {
+  if (item.kind === "video") return;
+  const image = new Image();
+  image.src = item.original ?? item.preview;
 }
 
 /** Default app names by extension, looked up once each. Null: Windows has no default. */
@@ -62,6 +86,8 @@ export interface ViewSource {
   open: (index: number) => Promise<void>;
   /** Show the file selected in Explorer. Missing when there's no folder to show, e.g. a phone. */
   reveal?: (index: number) => Promise<void>;
+  /** What to do about a file that has gone from disk, shown under the notice. */
+  gone: string;
 }
 
 /**
@@ -91,24 +117,65 @@ export function Viewer({
   controls?: ReactNode;
 }): ReactElement {
   const key = source.key(index);
-  // Results are tagged with the file they belong to, so stepping to another file shows nothing
-  // stale while it loads.
-  const [loaded, setLoaded] = useState<{ key: string; item: ViewItem } | null>(null);
+  // Loaded files by key: the one on show and up to AHEAD each side, fetched ahead so the
+  // next file is ready the moment it's stepped to. Keys change when a file would load something else, so
+  // nothing stale is shown.
+  const [items, setItems] = useState<ReadonlyMap<string, ViewItem>>(() => new Map());
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
-  const item = loaded?.key === key ? loaded.item : null;
+  const pending = useRef(new Set<string>());
+  const item = items.get(key) ?? null;
   const error = failure?.key === key ? failure.message : null;
   const dialog = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let active = true;
-    source.load(index).then(
-      (loadedItem) => active && setLoaded({ key, item: loadedItem }),
-      (err) => active && setFailure({ key, message: errorText(err) }),
-    );
-    return () => {
-      active = false;
-    };
-  }, [source, index, key]);
+    // The file on show first, then outwards, next before previous.
+    const order = [index];
+    for (let step = 1; step <= AHEAD; step++) order.push(index + step, index - step);
+    const near = order.filter((i) => i >= 0 && i < source.count);
+    const nearKeys = new Set(near.map((i) => source.key(i)));
+    for (const i of near) {
+      const k = source.key(i);
+      if (items.has(k) || pending.current.has(k)) continue;
+      pending.current.add(k);
+      source.load(i).then(
+        (loadedItem) => {
+          pending.current.delete(k);
+          setItems((prev) => {
+            const next = new Map(prev);
+            next.set(k, loadedItem);
+            // Oldest first, never the file on show or its neighbours.
+            for (const old of next.keys()) {
+              if (next.size <= KEEP) break;
+              if (!nearKeys.has(old)) next.delete(old);
+            }
+            return next;
+          });
+        },
+        (err) => {
+          pending.current.delete(k);
+          if (i === index) setFailure({ key: k, message: errorText(err) });
+        },
+      );
+    }
+  }, [source, index, items]);
+
+  // The neighbours' pictures are fetched only once the one on show is in. Windows draws them on
+  // the same few threads, newest request first, so fetching them straight away would draw all
+  // four neighbours before the photo that was opened.
+  const [shown, setShown] = useState<string | null>(null);
+  const preloaded = useRef(new Set<string>());
+  useEffect(() => {
+    if (shown !== key) return;
+    for (let step = 1; step <= AHEAD; step++) {
+      for (const i of [index + step, index - step]) {
+        if (i < 0 || i >= source.count) continue;
+        const near = items.get(source.key(i));
+        if (!near || preloaded.current.has(source.key(i))) continue;
+        preloaded.current.add(source.key(i));
+        preload(near);
+      }
+    }
+  }, [shown, key, index, items, source]);
 
   // Capture phase, so Escape closes only the viewer, not the selection or menu of the page behind.
   useEffect(() => {
@@ -147,6 +214,21 @@ export function Viewer({
     }
   }
 
+  /**
+   * After the photo or video fails to load, ask again whether the file is still there: it may
+   * have been deleted while open, or since the look-ahead loaded it.
+   * @returns true when it has gone, and the viewer now says so
+   */
+  async function recheck(): Promise<boolean> {
+    try {
+      const fresh = await source.load(index);
+      if (fresh.missing) setItems((prev) => new Map(prev).set(key, fresh));
+      return fresh.missing;
+    } catch {
+      return false;
+    }
+  }
+
   const reveal = source.reveal;
   const openLabel = useOpenLabel(item?.name);
   return createPortal(
@@ -163,6 +245,9 @@ export function Viewer({
           <Media
             key={key}
             item={item}
+            gone={source.gone}
+            onBroken={recheck}
+            onShown={() => setShown(key)}
             openLabel={openLabel}
             onOpen={() => run(() => source.open(index))}
           />
@@ -196,12 +281,12 @@ export function Viewer({
           {error && <p className="mb-4 text-danger">{error}</p>}
           {item && (
             <>
-              <h2 className="selectable text-[24px] leading-tight font-bold tracking-tight break-all text-brand">
+              <h2 className="selectable text-[18px] leading-tight font-semibold break-all">
                 {item.name}
               </h2>
               {controls && <div className="mt-4">{controls}</div>}
               {item.facts}
-              <div className="mt-6 flex flex-wrap gap-2">
+              <div className="mt-6 flex flex-wrap gap-2" hidden={item.missing}>
                 {reveal && (
                   <Button onClick={() => run(() => reveal(index))}>
                     <Icon name="folder" size={16} />
@@ -223,25 +308,60 @@ export function Viewer({
 }
 
 /**
- * The photo or video itself, or a button to open it in its own app when Pic Cabinet can't.
+ * The photo or video itself, or a button to open it in its own app when Pic Cabinet can't. A
+ * photo opens in its app when clicked. A file that has gone from disk says so instead.
  * @param props - Component props.
  * @param props.item - the file on show
+ * @param props.gone - what to do about a file that has gone, from the source
+ * @param props.onBroken - ask whether the file has gone after it failed to load; resolves true
+ * when it has, and the item is then marked missing
+ * @param props.onShown - the file is on screen as fully as it will be, so neighbours can load
  * @param props.openLabel - text for the open-in-app button
  * @param props.onOpen - open the file in its default app
  * @returns the media, or the fallback with its open button
  */
 function Media({
   item,
+  gone,
+  onBroken,
+  onShown,
   openLabel,
   onOpen,
 }: {
   item: ViewItem;
+  gone: string;
+  onBroken: () => Promise<boolean>;
+  onShown: () => void;
   openLabel: string;
   onOpen: () => void;
 }): ReactElement {
   const [failed, setFailed] = useState(false);
+  const [sharp, setSharp] = useState(false);
   const mediaClass = "max-h-full max-w-full object-contain";
   const video = item.kind === "video";
+
+  // Only a picture waits for its full image; anything else is as shown as it gets at once.
+  useEffect(() => {
+    if (item.missing || failed || video) onShown();
+  }, [item.missing, failed, video, onShown]);
+
+  /** A load failed: a gone file shows its notice, anything else the can't-show fallback. */
+  function broken(): void {
+    onBroken().then(
+      (missing) => !missing && setFailed(true),
+      () => setFailed(true),
+    );
+  }
+
+  if (item.missing) {
+    return (
+      <div className="max-w-sm text-center">
+        <Icon name="warn" size={32} className="mx-auto mb-4 text-faint" />
+        <p className="text-[17px] font-semibold">This file has been moved or deleted</p>
+        <p className="mt-2 text-muted">{gone}</p>
+      </div>
+    );
+  }
 
   if (failed || (video && !item.original)) {
     return (
@@ -267,33 +387,59 @@ function Media({
 
   if (video) {
     return (
-      <video
-        src={item.original ?? undefined}
+      <VideoPlayer
+        src={item.original ?? ""}
         poster={item.preview}
-        controls
-        autoPlay
-        onError={() => setFailed(true)}
-        className={mediaClass}
+        label={item.name}
+        onError={broken}
       />
     );
   }
 
+  // The tile underneath is the same picture smaller, so the photo shows at once, a little soft,
+  // and sharpens when the full one has loaded. It goes once that's in, since a small or
+  // transparent full picture wouldn't cover it. Clicking the photo opens it in its app; the space
+  // around it lets clicks through.
   return (
-    <img
-      src={item.original ?? item.preview}
-      alt={item.name}
-      draggable={false}
-      onError={() => setFailed(true)}
-      className={mediaClass}
-    />
+    <button
+      type="button"
+      onClick={onOpen}
+      title={openLabel}
+      className="pointer-events-none relative flex size-full items-center justify-center"
+    >
+      {!sharp && (
+        <img
+          src={item.thumb}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="pointer-events-auto absolute inset-0 size-full cursor-pointer object-contain"
+        />
+      )}
+      <img
+        src={item.original ?? item.preview}
+        alt={item.name}
+        draggable={false}
+        onLoad={() => {
+          setSharp(true);
+          onShown();
+        }}
+        onError={() => {
+          onShown();
+          broken();
+        }}
+        className={`pointer-events-auto relative cursor-pointer ${mediaClass}`}
+      />
+    </button>
   );
 }
 
 /**
- * Previous or next button over one side of the photo, hidden at that end of the source.
+ * Previous or next arrow over one side of the photo, hidden at that end of the source. Just
+ * the arrow, so it covers little of the photo; the label is its tooltip.
  * @param props - Component props.
  * @param props.side - which edge it sits on
- * @param props.label - what the button says
+ * @param props.label - what it does, e.g. "Older", for the tooltip and screen readers
  * @param props.hidden - at that end of the source, so there's nowhere to step
  * @param props.onClick - step to the neighbouring file
  * @returns the button
@@ -315,14 +461,12 @@ function NavButton({
       onClick={onClick}
       disabled={hidden}
       title={label}
-      className={`absolute top-1/2 flex min-h-12 min-w-12 -translate-y-1/2 items-center justify-center gap-2 rounded-full bg-surface/90 px-3 text-[17px] font-semibold text-ink hover:bg-raised disabled:invisible md:px-5 ${
-        side === "left" ? "left-3 md:left-6" : "right-3 md:right-6"
+      aria-label={label}
+      className={`absolute top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-surface/70 text-ink hover:bg-raised disabled:invisible ${
+        side === "left" ? "left-3" : "right-3"
       }`}
     >
-      {side === "left" && <Icon name="back" />}
-      {/* Icon only on a narrow window, where the two labels would meet over the photo. */}
-      <span className="sr-only md:not-sr-only">{label}</span>
-      {side === "right" && <Icon name="chevron" />}
+      <Icon name={side === "left" ? "back" : "chevron"} size={22} />
     </button>
   );
 }

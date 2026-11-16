@@ -71,6 +71,9 @@ pub struct Detail {
     pub viewable: bool,
     /// The built-in player should try the original file.
     pub playable: bool,
+    /// The file has gone from disk since the library was last looked through, as when it was
+    /// deleted or moved in Explorer.
+    pub missing: bool,
     pub version: i64,
     pub members: Vec<Member>,
 }
@@ -143,6 +146,7 @@ pub fn media_detail(state: State<'_, AppState>, id: i64) -> Result<Detail> {
         kind: leader.kind.as_str(),
         viewable: matches!(leader.kind, Kind::Photo) && formats::web_viewable(path),
         playable: leader.kind == Kind::Video && formats::web_playable(path),
+        missing: !path.exists(),
         version: leader.mtime,
         members: group
             .members

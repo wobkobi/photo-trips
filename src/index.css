@@ -1,31 +1,38 @@
 @import "@fontsource-variable/exo/wght.css";
 @import "tailwindcss";
 
-/* To the Point Tech brand, the same as the website's admin pages: seasalt ground, white panels,
-   rich-black text, russian-violet for the sidebar, headings and main actions, and moonstone as
-   the accent. Every value is one of the brand's swatches (website globals.css). Utilities read
-   these as variables, so .on-dark and .on-brand below re-tint everything inside them. */
+/* Light and dark themes: each colour is light-dark(light, dark), picked by the color-scheme in
+   force, which the Theme setting sets on <html> (both, so Windows decides, or one of them). Dark is
+   a neutral grey, as photo apps use, so photos are judged against grey rather than a bright page;
+   light is To the Point Tech's seasalt. The menu and panels are a step apart from the ground the
+   photos sit on. Russian-violet marks the main actions and moonstone is the accent. Utilities read
+   these as variables, so .on-dark below turns everything inside it dark. */
 @theme {
-  --color-ground: #f6f7f8; /* seasalt */
-  --color-surface: #ffffff;
-  --color-raised: #e2e6e9; /* seasalt-100 */
-  --color-line: #c6ccd2; /* seasalt-200 */
-  /* seasalt-600, so input and button edges stand out clearly (5.6:1 on white) for people who
-     can't pick out a pale outline. */
-  --color-line-strong: #5a6672;
-  --color-ink: #001514; /* rich-black */
-  /* Secondary text is a step darker than the website's, since the app's people are mostly
-     older and read it at length: seasalt-800 for explanations, seasalt-700 for paths, counts
-     and hints (8:1 on seasalt). */
-  --color-muted: #2d3339;
-  --color-faint: #434c56;
-  --color-brand: #0c0a3e; /* russian-violet */
-  --color-brand-hover: #191584; /* russian-violet-700 */
-  --color-accent: #2b93a1; /* moonstone-600, 3:1 on seasalt for rings and fills */
-  --color-warn: #654c01; /* mustard-800: mustard itself can't be read on a pale ground */
-  --color-warn-soft: #fff9e6; /* mustard-50, behind a warning box */
-  --color-warn-line: #fed766; /* mustard, a warning box's border */
-  --color-danger: #912508; /* coquelicot-700, the website's error colour */
+  --color-ground: light-dark(#f6f7f8, #121417); /* seasalt */
+  --color-surface: light-dark(#ffffff, #1b1e22);
+  --color-raised: light-dark(#e2e6e9, #272b31); /* seasalt-100 */
+  --color-line: light-dark(#c6ccd2, #30353c); /* seasalt-200 */
+  /* Input and button edges stand out clearly (5.6:1 light, 3.6:1 dark) for people who can't
+     pick out a faint outline. */
+  --color-line-strong: light-dark(#5a6672, #6b7682);
+  --color-ink: light-dark(#001514, #eef0f2); /* rich-black */
+  /* Secondary text stays strong, since the app's people are mostly older and read it at length:
+     8:1 or better for explanations, 7:1 for paths, counts and hints. */
+  --color-muted: light-dark(#2d3339, #bcc4cb);
+  --color-faint: light-dark(#434c56, #97a2ac);
+  /* russian-violet, lightened to violet-400 on dark so white text (5.8:1) still reads on it and
+     it stands out from the ground. */
+  --color-brand: light-dark(#0c0a3e, #5450e2);
+  --color-brand-hover: light-dark(#191584, #6763e6);
+  /* The To the Point Tech chip, as the website shows it: russian-violet on light, white on dark. */
+  --color-logo: light-dark(#0c0a3e, #ffffff);
+  /* moonstone-600 on light (3:1 on seasalt for rings and fills), moonstone-400 on dark. */
+  --color-accent: light-dark(#2b93a1, #5ec6d4);
+  /* Mustard itself can't be read on a pale ground, so light uses mustard-800. */
+  --color-warn: light-dark(#654c01, #fed766);
+  --color-warn-soft: light-dark(#fff9e6, rgb(254 215 102 / 0.08)); /* behind a warning box */
+  --color-warn-line: light-dark(#fed766, rgb(254 215 102 / 0.4)); /* a warning box's border */
+  --color-danger: light-dark(#912508, #f78b6e); /* coquelicot-700 and -300 */
 
   /* Trip colours. Each trip keeps one everywhere it appears. Brand hues first, then lighter
      or darker steps of them, so trips made one after another still look different. */
@@ -36,53 +43,34 @@
   --color-tag-5: #206f79; /* moonstone-700 */
   --color-tag-6: #aaa7f1; /* russian-violet-200 */
 
-  /* The viewer's location map: pale moonstone water, seasalt land, coquelicot pin. */
-  --color-map-water: #c9ecf1; /* moonstone-100 */
-  --color-map-land: #f6f7f8; /* seasalt */
-  --color-map-pin: #d63a10; /* coquelicot-600 */
+  /* The viewer's location map: moonstone water, seasalt or slate land, coquelicot pin. */
+  --color-map-water: light-dark(#c9ecf1, #173f46);
+  --color-map-land: light-dark(#f6f7f8, #2d3339);
+  --color-map-pin: light-dark(#d63a10, #f5653d);
 
-  --font-sans: "Exo Variable", "Exo", "Segoe UI", system-ui, sans-serif;
+  /* Windows' own font, so the app reads as part of the system; Exo is kept for the name. */
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-brand: "Exo Variable", "Exo", "Segoe UI", system-ui, sans-serif;
 }
 
-/* Rich-black stage for photos shown large, and for badges drawn over thumbnails, so a photo's
-   colours aren't judged against a pale page. */
+/* A near-black stage for photos shown large, and for badges drawn over thumbnails, in either
+   theme, so a photo's colours aren't judged against a pale page. */
 .on-dark {
-  --color-ground: #001514; /* rich-black */
-  --color-surface: #16191d; /* seasalt-900 */
-  --color-raised: #2d3339; /* seasalt-800 */
-  --color-line: #434c56; /* seasalt-700 */
-  --color-line-strong: #5a6672; /* seasalt-600 */
-  --color-ink: #f6f7f8; /* seasalt */
-  --color-muted: #a9b3bc; /* seasalt-300 */
-  --color-faint: #8d99a5; /* seasalt-400 */
-  /* Lighter violet, so a main action's button still stands out from rich-black. */
-  --color-brand: #211daf; /* russian-violet-600 */
-  --color-brand-hover: #2a24db; /* russian-violet-500 */
-  --color-accent: #5ec6d4; /* moonstone-400 */
-  --color-warn: #fed766; /* mustard */
-  --color-danger: #f5653d; /* coquelicot-400 */
+  color-scheme: dark;
+  --color-ground: #08090a;
+  --color-surface: #16191d;
   color: var(--color-ink);
 }
 
-/* Russian-violet sidebar. White at set strengths, as on the website's admin sidebar. */
-.on-brand {
-  --color-ground: #0c0a3e; /* russian-violet */
-  --color-surface: #110e58; /* russian-violet-800 */
-  --color-raised: rgb(255 255 255 / 0.1);
-  --color-line: rgb(255 255 255 / 0.12);
-  --color-line-strong: rgb(255 255 255 / 0.3);
-  --color-ink: #ffffff;
-  --color-muted: rgb(255 255 255 / 0.75);
-  --color-faint: rgb(255 255 255 / 0.6);
-  --color-accent: #5ec6d4; /* moonstone-400 */
-  --color-warn: #fed766; /* mustard */
-  --color-danger: #f78b6e; /* coquelicot-300 */
-  background: var(--color-ground);
-  color: var(--color-ink);
-}
-
+/* Set from the Theme setting; "system" (or none yet) follows Windows. */
 :root {
+  color-scheme: light dark;
+}
+:root[data-theme="light"] {
   color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 html,
@@ -96,8 +84,7 @@ body {
   background: var(--color-ground);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 15px;
   -webkit-font-smoothing: antialiased;
   user-select: none;
 }
@@ -107,14 +94,10 @@ body {
   user-select: text;
 }
 
-/* A thick ring in the darker brand colour, so the keyboard position is easy to spot. */
+/* A thick moonstone ring, so the keyboard position is easy to spot on the dark ground. */
 :focus-visible {
-  outline: 3px solid var(--color-brand-hover);
+  outline: 3px solid var(--color-accent);
   outline-offset: 2px;
-}
-.on-dark :focus-visible,
-.on-brand :focus-visible {
-  outline-color: var(--color-accent);
 }
 
 ::-webkit-scrollbar {
@@ -122,9 +105,12 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-line);
+  background: var(--color-raised);
   border-radius: 5px;
   border: 2px solid var(--color-ground);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-line-strong);
 }
 ::-webkit-scrollbar-track {
   background: transparent;

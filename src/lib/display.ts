@@ -1,5 +1,6 @@
-// Text and photo sizes chosen in Settings > Display. The backend zooms the window for text size
-// (commands.rs keeps the same list of percentages); photo size sets the grid's tile width.
+// Theme, text and photo sizes chosen in Settings > Display. The backend zooms the window for text
+// size and themes its title bar and menus (commands.rs keeps the same lists); photo size sets the
+// grid's tile width.
 
 import type { Settings } from "./api";
 
@@ -24,9 +25,27 @@ export const PHOTO_SIZES: (SizeChoice & { tile: number })[] = [
   { value: "large", label: "Large", tile: 290 },
 ];
 
+/** Themes. Must match THEMES in commands.rs. */
+export const THEMES: SizeChoice[] = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
+
+const DEFAULT_THEME = "system";
 const DEFAULT_TEXT = "100";
 const DEFAULT_PHOTO = "medium";
 const DEFAULT_TILE = 210;
+
+/**
+ * The stored theme, or System (follow Windows) when it's unset or not one offered.
+ * @param settings - loaded settings
+ * @returns one of the {@link THEMES} values
+ */
+export function themeOf(settings: Settings | null): string {
+  const value = settings?.theme ?? "";
+  return THEMES.some((theme) => theme.value === value) ? value : DEFAULT_THEME;
+}
 
 /**
  * The stored text size, or Standard when it's unset or not one offered.

@@ -53,12 +53,12 @@ describe("import picker", () => {
     expect(pickTotals(ITEMS, new Set([0, 1, 2, 3]))).toEqual({ items: 0, files: 0, bytes: 0 });
   });
 
-  it("lists the folders that still receive files", () => {
+  it("lists the folders that still receive photos, a photo and its companions as one", () => {
     expect(pickedFolders(ITEMS, new Set())).toEqual([
-      { folder: "2025\\2025-03", files: 3 },
-      { folder: "Trips\\2025-05-01 Japan", files: 2 },
+      { folder: "2025\\2025-03", count: 2 },
+      { folder: "Trips\\2025-05-01 Japan", count: 2 },
     ]);
-    expect(pickedFolders(ITEMS, new Set([1, 3]))).toEqual([{ folder: "2025\\2025-03", files: 3 }]);
+    expect(pickedFolders(ITEMS, new Set([1, 3]))).toEqual([{ folder: "2025\\2025-03", count: 2 }]);
   });
 
   it("ticks and unticks groups of photos without touching the rest", () => {

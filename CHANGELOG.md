@@ -4,6 +4,101 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.23.0] - 2026-11-16
+
+### Added
+
+- A Theme choice in Settings > Display: Light, Dark, or System to follow Windows. The window's title
+  bar and menus follow it too.
+- Settings > Suggestions has a Use my location button that asks Windows where you are, once, and
+  saves that as home.
+- A date rail beside the photo grid: drag or click it to jump to a month, or use the arrow and Page
+  keys.
+
+### Changed
+
+- A new look that reads more like a photo app: a dark grey theme, a slim toolbar along the top of
+  each page, Windows' own font, a quieter menu, and photos packed closer together in the grid.
+- The Library's filters sit in one slim row, and Look for new photos is the refresh button beside
+  Make a trip.
+- Trips show as album cards, each with a cover made from its photos.
+- Settings are split into groups (Display, Library, Inbox, Suggestions, File types, Window, About),
+  picked from a list down the side.
+- Sort, Duplicates, History, Help and Import are quieter: short headings, a one-line summary with
+  the fuller notes under Details, and the job status in the menu with a plain Stop button.
+- The magnifier on a photo only shows when the mouse is over it.
+- The map in the photo viewer is a real street map from OpenFreeMap, light or dark to match the
+  theme, and it can be dragged. Open in Google Maps replaces Open in OpenStreetMap. Without an
+  internet connection the drawn map is shown instead.
+- The photo viewer's side panel is shorter: where a date came from shows on hover, folders read from
+  the library folder, and the map has its own zoom buttons. Stepping between photos is quicker,
+  since the next and previous ones load ahead and the map stays put.
+- Photos in the viewer show at once: the grid thumbnail fills in while the full picture loads, and
+  the next two photos each way, with their suburb names, load ahead.
+- The viewer's side panel no longer jumps while stepping through photos: it lays out once, with
+  Taken, File and Camera first and the map below them.
+- Clicking a photo in the viewer opens it in its app.
+- The viewer's map draws straight away when stepping between photos: the map tiles around the next photos are fetched ahead.
+- Videos in the viewer start at 40% volume instead of full, and keep whatever volume or mute was last set.
+- A date taken from when the file last changed is no longer flagged as a warning. Downloads, screenshots and photos from some apps have no date of their own; the reason shows on hover.
+- Videos have their own control bar under the picture: play, a seek bar, mute and volume. Click the
+  video or press Space to play and pause.
+- The viewer's arrows are small round buttons instead of labelled ones.
+- The menu and About show the Pic Cabinet icon, matching the taskbar; the To the Point Tech chip
+  sits by the copyright, in russian-violet on light and white on dark as on the website.
+- Settings has a gear icon in the menu.
+- Suggestions leave out busy days at home, and trim home days off either end of a trip.
+- Suggested trip names fit how far the photos spread: the town for a stay in one place, the region
+  for a road trip, then two towns, then the country.
+
+### Fixed
+
+- Checking an import with lots of notes left the photos in a short strip at the bottom. The notes
+  now fold away under Details, and the photos fill the window once you scroll down to them.
+- The dark map in the photo viewer was too dim to read. It now has light labels and roads that
+  stand out.
+- Where a photo was taken now names the suburb, such as Flat Bush rather than Manukau City. The
+  name is looked up from OpenStreetMap; without an internet connection the nearest town is shown
+  as before.
+- The map's credits no longer pop open over the map each time you move to another photo.
+- A photo or video deleted or moved while the viewer is open says so instead of showing a broken
+  picture.
+- Checking a locked phone says to unlock it instead of reporting nothing new.
+- The Import review counts photos everywhere: the button, the title and the folder list now match
+  the tick count and the month headings. The total of files, with the videos and edits that go with
+  them, shows when you hover over the button.
+- Review pages with a photo grid don't scroll the whole page when everything fits.
+- A photo opened for the first time sharpens sooner: its full picture is drawn before the ones
+  fetched ahead and before grid tiles.
+- A settings text box shows a value saved from a button beside it, such as Use my location, instead
+  of staying empty.
+- Home, and trips around a city, go by the city (Auckland) rather than the nearest suburb in the
+  place list.
+
+## [0.22.0] - 2026-11-16
+
+### Added
+
+- A Help page in the menu says what each page is for, with a button to open it, and lists the
+  keyboard shortcuts. F1 or Help > Pic Cabinet help opens it.
+- A short tour of the menu shows once after setup, pointing at each page in turn. Skip it any time,
+  or take it again from Help.
+
+## [0.21.1] - 2026-11-16
+
+### Changed
+
+- The Library's filter menus are shorter: each starts with All, and the rest read No trip, Photos,
+  Videos and Uncertain dates. The button that resets them is Clear filters.
+
+## [0.21.0] - 2026-11-16
+
+### Added
+
+- When an update skips versions, for example going from 0.18.0 straight to 0.21.0, Settings > About
+  lists the changes from every version in between, not just the newest. This starts with the update
+  after this one, since the copy already installed does the listing.
+
 ## [0.20.1] - 2026-11-16
 
 ### Changed

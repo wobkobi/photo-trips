@@ -1,6 +1,8 @@
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState, type ReactElement } from "react";
 import { Sidebar } from "./components/Sidebar";
+import { Tour } from "./components/Tour";
+import { themeOf } from "./lib/display";
 import { JobsProvider } from "./lib/jobs";
 import { NO_FILTER, type FilterTrip, type LibraryFilter } from "./lib/libraryFilter";
 import { useMenuBar, type MenuRequest } from "./lib/menu";
@@ -11,6 +13,7 @@ import { useJobDone } from "./lib/useJobs";
 import { useSettings } from "./lib/useSettings";
 import { useUpdates } from "./lib/useUpdates";
 import { DuplicatesPage } from "./pages/DuplicatesPage";
+import { HelpPage } from "./pages/HelpPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { ImportPage } from "./pages/ImportPage";
 import { LibraryPage } from "./pages/LibraryPage";
@@ -21,7 +24,15 @@ import { SuggestionsPage } from "./pages/SuggestionsPage";
 import { TripsPage } from "./pages/TripsPage";
 
 export type PageId =
-  "library" | "sort" | "trips" | "suggestions" | "import" | "duplicates" | "history" | "settings";
+  | "library"
+  | "sort"
+  | "trips"
+  | "suggestions"
+  | "import"
+  | "duplicates"
+  | "history"
+  | "settings"
+  | "help";
 
 /**
  * Root component: settings and job providers around the shell.
@@ -48,6 +59,12 @@ function Shell(): ReactElement | null {
   const { settings, save, reload } = useSettings();
   // A folder name change saves its presets with the batch, and undoing it puts them back.
   useJobDone(["apply", "undo"], reload);
+  // The stylesheet picks light or dark from this; until settings load it follows Windows, which
+  // the backend has already set the window to.
+  const theme = themeOf(settings);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
   const { runCheck } = useUpdates();
   const [page, setPage] = useState<PageId>("library");
   // A trip started in the Library or Suggestions, until the Trips page opens it.
@@ -69,6 +86,16 @@ function Shell(): ReactElement | null {
   const [showAbout, setShowAbout] = useState(false);
   const refreshStarted = useCallback(() => setRefresh(false), []);
   const aboutShown = useCallback(() => setShowAbout(false), []);
+  // The tour shows once, after setup, until finished or skipped; Help can start it again.
+  // Closing it also hides it here, so a failed save can't bring it straight back.
+  const [tourAsked, setTourAsked] = useState(false);
+  const [tourClosed, setTourClosed] = useState(false);
+  const [tourPage, setTourPage] = useState<PageId | null>(null);
+  const closeTour = useCallback(() => {
+    setTourAsked(false);
+    setTourClosed(true);
+    void save("tour_done", "true").catch(() => undefined);
+  }, [save]);
 
   useMenuBar((request: MenuRequest) => {
     if (request === "refresh") {
@@ -91,6 +118,7 @@ function Shell(): ReactElement | null {
 
   if (settings === null) return null;
   if (!settings.library_root) return <SetupPage />;
+  const touring = tourAsked || (!tourClosed && settings.tour_done !== "true");
 
   return (
     <div className="flex h-full">
@@ -101,23 +129,38 @@ function Shell(): ReactElement | null {
         narrow={settings.menu_narrow === "true"}
         // A failed save leaves the menu as it was; there's nothing more useful to say about it.
         onNarrow={(narrow) => void save("menu_narrow", String(narrow)).catch(() => undefined)}
+        highlight={touring ? tourPage : null}
       />
-      <main className="min-w-0 flex-1 overflow-y-auto">
-        <CurrentPage
-          page={page}
-          onNavigate={setPage}
-          filter={filter}
-          onFilter={setFilter}
-          onShowTrip={showTrip}
-          tripDraft={tripDraft}
-          onTripDraftUsed={clearTripDraft}
-          onCreateTrip={createTrip}
-          refresh={refresh}
-          onRefreshStarted={refreshStarted}
-          showAbout={showAbout}
-          onAboutShown={aboutShown}
-        />
-      </main>
+      {/* The tour covers only the page, so the menu items it points at stay in view. */}
+      <div className="relative flex min-w-0 flex-1">
+        <main className="min-w-0 flex-1 overflow-y-auto" inert={touring}>
+          <CurrentPage
+            page={page}
+            onNavigate={setPage}
+            filter={filter}
+            onFilter={setFilter}
+            onShowTrip={showTrip}
+            tripDraft={tripDraft}
+            onTripDraftUsed={clearTripDraft}
+            onCreateTrip={createTrip}
+            refresh={refresh}
+            onRefreshStarted={refreshStarted}
+            showAbout={showAbout}
+            onAboutShown={aboutShown}
+            onTour={() => setTourAsked(true)}
+          />
+        </main>
+        {touring && (
+          <Tour
+            onStep={setTourPage}
+            onClose={closeTour}
+            onHelp={() => {
+              closeTour();
+              setPage("help");
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -137,6 +180,7 @@ function Shell(): ReactElement | null {
  * @param props.onRefreshStarted - called once the Library has started looking
  * @param props.showAbout - Settings should open at About
  * @param props.onAboutShown - called once Settings has shown About
+ * @param props.onTour - start the tour, from Help
  * @returns the page
  */
 function CurrentPage({
@@ -152,6 +196,7 @@ function CurrentPage({
   onRefreshStarted,
   showAbout,
   onAboutShown,
+  onTour,
 }: {
   page: PageId;
   onNavigate: (page: PageId) => void;
@@ -165,6 +210,7 @@ function CurrentPage({
   onRefreshStarted: () => void;
   showAbout: boolean;
   onAboutShown: () => void;
+  onTour: () => void;
 }): ReactElement {
   switch (page) {
     case "library":
@@ -201,5 +247,7 @@ function CurrentPage({
       return (
         <SettingsPage showAbout={showAbout} onAboutShown={onAboutShown} onNavigate={onNavigate} />
       );
+    case "help":
+      return <HelpPage onNavigate={onNavigate} onTour={onTour} />;
   }
 }

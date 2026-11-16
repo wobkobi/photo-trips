@@ -202,17 +202,17 @@ export function LibraryPage({
         actions={
           selecting ? (
             <>
-              <span className="mr-2 text-[16px] font-semibold" aria-live="polite">
+              <span className="mr-2 text-[14px] text-muted" aria-live="polite">
                 {selected.size > 0
                   ? `${countOf(selected.size, "photo", "photos")} picked`
-                  : "Click the photos to put in the trip"}
+                  : "Click photos to add"}
               </span>
               <Button variant="ghost" onClick={clearSelection}>
                 Cancel
               </Button>
               <Button variant="primary" onClick={createTrip} disabled={selected.size === 0}>
                 <Icon name="trips" size={18} />
-                Make a trip from these
+                Make trip
               </Button>
             </>
           ) : (
@@ -220,18 +220,24 @@ export function LibraryPage({
               {count > 0 && (
                 <Button onClick={() => setPicking(true)}>
                   <Icon name="check" size={18} />
-                  Pick photos for a trip
+                  Make a trip
                 </Button>
               )}
-              <Button onClick={refresh} disabled={running !== null}>
+              <Button
+                variant="ghost"
+                onClick={refresh}
+                disabled={running !== null}
+                title="Look for new photos (F5)"
+                aria-label="Look for new photos"
+                className="px-2.5"
+              >
                 <Icon name="refresh" size={18} />
-                Look for new photos
               </Button>
             </>
           )
         }
       />
-      {error && <p className="mx-8 mt-4 text-danger">{error}</p>}
+      {error && <p className="mx-5 mt-3 text-danger">{error}</p>}
       {settings?.codec_hint_dismissed !== "true" && (
         <CodecHint failed={failedThumbs} onDismiss={() => save("codec_hint_dismissed", "true")} />
       )}
@@ -242,9 +248,9 @@ export function LibraryPage({
 
       {total > 0 && count === 0 && filtered && (
         <EmptyState title="Nothing matches">
-          <p>No photos or videos fit everything chosen above. Change a choice to see more.</p>
+          <p>Try fewer filters.</p>
           <Button variant="primary" onClick={() => changeFilter(NO_FILTER)}>
-            Show everything
+            Clear filters
           </Button>
         </EmptyState>
       )}
@@ -309,7 +315,7 @@ export function LibraryPage({
 }
 
 /**
- * The header line: how many photos are shown, and how many other files are left alone.
+ * The count beside the title, with how many other files are left alone in its tooltip.
  * @param props - Component props.
  * @param props.count - photos and videos the filter shows
  * @param props.total - photos and videos in the library
@@ -328,17 +334,14 @@ function Detail({
   summary: IndexSummary | null;
   indexing: boolean;
 }): ReactElement {
-  if (indexing) return <>Reading your library folder</>;
-  const noun = total === 1 ? "photo or video" : "photos and videos";
+  if (indexing) return <>Reading the library folder</>;
   const items =
     count === total
-      ? `${total.toLocaleString()} ${noun}`
-      : `Showing ${count.toLocaleString()} of ${total.toLocaleString()} ${noun}`;
-  if (!summary || summary.otherFiles === 0) return <>{items}</>;
-  return (
-    <>
-      {items}. {summary.otherFiles.toLocaleString()} other{" "}
-      {summary.otherFiles === 1 ? "file is" : "files are"} left alone.
-    </>
-  );
+      ? total.toLocaleString()
+      : `${count.toLocaleString()} of ${total.toLocaleString()}`;
+  const others =
+    summary && summary.otherFiles > 0
+      ? `${summary.otherFiles.toLocaleString()} other ${summary.otherFiles === 1 ? "file is" : "files are"} left alone.`
+      : undefined;
+  return <span title={others}>{items}</span>;
 }

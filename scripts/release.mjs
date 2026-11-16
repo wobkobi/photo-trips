@@ -13,7 +13,14 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSyn
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import process from "node:process";
-import { RELEASES_REPO, assetName, assetUrl, manifest, releaseNotes } from "./release-lib.mjs";
+import {
+  RELEASES_REPO,
+  assetName,
+  assetUrl,
+  changeHistory,
+  manifest,
+  releaseNotes,
+} from "./release-lib.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const dryRun = process.argv.includes("--dry-run");
@@ -63,7 +70,8 @@ const latestTag = run("gh", [
   ".tagName",
 ]);
 const since = latestTag ? latestTag.replace(/^v/, "") : null;
-const notes = releaseNotes(readFileSync(join(root, "CHANGELOG.md"), "utf8"), version, since);
+const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
+const notes = releaseNotes(changelog, version, since);
 if (!notes) fail(`CHANGELOG.md has no section for ${version}.`);
 
 if (!dryRun && run("gh", ["release", "view", tag, "--repo", RELEASES_REPO]) !== null) {
@@ -113,6 +121,7 @@ const latest = join(stage, "latest.json");
 const announce = manifest({
   version,
   notes,
+  changes: changeHistory(changelog, version),
   signature: readFileSync(`${built}.sig`, "utf8"),
   url: assetUrl(version, name),
   date: new Date(),

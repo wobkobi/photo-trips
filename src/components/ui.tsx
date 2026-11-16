@@ -1,29 +1,30 @@
 // Small shared building blocks: buttons, page header, empty state.
 
-import type { ButtonHTMLAttributes, ReactElement, ReactNode } from "react";
+import type { ComponentProps, ReactElement, ReactNode } from "react";
+import { Icon } from "./Icon";
 
 /**
  * For the photo grid or move list that fills the rest of a page. It grows into the space left
- * under the page's header and notes, but never below this height, so tall notes (a large text
- * size, a small window) can't squeeze it to nothing; the page scrolls instead.
+ * under the page's header and notes, so the page itself doesn't scroll while everything fits. It
+ * never goes below 60% of the window (or 18rem), so tall notes (Details open, a large text size,
+ * a small window) can't squeeze it to a strip; the page scrolls instead.
  *
  * The boxes between the page and the list must not have `min-h-0`, or they shrink and the list
  * overflows them. Without that they size to their content, which would include every row of a
  * virtual list; size containment makes the list count as empty there, so only its minimum height
  * reaches them.
  */
-export const LIST_FILL = "min-h-72 flex-1 contain-size";
+export const LIST_FILL = "min-h-[max(18rem,60vh)] flex-1 contain-size";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 const VARIANTS: Record<Variant, string> = {
-  // Russian-violet for the main action and outlined white for the rest, as on the website.
+  // Violet for the main action, filled grey for the rest, and no fill at all for minor ones.
   primary: "bg-brand text-white hover:bg-brand-hover disabled:bg-raised disabled:text-faint",
   secondary:
-    "border border-line-strong bg-surface text-ink hover:border-brand disabled:text-faint disabled:hover:border-line-strong",
-  // Underlined so it still reads as something to click without a hover.
+    "border border-line-strong/60 bg-raised text-ink hover:border-line-strong hover:bg-line disabled:text-faint disabled:hover:border-line-strong/60 disabled:hover:bg-raised",
   ghost:
-    "text-muted underline underline-offset-4 hover:bg-raised hover:text-ink hover:no-underline disabled:text-faint disabled:no-underline",
+    "text-muted hover:bg-raised hover:text-ink disabled:text-faint disabled:hover:bg-transparent",
   danger: "border border-danger/40 bg-danger/10 text-danger hover:bg-danger/15",
 };
 
@@ -38,21 +39,22 @@ export function Button({
   variant = "secondary",
   className = "",
   ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }): ReactElement {
+}: ComponentProps<"button"> & { variant?: Variant }): ReactElement {
   return (
     <button
       type="button"
-      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-[16px] font-semibold transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
+      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3.5 py-1.5 text-[15px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
       {...rest}
     />
   );
 }
 
 /**
- * Page title row with optional actions on the right.
+ * The toolbar along the top of a page: its name, a short note beside it (a count, say), and
+ * actions on the right. It stays in view while the page scrolls.
  * @param props - Component props.
  * @param props.title - page title
- * @param props.detail - one line under the title
+ * @param props.detail - a short note after the title
  * @param props.actions - buttons for the right side
  * @returns the header element
  */
@@ -66,16 +68,56 @@ export function PageHeader({
   actions?: ReactNode;
 }): ReactElement {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line px-8 pt-7 pb-5">
-      <div className="min-w-0">
-        <h1 className="text-[34px] leading-[1.05] font-extrabold tracking-tight text-brand">
-          {title}
-        </h1>
-        {detail && <p className="mt-2 text-muted">{detail}</p>}
+    <header className="sticky top-0 z-20 flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-5 py-2">
+      <div className="flex min-w-0 flex-1 basis-60 flex-wrap items-baseline gap-x-3">
+        <h1 className="text-[20px] font-semibold">{title}</h1>
+        {detail && <p className="text-[14px] text-muted">{detail}</p>}
       </div>
       {/* Buttons that don't fit move to the next line whole, rather than breaking their words. */}
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
+  );
+}
+
+/**
+ * The top of a review (an import, a sort, duplicates): a one-line headline and totals, with the
+ * fuller notes folded away under Details, so the photos or moves below get the room.
+ * @param props - Component props.
+ * @param props.title - the headline
+ * @param props.summary - a short line or two under it (totals, a folder path)
+ * @param props.notes - the fuller notes, one paragraph each, shown when Details is opened
+ * @param props.className - extra classes, such as a border
+ * @returns the summary section
+ */
+export function ReviewHead({
+  title,
+  summary,
+  notes,
+  className = "",
+}: {
+  title: ReactNode;
+  summary?: ReactNode;
+  notes?: ReactNode;
+  className?: string;
+}): ReactElement {
+  return (
+    <section className={`px-5 pt-3 pb-2 ${className}`}>
+      <p className="text-[18px] font-semibold">{title}</p>
+      {summary && <div className="mt-0.5 text-[14px] text-muted">{summary}</div>}
+      {notes && (
+        <details className="group mt-1 text-[14px] text-muted">
+          <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1.5 rounded-md text-faint hover:text-ink">
+            <Icon
+              name="chevron"
+              size={14}
+              className="shrink-0 transition-transform group-open:rotate-90"
+            />
+            Details
+          </summary>
+          <div className="flex max-w-3xl flex-col gap-1 pb-1 pl-5">{notes}</div>
+        </details>
+      )}
+    </section>
   );
 }
 
@@ -95,7 +137,7 @@ export function EmptyState({
 }): ReactElement {
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-6 py-[min(6rem,12vh)] text-center">
-      <h2 className="text-2xl font-extrabold tracking-tight text-brand">{title}</h2>
+      <h2 className="text-[20px] font-semibold">{title}</h2>
       <div className="mt-3 text-muted [&_button]:mt-5">{children}</div>
     </div>
   );

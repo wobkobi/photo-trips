@@ -10,6 +10,7 @@ import {
   type ImportPreview,
   type MediaDetail,
 } from "../lib/api";
+import { warmImportFacts, warmLibraryFacts } from "../lib/factsAhead";
 import { splitPath } from "../lib/format";
 import type { ViewItem, ViewSource } from "./Viewer";
 import { ImportFacts, LibraryFacts } from "./ViewerFacts";
@@ -47,6 +48,7 @@ export function useLibrarySource(ids: number[]): ViewSource {
        * @returns resolves once Explorer has been asked to show it
        */
       reveal: (index) => api.revealMedia(ids[index]),
+      gone: "Look for new photos (F5) to bring the library up to date.",
     }),
     [ids],
   );
@@ -54,17 +56,21 @@ export function useLibrarySource(ids: number[]): ViewSource {
 
 /**
  * What the viewer shows for a library file. Videos and photos the webview can't handle get no
- * original, so the viewer falls back to the large thumbnail.
+ * original, so the viewer falls back to the large thumbnail. The viewer loads the next files
+ * ahead, so reading the side panel's details starts here too.
  * @param detail - the file's indexed details
  * @returns the viewer item
  */
 function libraryItem(detail: MediaDetail): ViewItem {
   const shown = detail.kind === "video" ? detail.playable : detail.viewable;
+  warmLibraryFacts(detail);
   return {
     name: detail.name,
     kind: detail.kind,
     original: shown ? fileUrl(detail.path) : null,
+    missing: detail.missing,
     preview: thumbUrl(detail.id, detail.version, true),
+    thumb: thumbUrl(detail.id, detail.version),
     facts: <LibraryFacts detail={detail} />,
   };
 }
@@ -107,13 +113,15 @@ export function useImportSource(preview: ImportPreview, order: number[]): ViewSo
        */
       open: (index) => api.openImportFile(id, at(index)),
       reveal: spec.kind === "phone" ? undefined : (index) => api.revealImportFile(id, at(index)),
+      gone: "Check again to bring this import up to date.",
     };
   }, [preview, order]);
 }
 
 /**
  * What the viewer shows for a file in an import preview. Videos and photos the webview can't
- * handle get no original, so the viewer falls back to the large thumbnail.
+ * handle get no original, so the viewer falls back to the large thumbnail. Reading the side
+ * panel's details starts here, as for library files.
  * @param previewId - the import preview the file belongs to
  * @param index - the file's index in the preview's items
  * @param item - the preview's entry for the file
@@ -127,11 +135,14 @@ function importItem(
   file: ImportFile,
 ): ViewItem {
   const shown = item.kind === "video" ? file.playable : file.viewable;
+  warmImportFacts(previewId, index);
   return {
     name: splitPath(item.from).name,
     kind: item.kind,
     original: shown ? fileUrl(file.path) : null,
+    missing: file.missing,
     preview: thumbUrl(item.thumb, item.version, true),
+    thumb: thumbUrl(item.thumb, item.version),
     facts: <ImportFacts previewId={previewId} index={index} item={item} />,
   };
 }

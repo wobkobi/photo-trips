@@ -17,6 +17,7 @@ mod import;
 mod index;
 mod jobs;
 mod library;
+mod location;
 mod map;
 mod menu;
 mod metadata;
@@ -92,6 +93,7 @@ pub fn run() {
             }
             let library_root = db::get_setting(&conn, "library_root")?;
             let text_size = db::get_setting(&conn, "text_size")?;
+            let theme = db::get_setting(&conn, "theme")?;
             if let Some(root) = &library_root {
                 commands::allow_library(app.handle(), root);
                 // Phone files left from an import that never finished; recovery is done with them.
@@ -121,8 +123,10 @@ pub fn run() {
             watch::start(app.handle());
             updater::start(app.handle());
 
-            // Zoomed before it first shows, so the page doesn't jump to the chosen text size.
+            // Zoomed and themed before it first shows, so the page doesn't jump to the chosen text
+            // size, and starts in the chosen theme (the window theme sets the page's light or dark).
             commands::apply_text_size(app.handle(), text_size.as_deref());
+            commands::apply_theme(app.handle(), theme.as_deref());
             // The window starts hidden (see tauri.conf.json) to avoid a flash on a tray-only start.
             if !std::env::args().any(|arg| arg == HIDDEN_FLAG) {
                 tray::show_main(app.handle());
@@ -185,6 +189,7 @@ pub fn run() {
             suggest::dismiss_suggestion,
             suggest::restore_dismissed,
             suggest::home_place,
+            location::current_location,
             watch::watch_status,
             watch::set_watch_paused,
             menu::menu_action,

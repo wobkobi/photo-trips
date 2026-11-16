@@ -179,7 +179,6 @@ export function SuggestionsPage({
     <div className="flex h-full flex-col">
       <PageHeader
         title="Suggestions"
-        detail="Stretches of busy days, or days away from home, that aren't a trip yet."
         actions={
           review !== null &&
           !moving && (
@@ -196,7 +195,7 @@ export function SuggestionsPage({
         }
       />
       {error && (
-        <p role="alert" className="mx-8 mt-4 text-danger">
+        <p role="alert" className="mx-5 mt-3 text-danger">
           {error}
         </p>
       )}
@@ -293,9 +292,7 @@ function SuggestionCard({
     <li className="flex flex-col gap-3 rounded-md border border-dashed border-line bg-surface p-4">
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[22px] leading-tight font-bold tracking-tight text-brand">
-            {suggestion.name}
-          </p>
+          <p className="text-[17px] leading-tight font-semibold">{suggestion.name}</p>
           <p className="mt-1 text-[15px] text-muted">
             {/* A name made from the dates already says them. */}
             {suggestion.namedByPlace && (

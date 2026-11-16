@@ -1,36 +1,58 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useState, type ReactElement } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactElement } from "react";
 import { api, errorText, type MapView } from "../lib/api";
+import { themeOf } from "../lib/display";
+import { currentZoomStep, keepZoomStep, loadPhotoMap, ZOOMS } from "../lib/mapAhead";
+import { googleMapsUrl } from "../lib/maps";
+import { knownPlace, lookUpPlace } from "../lib/places";
+import { useMediaQuery } from "../lib/useMediaQuery";
+import { useSettings } from "../lib/useSettings";
 import { Icon } from "./Icon";
 import { Fact } from "./Viewer";
 import { Button } from "./ui";
 
-/** Map heights in km, closest first, with the OpenStreetMap zoom that shows about the same. */
-const ZOOMS = [
-  { km: 15, osm: 12 },
-  { km: 40, osm: 11 },
-  { km: 120, osm: 9 },
-  { km: 400, osm: 7 },
-  { km: 1500, osm: 5 },
-];
-/** The zoom stays where it was left as the viewer steps from photo to photo. */
-let lastZoom = 1;
+const PhotoMap = lazy(() => loadPhotoMap().then((m) => ({ default: m.PhotoMap })));
+
+/** Once the online map fails, the drawn one is used until the app restarts. */
+let mapOffline = false;
 
 /**
- * Where a photo was taken: the nearest town's name and the built-in map around it, with buttons
- * to zoom and to open the spot on OpenStreetMap. The map is drawn from data inside the app; only
- * the OpenStreetMap button sends the location anywhere, and only when it's clicked.
+ * Where a photo was taken: the nearest town's name and a map around it, with buttons to zoom
+ * and to open the spot in Google Maps. The map comes from OpenFreeMap and the suburb name from
+ * Photon (both OpenStreetMap data), so the spot is sent to them. The built-in town list only
+ * knows places of 1,000 people or more (a whole city like "Manukau City" for its suburbs), so
+ * it's the fallback offline or in open country, as is the built-in drawn map.
  * @param props - Component props.
  * @param props.lat - latitude in degrees
  * @param props.lon - longitude in degrees
  * @returns the block for the viewer's side panel
  */
 export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactElement {
-  const [zoom, setZoom] = useState(lastZoom);
+  const [zoom, setZoom] = useState(currentZoomStep);
   const spot = `${lat},${lon}`;
   const key = `${spot},${zoom}`;
   const [loaded, setLoaded] = useState<{ key: string; spot: string; view: MapView } | null>(null);
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
+  const [offline, setOffline] = useState(mapOffline);
+  const { settings } = useSettings();
+  const systemDark = useMediaQuery("(prefers-color-scheme: dark)");
+  const theme = themeOf(settings);
+  const dark = theme === "dark" || (theme === "system" && systemDark);
+  const [lookup, setLookup] = useState<{ spot: string; place: string | null } | null>(null);
+
+  // Usually already answered by the viewer's look-ahead. A lookup left running when the viewer
+  // steps on isn't cancelled: it fills the cache for stepping back.
+  useEffect(() => {
+    if (offline || knownPlace(lat, lon) !== undefined) return;
+    let active = true;
+    lookUpPlace(lat, lon).then(
+      (place) => active && setLookup({ spot, place }),
+      () => active && setLookup({ spot, place: null }),
+    );
+    return () => {
+      active = false;
+    };
+  }, [lat, lon, spot, offline]);
 
   useEffect(() => {
     let active = true;
@@ -47,51 +69,118 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactE
   const view = loaded?.spot === spot ? loaded.view : null;
   const error = failure?.key === key ? failure.message : null;
   const coords = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  // Until the lookup answers, nothing shows, so the built-in name doesn't flash up first.
+  const cached = knownPlace(lat, lon);
+  const answered = offline || cached !== undefined || lookup?.spot === spot;
+  const looked = cached ?? null;
+  const place = answered ? (looked ?? view?.place ?? null) : null;
 
   /**
    * Switch to another zoom step, kept for the next photo.
    * @param next - index into {@link ZOOMS}
    */
   function changeZoom(next: number): void {
-    lastZoom = next;
+    keepZoomStep(next);
     setZoom(next);
   }
 
-  /** Open the spot on OpenStreetMap in the browser at about the same zoom. */
+  /** Switch to the drawn map for this and later photos. */
+  function goOffline(): void {
+    mapOffline = true;
+    setOffline(true);
+  }
+
+  /** Open the spot in Google Maps in the browser. */
   function openMap(): void {
-    const at = `${lat.toFixed(5)}/${lon.toFixed(5)}`;
-    const url = `https://www.openstreetmap.org/?mlat=${lat.toFixed(5)}&mlon=${lon.toFixed(5)}#map=${ZOOMS[zoom].osm}/${at}`;
-    openUrl(url).catch((err) => setFailure({ key, message: errorText(err) }));
+    openUrl(googleMapsUrl(lat, lon)).catch((err) => setFailure({ key, message: errorText(err) }));
   }
 
   return (
-    <Fact label="Where it was taken">
+    <Fact label="Place">
       {/* A blank line while loading, so the map doesn't jump down when the name arrives. */}
-      <p className="selectable">{view?.place ?? (view ? coords : "\u00a0")}</p>
-      <div className="mt-2 overflow-hidden rounded-[3px] border border-line bg-map-water">
-        {view ? <MapPicture view={view} /> : <div className="aspect-280/180" aria-hidden="true" />}
+      <p className="selectable" title={place ? coords : undefined}>
+        {place ?? (view && answered ? coords : "\u00a0")}
+      </p>
+      <div className="relative mt-2 overflow-hidden rounded-md border border-line bg-map-water">
+        {!offline ? (
+          <Suspense fallback={<div className="h-47.5" aria-hidden="true" />}>
+            <PhotoMap
+              lat={lat}
+              lon={lon}
+              zoom={ZOOMS[zoom].map}
+              dark={dark}
+              label={place ? `Map around ${place}` : "Map of where it was taken"}
+              onFail={goOffline}
+            />
+          </Suspense>
+        ) : view ? (
+          <MapPicture view={view} />
+        ) : (
+          <div className="aspect-280/180" aria-hidden="true" />
+        )}
+        <div className="absolute top-2 right-2 flex flex-col overflow-hidden rounded-md border border-line bg-surface/90 shadow-sm">
+          <MapZoom
+            label="Zoom in"
+            glyph="+"
+            disabled={zoom === 0}
+            onClick={() => changeZoom(zoom - 1)}
+          />
+          <MapZoom
+            label="Zoom out"
+            glyph="−"
+            disabled={zoom === ZOOMS.length - 1}
+            onClick={() => changeZoom(zoom + 1)}
+            divided
+          />
+        </div>
       </div>
-      {view?.place && <p className="selectable mt-1 text-[14px] text-faint">{coords}</p>}
       {error && (
         <p role="alert" className="mt-1 text-[15px] text-danger">
           {error}
         </p>
       )}
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button onClick={() => changeZoom(zoom - 1)} disabled={zoom === 0}>
-          <Icon name="zoom" size={16} />
-          Zoom in
-        </Button>
-        <Button onClick={() => changeZoom(zoom + 1)} disabled={zoom === ZOOMS.length - 1}>
-          <Icon name="zoomOut" size={16} />
-          Zoom out
-        </Button>
-        <Button onClick={openMap}>
-          <Icon name="map" size={16} />
-          Open in OpenStreetMap
-        </Button>
-      </div>
+      <Button variant="ghost" className="mt-1 -ml-2" onClick={openMap}>
+        <Icon name="map" size={16} />
+        Open in Google Maps
+      </Button>
     </Fact>
+  );
+}
+
+/**
+ * One of the zoom buttons in the map's corner.
+ * @param props - Component props.
+ * @param props.label - what a screen reader and the tooltip say
+ * @param props.glyph - the plus or minus shown
+ * @param props.disabled - already at the closest or furthest zoom
+ * @param props.onClick - zoom one step
+ * @param props.divided - draw a line above it, between the pair
+ * @returns the button
+ */
+function MapZoom({
+  label,
+  glyph,
+  disabled,
+  onClick,
+  divided = false,
+}: {
+  label: string;
+  glyph: string;
+  disabled: boolean;
+  onClick: () => void;
+  divided?: boolean;
+}): ReactElement {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex size-8 items-center justify-center text-[18px] leading-none text-ink hover:bg-raised disabled:text-faint disabled:hover:bg-transparent ${divided ? "border-t border-line" : ""}`}
+    >
+      {glyph}
+    </button>
   );
 }
 

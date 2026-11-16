@@ -4,7 +4,9 @@ import { busyChoices, DEFAULT_MIN_PHOTOS, minPhotosOf } from "../lib/settingValu
 import { useAction } from "../lib/useAction";
 import { useSettings } from "../lib/useSettings";
 import { INPUT } from "./Field";
+import { Icon } from "./Icon";
 import { Row, SavedText, Section } from "./SettingParts";
+import { Button } from "./ui";
 
 /**
  * Trip suggestion settings: how busy a day must be, and where home is.
@@ -31,6 +33,19 @@ export function SuggestionSettings(): ReactElement {
   }, [home]);
 
   const placeNow = place?.home === home ? place : null;
+  const [locating, setLocating] = useState(false);
+
+  /** Ask Windows where the computer is once, and save that as home. */
+  function locateHome(): void {
+    setLocating(true);
+    void run(async () => {
+      try {
+        await save("home_location", await api.currentLocation());
+      } finally {
+        setLocating(false);
+      }
+    });
+  }
 
   return (
     <Section title="Trip suggestions" error={error}>
@@ -52,14 +67,20 @@ export function SuggestionSettings(): ReactElement {
         </select>
       </Row>
       <Row title="Home" detail={homeDetail(home, placeNow?.name)}>
-        <SavedText
-          value={home}
-          label="Home latitude and longitude"
-          placeholder="-36.85, 174.76"
-          className="w-52"
-          onSave={(text) => run(() => save("home_location", text))}
-          onRevert={clear}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <SavedText
+            value={home}
+            label="Home latitude and longitude"
+            placeholder="-36.85, 174.76"
+            className="w-52"
+            onSave={(text) => run(() => save("home_location", text))}
+            onRevert={clear}
+          />
+          <Button onClick={locateHome} disabled={locating}>
+            <Icon name="pin" size={16} />
+            {locating ? "Finding you…" : "Use my location"}
+          </Button>
+        </div>
       </Row>
     </Section>
   );
@@ -75,7 +96,7 @@ function homeDetail(home: string, place: string | null | undefined): string {
   const away =
     "Days more than 50 km from home are suggested as trips however few photos they have.";
   if (!home) {
-    return `${away} Home is worked out from where photos were taken on the most days. To set it, right-click your home in an online map, copy the latitude and longitude, and paste them here.`;
+    return `${away} Home is worked out from where photos were taken on the most days. To set it, press Use my location while at home, or paste the latitude and longitude from an online map.`;
   }
   const where =
     place === undefined ? "" : place ? `Near ${place}. ` : "No town within 100 km of there. ";

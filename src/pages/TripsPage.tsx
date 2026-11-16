@@ -11,14 +11,15 @@ import { Field, INPUT } from "../components/Field";
 import { Icon } from "../components/Icon";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
-import { SampleStrip } from "../components/SampleStrip";
 import { Button, EmptyState, LIST_FILL, PageHeader } from "../components/ui";
 import { useLibrarySource } from "../components/viewSources";
 import {
   api,
   errorText,
+  thumbUrl,
   type ApplySummary,
   type Preview,
+  type SampleTile,
   type Tile,
   type TripChange,
   type TripInfo,
@@ -238,13 +239,7 @@ export function TripsPage({
       <PageHeader
         title="Trips"
         detail={
-          <>
-            Photos taken during a trip live together in its own folder, like{" "}
-            <span className="text-ink">
-              {tripFolder(namingOf(settings).trips, "2025-03-12", "Japan")}
-            </span>
-            .
-          </>
+          listing && trips !== null && trips.length > 0 ? trips.length.toLocaleString() : undefined
         }
         actions={
           listing ? (
@@ -278,7 +273,7 @@ export function TripsPage({
         }
       />
       {error && (
-        <p role="alert" className="mx-8 mt-4 text-danger">
+        <p role="alert" className="mx-5 mt-3 text-danger">
           {error}
         </p>
       )}
@@ -307,9 +302,9 @@ export function TripsPage({
       {listing && trips !== null && trips.length === 0 && (
         <EmptyState title="No trips yet">
           <p>
-            Add a trip with the dates you were away, and every photo from those days moves into its
-            own folder. You can also use Pick photos for a trip in the Library to make one from the
-            photos you choose.
+            Add the dates you were away, and the photos from those days get their own folder, like{" "}
+            {tripFolder(namingOf(settings).trips, "2025-03-12", "Japan")}. Or pick photos in the
+            Library with Make a trip.
           </p>
           <Button variant="primary" onClick={() => setEditor(newEditor(null))}>
             New trip
@@ -317,7 +312,7 @@ export function TripsPage({
         </EmptyState>
       )}
       {listing && trips !== null && trips.length > 0 && (
-        <ul className="flex max-w-4xl flex-col gap-3 px-8 py-6">
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-4 p-5">
           {trips.map((trip) => (
             <TripRow
               key={trip.id}
@@ -346,7 +341,7 @@ export function TripsPage({
 }
 
 /**
- * One trip in the list. Its name opens the Library at the trip's photos, as does the button.
+ * One trip, as an album card. Its cover and name open the Library at the trip's photos.
  * @param props - Component props.
  * @param props.trip - the trip
  * @param props.busy - a job or check is running, so editing waits
@@ -369,41 +364,89 @@ function TripRow({
   onDelete: () => void;
 }): ReactElement {
   return (
-    <li className="flex overflow-hidden rounded-md border border-line bg-surface">
-      <span aria-hidden="true" className={`w-1.5 shrink-0 ${tripBg(trip.colour)}`} />
-      <div className="flex min-w-0 flex-1 flex-col gap-3 p-4">
-        <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
-          <div className="min-w-0 flex-1">
-            <button
-              type="button"
-              onClick={onShow}
-              title="See this trip's photos in the Library"
-              className="max-w-full text-left text-[22px] leading-tight font-bold tracking-tight wrap-break-word text-brand hover:underline hover:underline-offset-4"
-            >
-              {trip.name}
-            </button>
-            <p className="mt-1 flex flex-wrap gap-x-4 text-[15px] text-muted">
-              <span>{rangeText(trip.startAt, trip.endAt)}</span>
-              <span>{count(trip.files, "photo or video", "photos and videos")}</span>
-              <span className="selectable min-w-0 break-all text-faint">Trips\{trip.folder}</span>
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-1">
-            <Button onClick={onShow} className="mr-1">
-              <Icon name="library" size={18} />
-              See in Library
-            </Button>
-            <Button variant="ghost" onClick={onEdit} disabled={busy}>
-              Edit
-            </Button>
-            <Button variant="ghost" onClick={onDelete} disabled={busy}>
-              Delete
-            </Button>
-          </div>
+    <li className="flex flex-col overflow-hidden rounded-md border border-line bg-surface">
+      <button
+        type="button"
+        onClick={onShow}
+        aria-label={`See ${trip.name} in the Library`}
+        className="group relative aspect-3/2 w-full overflow-hidden bg-raised focus-visible:outline-offset-[-3px]"
+      >
+        <Cover sample={trip.sample} />
+        <span
+          aria-hidden="true"
+          className={`absolute inset-x-0 bottom-0 h-1 ${tripBg(trip.colour)}`}
+        />
+      </button>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5 px-3 pt-2.5 pb-2">
+        <button
+          type="button"
+          onClick={onShow}
+          title="See this trip's photos in the Library"
+          className="max-w-full self-start text-left text-[16px] font-semibold wrap-break-word hover:underline hover:underline-offset-4"
+        >
+          {trip.name}
+        </button>
+        <p className="text-[13px] text-muted">
+          {rangeText(trip.startAt, trip.endAt)} · {count(trip.files, "photo", "photos")}
+        </p>
+        <p className="selectable truncate text-[13px] text-faint" title={`Trips\\${trip.folder}`}>
+          Trips\{trip.folder}
+        </p>
+        <div className="mt-1 -ml-2 flex flex-wrap gap-1">
+          <Button variant="ghost" onClick={onEdit} disabled={busy}>
+            Edit
+          </Button>
+          <Button variant="ghost" onClick={onDelete} disabled={busy}>
+            Delete
+          </Button>
         </div>
-        {trip.sample.length > 0 && <SampleStrip sample={trip.sample} />}
       </div>
     </li>
+  );
+}
+
+/**
+ * A trip card's cover: four of its photos in a square mosaic, or one when it has fewer.
+ * @param props - Component props.
+ * @param props.sample - photos spread through the trip
+ * @returns the cover, or nothing for a trip with no photos
+ */
+function Cover({ sample }: { sample: SampleTile[] }): ReactElement | null {
+  if (sample.length === 0) return null;
+  const shown = sample.length >= 4 ? sample.slice(0, 4) : sample.slice(0, 1);
+  return (
+    <span
+      className={`grid h-full w-full gap-0.5 ${shown.length === 4 ? "grid-cols-2 grid-rows-2" : ""}`}
+    >
+      {shown.map((tile) => (
+        <CoverImage key={tile.id} tile={tile} />
+      ))}
+    </span>
+  );
+}
+
+/**
+ * One photo in a {@link Cover}, left as an empty tile if it fails to load.
+ * @param props - Component props.
+ * @param props.tile - the photo
+ * @returns the image
+ */
+function CoverImage({ tile }: { tile: SampleTile }): ReactElement {
+  const [failed, setFailed] = useState(false);
+  return (
+    <span className="block min-h-0 overflow-hidden bg-raised">
+      {!failed && (
+        <img
+          src={thumbUrl(tile.id, tile.version)}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          onError={() => setFailed(true)}
+          className="h-full w-full object-cover transition-opacity group-hover:opacity-90"
+        />
+      )}
+    </span>
   );
 }
 
@@ -479,11 +522,9 @@ function TripEditor({
 
   return (
     <div className="flex flex-1 flex-col">
-      <form onSubmit={submit} className="flex flex-col gap-5 px-8 pt-6 pb-5">
-        <h2 className="text-[26px] leading-none font-bold tracking-tight text-brand">
-          {trip ? `Edit ${trip.name}` : "New trip"}
-        </h2>
-        <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+      <form onSubmit={submit} className="flex flex-col gap-3 px-5 pt-4 pb-3">
+        <h2 className="text-[18px] font-semibold">{trip ? `Edit ${trip.name}` : "New trip"}</h2>
+        <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
           <Field label="Name">
             <input
               type="text"
@@ -531,7 +572,7 @@ function TripEditor({
           <PickBar
             ticked={ticked}
             total={tiles.length}
-            hint="Untick any that weren't part of the trip. They stay in their month folders, and you can tick them again by editing the trip."
+            hint="Unticked ones stay in their month folders."
             onAll={(pick) => setLeft(pick ? NONE_LEFT : new Set(tiles.map((t) => t.id)))}
           />
           <div className={`flex border-t border-line ${LIST_FILL}`}>

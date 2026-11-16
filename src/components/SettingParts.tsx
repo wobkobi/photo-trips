@@ -25,9 +25,9 @@ export function Section({
   children: ReactNode;
 }): ReactElement {
   return (
-    <section className="mt-12 first:mt-0">
-      <h2 className="text-[22px] font-bold tracking-tight text-brand">{title}</h2>
-      {detail && <div className="mt-1.5 space-y-2 text-[15px] text-muted">{detail}</div>}
+    <section className="mt-10 first:mt-0">
+      <h2 className="text-[18px] font-semibold">{title}</h2>
+      {detail && <div className="mt-1 space-y-2 text-[14px] text-muted">{detail}</div>}
       {error && (
         <p role="alert" className="mt-3 text-[15px] text-danger">
           {error}
@@ -61,7 +61,7 @@ export function Row({
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-line py-4">
       <div className="min-w-0 flex-1 basis-60">
         <h3 className="font-semibold">{title}</h3>
-        {detail && <p className="mt-1 text-[15px] wrap-break-word text-muted">{detail}</p>}
+        {detail && <p className="mt-0.5 text-[14px] wrap-break-word text-muted">{detail}</p>}
       </div>
       <div className="shrink-0">{children}</div>
     </div>
@@ -117,8 +117,8 @@ export function Toggle({
 }
 
 /**
- * A text box that saves when it loses focus or on Enter. Escape puts the saved value back.
- * Assumes nothing else changes the setting while the page is open.
+ * A text box that saves when it loses focus or on Enter. Escape puts the saved value back. When
+ * the setting is saved from elsewhere (a button beside it, say), the box shows the new value.
  * @param props - Component props.
  * @param props.value - the saved value
  * @param props.label - accessible name
@@ -147,6 +147,13 @@ export function SavedText({
   onRevert?: () => void;
 }): ReactElement {
   const [text, setText] = useState(value);
+  // Follow a value saved from elsewhere. Set during render (React's pattern for state that
+  // tracks a prop), so the box never shows the old value for a frame.
+  const [shown, setShown] = useState(value);
+  if (value !== shown) {
+    setShown(value);
+    setText(value);
+  }
   return (
     <input
       type="text"
@@ -218,7 +225,7 @@ export function Choices({
   return (
     <div className="border-t border-line py-4">
       <h3 className="font-semibold">{title}</h3>
-      {detail && <p className="mt-1 text-[15px] text-muted">{detail}</p>}
+      {detail && <p className="mt-0.5 text-[14px] text-muted">{detail}</p>}
       <div
         role="radiogroup"
         aria-label={title}
@@ -235,10 +242,10 @@ export function Choices({
               aria-checked={chosen}
               tabIndex={chosen ? 0 : -1}
               onClick={() => onChange(option.value)}
-              className={`flex min-h-11 min-w-28 flex-col items-center justify-end gap-2 rounded-lg border-2 px-4 py-3 font-semibold transition-colors ${
+              className={`flex min-h-11 min-w-24 flex-col items-center justify-end gap-1.5 rounded-md border px-3 py-2.5 text-[14px] transition-colors ${
                 chosen
-                  ? "border-brand bg-brand text-white"
-                  : "border-line-strong bg-surface text-ink hover:border-brand"
+                  ? "border-accent bg-accent/10 font-semibold text-ink ring-1 ring-accent"
+                  : "border-line bg-raised/50 text-muted hover:border-line-strong hover:text-ink"
               }`}
             >
               {option.sample}

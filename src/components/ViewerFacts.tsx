@@ -2,8 +2,18 @@
 
 import { useCallback, type ReactElement } from "react";
 import { api, type ImportItem, type MediaDetail, type MediaKind } from "../lib/api";
-import { count, formatBytes, formatTaken, sourceText, splitPath } from "../lib/format";
+import { importKey, libraryKey } from "../lib/factsAhead";
+import {
+  count,
+  dateNote,
+  formatBytes,
+  formatTaken,
+  libraryFolder,
+  sourceText,
+  splitPath,
+} from "../lib/format";
 import { located, useFileDetails } from "../lib/useFileDetails";
+import { useSettings } from "../lib/useSettings";
 import { CameraFact, Measures } from "./FileFacts";
 import { LocationFact } from "./LocationFact";
 import { Fact } from "./Viewer";
@@ -16,15 +26,18 @@ const KIND_NAMES: Record<MediaKind, string> = {
 };
 
 /**
- * Details of a library file: when it was taken, where, the camera, the file itself and the
- * files that move with it.
+ * Details of a library file. Sections that come and go or change height between files sit
+ * lowest, so the rest stays put while stepping through photos: the map, then the list of files
+ * that move with this one, which changes most often.
  * @param props - Component props.
  * @param props.detail - the file's indexed details
  * @returns the facts for the viewer's side panel
  */
 export function LibraryFacts({ detail }: { detail: MediaDetail }): ReactElement {
   const load = useCallback(() => api.mediaDetails(detail.id), [detail.id]);
-  const details = useFileDetails(`m${detail.id}`, load);
+  const details = useFileDetails(libraryKey(detail), load);
+  const { settings } = useSettings();
+  const note = dateNote(detail.dateSource);
   // The index keeps the location; the file's own is used only when the index has none.
   const spot =
     detail.lat !== null && detail.lon !== null
@@ -33,24 +46,26 @@ export function LibraryFacts({ detail }: { detail: MediaDetail }): ReactElement 
   return (
     <>
       <Fact label="Taken">
-        <p>{formatTaken(detail.takenAt)}</p>
-        <p
-          className={`mt-1 text-[14px] ${detail.dateSource === "modified" ? "text-warn" : "text-faint"}`}
-        >
-          {sourceText(detail.dateSource)}
-        </p>
+        <p title={sourceText(detail.dateSource)}>{formatTaken(detail.takenAt)}</p>
+        {note && (
+          <p className="mt-1 text-[14px] text-faint" title={sourceText(detail.dateSource)}>
+            {note}
+          </p>
+        )}
       </Fact>
-
-      {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
-      {details && <CameraFact details={details} />}
 
       <Fact label="File">
         <p>
           {KIND_NAMES[detail.kind]}, {formatBytes(detail.size)}
         </p>
         <Measures details={details} video={detail.kind === "video"} />
-        <p className="selectable mt-1 text-[14px] break-all text-faint">{detail.folder}</p>
+        <p className="selectable mt-1 text-[14px] break-all text-faint" title={detail.folder}>
+          {libraryFolder(detail.folder, settings?.library_root)}
+        </p>
       </Fact>
+
+      {details && <CameraFact details={details} />}
+      {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
 
       {detail.members.length > 1 && (
         <Fact label="Moves together with">
@@ -69,8 +84,8 @@ export function LibraryFacts({ detail }: { detail: MediaDetail }): ReactElement 
 }
 
 /**
- * Details of a file waiting in an import preview: when it was taken, where, the camera, the
- * folder it goes into and the file itself.
+ * Details of a file waiting in an import preview, in the same order as {@link LibraryFacts}:
+ * steady sections first, the map last.
  * @param props - Component props.
  * @param props.previewId - the import preview the file belongs to
  * @param props.index - the file's index in the preview's items
@@ -87,26 +102,24 @@ export function ImportFacts({
   item: ImportItem;
 }): ReactElement {
   const load = useCallback(() => api.importFileDetails(previewId, index), [previewId, index]);
-  const details = useFileDetails(`i${previewId}-${index}`, load);
+  const details = useFileDetails(importKey(previewId, index), load);
   const spot = located(details);
   const { folder } = splitPath(item.to);
   return (
     <>
       <Fact label="Taken">
         <p>{formatTaken(item.takenAt)}</p>
-        {item.uncertain && <p className="mt-1 text-[14px] text-warn">{sourceText("modified")}</p>}
+        {item.uncertain && (
+          <p className="mt-1 text-[14px] text-faint" title={sourceText("modified")}>
+            {dateNote("modified")}
+          </p>
+        )}
       </Fact>
-
-      {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
-      {details && <CameraFact details={details} />}
 
       <Fact label="Goes into">
         <p className="selectable break-all">{folder || "The library folder"}</p>
         {item.renamed && (
-          <p className="mt-1 text-[14px] text-faint">
-            Gets a number added to its name, because a different file with that name is already
-            there.
-          </p>
+          <p className="mt-1 text-[14px] text-faint">Gets a number added; that name is taken</p>
         )}
       </Fact>
 
@@ -116,12 +129,14 @@ export function ImportFacts({
         </p>
         <Measures details={details} video={item.kind === "video"} />
         {item.extra > 0 && (
-          <p className="mt-1 text-[14px] text-faint">
-            Comes in with {count(item.extra, "other file", "other files")}, such as a Live Photo
-            video or RAW copy.
+          <p className="mt-1 text-[14px] text-faint" title="Such as a Live Photo video or RAW copy">
+            With {count(item.extra, "linked file", "linked files")}
           </p>
         )}
       </Fact>
+
+      {details && <CameraFact details={details} />}
+      {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
     </>
   );
 }

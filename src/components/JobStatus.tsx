@@ -74,20 +74,22 @@ export function JobStatus({
 
   if (running) {
     return (
-      <div className="rounded-md border border-line bg-surface/60 p-3">
+      <div className="px-2.5 py-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="min-w-0 text-[15px] font-semibold">
+          <span className="min-w-0 text-[14px] font-semibold">
             {JOB_NAMES[running.kind] ?? "Working"}
           </span>
           <button
             type="button"
             onClick={() => api.cancelJob()}
-            className="min-h-11 shrink-0 rounded-md px-2 text-[15px] text-ink underline underline-offset-4 hover:bg-raised"
+            aria-label={`Stop ${(JOB_NAMES[running.kind] ?? "working").toLowerCase()}`}
+            title="Stop"
+            className="-mr-1.5 flex size-9 shrink-0 items-center justify-center rounded-md text-muted hover:bg-raised hover:text-ink"
           >
-            Stop
+            <Icon name="close" size={16} />
           </button>
         </div>
-        <div className="mt-2">
+        <div className="mt-1">
           <Progress done={running.done} total={running.total} label={running.stage} />
         </div>
       </div>
@@ -118,15 +120,15 @@ export function JobStatus({
     <div role="alert" className="rounded-md border border-danger/40 bg-danger/10 p-3">
       <div className="flex gap-2">
         <Icon name="warn" size={18} className="mt-0.5 shrink-0 text-danger" />
-        <p className="min-w-0 flex-1 text-[15px] wrap-break-word text-ink">{lastDone.done.error}</p>
+        <p className="min-w-0 flex-1 text-[14px] wrap-break-word text-ink">{lastDone.done.error}</p>
       </div>
       <button
         ref={hideRef}
         type="button"
         onClick={clearLastDone}
-        className="mt-2 min-h-11 rounded-md px-2 text-[15px] text-ink underline underline-offset-4 hover:bg-raised"
+        className="mt-2 min-h-9 rounded-md bg-raised px-3 text-[14px] font-semibold text-ink hover:bg-line"
       >
-        Hide this message
+        Dismiss
       </button>
     </div>
   );

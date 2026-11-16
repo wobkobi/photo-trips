@@ -76,7 +76,8 @@ const SOURCE_TEXT: Record<DateSource, string> = {
   windows: "From the date Windows reads from the file.",
   exiftool: "From the date stored inside the file.",
   filename: "From the date in the file name.",
-  modified: "Guessed from when the file was last changed, so it may be wrong.",
+  modified:
+    "The file has no date of its own, so this is when it last changed. Common for downloads, screenshots and photos from apps that don't save camera details.",
 };
 
 /**
@@ -86,6 +87,18 @@ const SOURCE_TEXT: Record<DateSource, string> = {
  */
 export function sourceText(source: DateSource): string {
   return SOURCE_TEXT[source];
+}
+
+/**
+ * A short note under a date that's less sure than the file's own record of it; nothing for the
+ * rest, whose source shows on hover instead.
+ * @param source - where the date came from
+ * @returns the note, or null when the date came from the file's own record
+ */
+export function dateNote(source: DateSource): string | null {
+  if (source === "filename") return "From the file name";
+  if (source === "modified") return "When the file last changed";
+  return null;
 }
 
 export type TimelineRow =
@@ -157,6 +170,23 @@ export function splitPath(path: string): { folder: string; name: string } {
 }
 
 /**
+ * A folder in the library as it reads from the library folder, e.g. "2025\2025-03" rather than
+ * the whole path. Windows paths aren't case sensitive, so neither is the match.
+ * @param folder - the folder's full path
+ * @param root - the library folder
+ * @returns the part under the library, "Library folder" for the library itself, or the full path
+ * for a folder outside it
+ */
+export function libraryFolder(folder: string, root: string | null | undefined): string {
+  if (!root) return folder;
+  const base = root.replace(/[\\/]+$/, "");
+  const lower = folder.toLowerCase();
+  if (lower === base.toLowerCase()) return "Library folder";
+  const prefix = `${base.toLowerCase()}\\`;
+  return lower.startsWith(prefix) ? folder.slice(prefix.length) : folder;
+}
+
+/**
  * A folder's own name, for showing a long path where there's little room.
  * @param path - the folder's full path
  * @returns e.g. "Photos" for C:\Users\Me\Photos, or the path itself for a drive such as D:\
@@ -180,4 +210,17 @@ export function jumpRow(rows: TimelineRow[], tile: number): number {
     return at - 1;
   }
   return at;
+}
+
+/**
+ * A playback time as a clock, e.g. "0:07", "12:34" or "1:02:03".
+ * @param seconds - the time; anything not a finite number reads as zero
+ * @returns the clock text
+ */
+export function clockTime(seconds: number): string {
+  const total = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
 }
