@@ -171,8 +171,14 @@ pub fn clean_name(name: &str) -> String {
 
 /// The trip's folder name in the chosen style (`2025-03-12 Japan`, say), numbered " (2)",
 /// " (3)" and so on when another trip already has it.
-pub fn folder_for(start: &NaiveDateTime, name: &str, others: &[&Trip], naming: Naming) -> String {
-    let base = naming.trip_folder(start, &clean_name(name));
+pub fn folder_for(
+    start: &NaiveDateTime,
+    end: &NaiveDateTime,
+    name: &str,
+    others: &[&Trip],
+    naming: Naming,
+) -> String {
+    let base = naming.trip_folder(start, end, &clean_name(name));
     let taken = |folder: &str| others.iter().any(|t| t.folder.eq_ignore_ascii_case(folder));
     if !taken(&base) {
         return base;
@@ -346,7 +352,7 @@ fn draft_trip(
         name: clean_name(&draft.name),
         start_at: draft.start_at,
         end_at: draft.end_at,
-        folder: folder_for(&draft.start_at, &draft.name, &others, naming),
+        folder: folder_for(&draft.start_at, &draft.end_at, &draft.name, &others, naming),
         created_at: db::now(),
         excluded: BTreeSet::new(),
     })
@@ -711,13 +717,13 @@ mod tests {
 
     #[test]
     fn folders_are_numbered_when_taken() {
-        let start = at("2025-03-12T00:00:00");
+        let (start, end) = (at("2025-03-12T00:00:00"), at("2025-03-14T23:59:59"));
         let other = trip(1, "2025-03-12T00:00:00", "2025-03-12T11:59:59");
         let naming = Naming::default();
-        assert_eq!(folder_for(&start, "Japan", &[], naming), "2025-03-12 Japan");
+        assert_eq!(folder_for(&start, &end, "Japan", &[], naming), "2025-03-12 Japan");
         // Folder names compare without case, as Windows does.
         assert_eq!(
-            folder_for(&start, "trip 1", &[&other], naming),
+            folder_for(&start, &end, "trip 1", &[&other], naming),
             "2025-03-12 trip 1 (2)"
         );
     }

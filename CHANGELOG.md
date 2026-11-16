@@ -11,6 +11,8 @@ All notable changes to this project are documented here. The format follows
 - One busy day away from home is suggested as a day trip.
 - Suggestion previews are much bigger, filling the card with photos spread through the trip; the
   buttons drop under the words in a narrow window.
+- A trip over New Year gets both years in its folder, such as Tairua 2025-26, and each suggestion is
+  titled the way its trip folder will be.
 
 ## [0.23.0] - 2026-11-16
 

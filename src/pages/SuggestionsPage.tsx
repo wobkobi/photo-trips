@@ -13,9 +13,11 @@ import {
   type Suggestions,
 } from "../lib/api";
 import { count } from "../lib/format";
+import { namingOf, tripTitle } from "../lib/naming";
 import { formFromSuggestion, howFound, reasonText, suggestionKey } from "../lib/suggestions";
 import { rangeText, toDraft, type TripForm, type TripStart } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
+import { useSettings } from "../lib/useSettings";
 
 /** A new trip previewed and waiting for the user to confirm it. */
 interface Review {
@@ -288,13 +290,19 @@ function SuggestionCard({
   onChange: () => void;
   onDismiss: () => void;
 }): ReactElement {
+  const { settings } = useSettings();
+  // Titled as the trip's folder will be, so it follows the folder name setting. A name made from
+  // the dates stays as it is rather than gaining a second date.
+  const title = suggestion.namedByPlace
+    ? tripTitle(namingOf(settings).trips, suggestion.startDay, suggestion.name, suggestion.endDay)
+    : suggestion.name;
   return (
     <li className="flex flex-col gap-3 rounded-md border border-dashed border-line bg-surface p-4">
       {/* The buttons drop under the words when both can't share a line, rather than squeezing the
           words into a narrow column. */}
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1 basis-72">
-          <p className="text-[17px] leading-tight font-semibold">{suggestion.name}</p>
+          <p className="text-[17px] leading-tight font-semibold">{title}</p>
           <p className="mt-1 text-[15px] text-muted">
             {/* A name made from the dates already says them. */}
             {suggestion.namedByPlace && (

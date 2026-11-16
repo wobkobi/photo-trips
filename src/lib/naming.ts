@@ -58,19 +58,41 @@ export function monthFolder(style: Naming["months"], date: string): string {
 }
 
 /**
+ * A trip's folder name inside Trips, before any clash number, as naming.rs makes it. A trip over
+ * New Year gives both years ("Tairua 2025-26"), so a trip taken every summer gets a folder of its
+ * own each time.
+ * @param style - trip folder preset
+ * @param start - "YYYY-MM-DD..." first day of the trip
+ * @param name - the trip's name
+ * @param end - "YYYY-MM-DD..." last day of the trip, the first day when left out
+ * @returns e.g. "Japan 2026"
+ */
+export function tripTitle(
+  style: Naming["trips"],
+  start: string,
+  name: string,
+  end: string = start,
+): string {
+  const [first, last] = [start.slice(0, 4), end.slice(0, 4)];
+  const years = last > first ? `${first}-${last.slice(2)}` : first;
+  if (style === "name-year") return `${name} ${years}`;
+  if (style === "year-name") return `${years} ${name}`;
+  return `${start.slice(0, 10)} ${name}`;
+}
+
+/**
  * A trip's folder, before any clash number.
  * @param style - trip folder preset
  * @param start - "YYYY-MM-DD..." first day of the trip
  * @param name - the trip's name
+ * @param end - "YYYY-MM-DD..." last day of the trip, the first day when left out
  * @returns e.g. "Trips\Japan 2026"
  */
-export function tripFolder(style: Naming["trips"], start: string, name: string): string {
-  const year = start.slice(0, 4);
-  const folder =
-    style === "name-year"
-      ? `${name} ${year}`
-      : style === "year-name"
-        ? `${year} ${name}`
-        : `${start.slice(0, 10)} ${name}`;
-  return `Trips\\${folder}`;
+export function tripFolder(
+  style: Naming["trips"],
+  start: string,
+  name: string,
+  end: string = start,
+): string {
+  return `Trips\\${tripTitle(style, start, name, end)}`;
 }

@@ -118,12 +118,23 @@ impl Naming {
     }
 
     /// A trip's folder name before any clash number. `name` is already cleaned for Windows.
-    pub fn trip_folder(self, start: &NaiveDateTime, name: &str) -> String {
+    pub fn trip_folder(self, start: &NaiveDateTime, end: &NaiveDateTime, name: &str) -> String {
         match self.trips {
             TripStyle::DateName => format!("{} {name}", start.format("%Y-%m-%d")),
-            TripStyle::NameYear => format!("{name} {:04}", start.year()),
-            TripStyle::YearName => format!("{:04} {name}", start.year()),
+            TripStyle::NameYear => format!("{name} {}", trip_years(start, end)),
+            TripStyle::YearName => format!("{} {name}", trip_years(start, end)),
         }
+    }
+}
+
+/// A trip's year for its folder: "2026", or "2025-26" over New Year, so a trip taken every summer
+/// (camping over New Year at the same beach) gets a folder of its own each time.
+fn trip_years(start: &NaiveDateTime, end: &NaiveDateTime) -> String {
+    let (first, last) = (start.year(), end.year());
+    if last > first {
+        format!("{first:04}-{:02}", last.rem_euclid(100))
+    } else {
+        format!("{first:04}")
     }
 }
 
@@ -145,7 +156,7 @@ pub fn renamed_trips(trips: &[Trip], naming: Naming) -> Vec<Trip> {
     let mut out: Vec<Trip> = Vec::with_capacity(trips.len());
     for trip in sorted {
         let assigned: Vec<&Trip> = out.iter().collect();
-        let folder = trips::folder_for(&trip.start_at, &trip.name, &assigned, naming);
+        let folder = trips::folder_for(&trip.start_at, &trip.end_at, &trip.name, &assigned, naming);
         out.push(Trip {
             folder,
             ..trip.clone()
@@ -354,11 +365,30 @@ mod tests {
                 months: MonthStyle::default(),
                 trips,
             }
-            .trip_folder(&start, "Japan")
+            .trip_folder(&start, &at(2026, 3, 18), "Japan")
         };
         assert_eq!(name(TripStyle::DateName), "2026-03-12 Japan");
         assert_eq!(name(TripStyle::NameYear), "Japan 2026");
         assert_eq!(name(TripStyle::YearName), "2026 Japan");
+    }
+
+    #[test]
+    fn a_trip_over_new_year_has_both_years_in_its_folder() {
+        let folder = |trips, start, end| {
+            Naming {
+                months: MonthStyle::default(),
+                trips,
+            }
+            .trip_folder(&start, &end, "Tairua")
+        };
+        let (start, end) = (at(2025, 12, 26), at(2026, 1, 5));
+        assert_eq!(folder(TripStyle::DateName, start, end), "2025-12-26 Tairua");
+        assert_eq!(folder(TripStyle::NameYear, start, end), "Tairua 2025-26");
+        assert_eq!(folder(TripStyle::YearName, start, end), "2025-26 Tairua");
+        assert_eq!(
+            folder(TripStyle::NameYear, at(1999, 12, 30), at(2000, 1, 2)),
+            "Tairua 1999-00"
+        );
     }
 
     #[test]
