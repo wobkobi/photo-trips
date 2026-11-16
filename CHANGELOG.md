@@ -15,6 +15,9 @@ All notable changes to this project are documented here. The format follows
   titled the way its trip folder will be.
 - The trip editor shows the folder a trip will get, Settings shows how a trip over New Year is
   named, and a suggestion with no place is called Trip so its folder doesn't repeat the dates.
+- Picked photos in the Library can be taken out of their trip, put back in, or added to a trip
+  within two weeks of them, from the header or the right-click menu. The viewer shows each photo's
+  trip with the same choices.
 
 ## [0.23.0] - 2026-11-16
 

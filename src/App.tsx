@@ -220,6 +220,7 @@ function CurrentPage({
           onFilter={onFilter}
           onCreateTrip={onCreateTrip}
           onImport={() => onNavigate("import")}
+          onNavigate={onNavigate}
           refreshRequested={refresh}
           onRefreshStarted={onRefreshStarted}
         />
