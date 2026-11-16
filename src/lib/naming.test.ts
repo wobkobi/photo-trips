@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { monthFolder, namingOf, tripFolder, tripTitle } from "./naming";
+import { cleanName, monthFolder, namingOf, tripFolder, tripTitle } from "./naming";
 
 describe("folder names", () => {
   it("names month folders the way each preset says", () => {
@@ -22,6 +22,15 @@ describe("folder names", () => {
     expect(tripFolder("name-year", "1999-12-30", "Tairua", "2000-01-02")).toBe(
       "Trips\\Tairua 1999-00",
     );
+  });
+
+  it("cleans a trip name for its folder, as trips.rs does", () => {
+    expect(cleanName("  Japan: Tokyo / Kyoto?  ")).toBe("Japan Tokyo Kyoto");
+    expect(cleanName("Road trip...")).toBe("Road trip");
+    expect(cleanName("a\tb\nc")).toBe("a b c");
+    expect(cleanName("<>|*")).toBe("");
+    expect(cleanName("x".repeat(200))).toHaveLength(80);
+    expect(tripTitle("name-year", "2026-03-12", "Japan?")).toBe("Japan 2026");
   });
 
   it("reads missing or unknown settings as the defaults", () => {

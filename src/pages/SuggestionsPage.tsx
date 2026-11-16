@@ -291,11 +291,9 @@ function SuggestionCard({
   onDismiss: () => void;
 }): ReactElement {
   const { settings } = useSettings();
-  // Titled as the trip's folder will be, so it follows the folder name setting. A name made from
-  // the dates stays as it is rather than gaining a second date.
-  const title = suggestion.namedByPlace
-    ? tripTitle(namingOf(settings).trips, suggestion.startDay, suggestion.name, suggestion.endDay)
-    : suggestion.name;
+  // Titled as the trip's folder will be, so it follows the folder name setting.
+  const style = namingOf(settings).trips;
+  const title = tripTitle(style, suggestion.startDay, suggestion.name, suggestion.endDay);
   return (
     <li className="flex flex-col gap-3 rounded-md border border-dashed border-line bg-surface p-4">
       {/* The buttons drop under the words when both can't share a line, rather than squeezing the
@@ -304,10 +302,7 @@ function SuggestionCard({
         <div className="min-w-0 flex-1 basis-72">
           <p className="text-[17px] leading-tight font-semibold">{title}</p>
           <p className="mt-1 text-[15px] text-muted">
-            {/* A name made from the dates already says them. */}
-            {suggestion.namedByPlace && (
-              <span className="mr-4">{rangeText(suggestion.startDay, suggestion.endDay)}</span>
-            )}
+            <span className="mr-4">{rangeText(suggestion.startDay, suggestion.endDay)}</span>
             {reasonText(suggestion)}
           </p>
         </div>

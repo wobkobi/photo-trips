@@ -13,6 +13,8 @@ All notable changes to this project are documented here. The format follows
   buttons drop under the words in a narrow window.
 - A trip over New Year gets both years in its folder, such as Tairua 2025-26, and each suggestion is
   titled the way its trip folder will be.
+- The trip editor shows the folder a trip will get, Settings shows how a trip over New Year is
+  named, and a suggestion with no place is called Trip so its folder doesn't repeat the dates.
 
 ## [0.23.0] - 2026-11-16
 

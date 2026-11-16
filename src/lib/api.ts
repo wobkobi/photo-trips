@@ -378,10 +378,8 @@ export interface Suggestion {
   /** First and last day, "YYYY-MM-DD". */
   startDay: string;
   endDay: string;
-  /** A place name, or "Trip 12-18 Mar 2025". */
+  /** A place name, or just "Trip"; the trip folder name adds the dates. */
   name: string;
-  /** The name came from where the photos were taken. */
-  namedByPlace: boolean;
   /** Photos and videos taken during those days. */
   files: number;
   /** Days spent more than 50 km from home. */

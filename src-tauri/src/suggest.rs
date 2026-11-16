@@ -481,10 +481,9 @@ pub struct Suggestion {
     /// First and last day, "YYYY-MM-DD".
     pub start_day: String,
     pub end_day: String,
-    /// The place name, or "Trip 12-18 Mar 2025".
+    /// The place name, or just "Trip" when there isn't one: the folder name setting adds the
+    /// dates, so a name made from them would say them twice.
     pub name: String,
-    /// The name came from where the photos were taken.
-    pub named_by_place: bool,
     /// Photos and videos (groups) taken during the run.
     pub files: usize,
     pub away_days: usize,
@@ -645,8 +644,7 @@ fn describe(run: &Run, groups: &[Group]) -> Suggestion {
     Suggestion {
         start_day: run.start.format("%Y-%m-%d").to_string(),
         end_day: run.end.format("%Y-%m-%d").to_string(),
-        named_by_place: place.is_some(),
-        name: place.unwrap_or_else(|| format!("Trip {}", trips::range_text(&start, &end))),
+        name: place.unwrap_or_else(|| "Trip".to_string()),
         files: inside.len(),
         away_days: run.away_days,
         away_km: run.away_km.map(|km| km.round() as u32),

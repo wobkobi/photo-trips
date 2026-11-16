@@ -73,11 +73,32 @@ export function tripTitle(
   name: string,
   end: string = start,
 ): string {
+  const clean = cleanName(name);
   const [first, last] = [start.slice(0, 4), end.slice(0, 4)];
   const years = last > first ? `${first}-${last.slice(2)}` : first;
-  if (style === "name-year") return `${name} ${years}`;
-  if (style === "year-name") return `${years} ${name}`;
-  return `${start.slice(0, 10)} ${name}`;
+  if (style === "name-year") return `${clean} ${years}`;
+  if (style === "year-name") return `${years} ${clean}`;
+  return `${start.slice(0, 10)} ${clean}`;
+}
+
+/**
+ * A trip name made safe for a Windows folder, the same as clean_name in trips.rs: `\ / : * ? " < > |`
+ * and control characters become spaces, spaces are single, it stops at 80 characters, and
+ * trailing dots go (Windows drops them).
+ * @param name - the name as typed
+ * @returns the name its folder gets
+ */
+export function cleanName(name: string): string {
+  const single = name
+    .replace(/[\\/:*?"<>|\p{Cc}]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(" ");
+  // Counted in characters rather than UTF-16 units, as Rust's chars() does.
+  return Array.from(single)
+    .slice(0, 80)
+    .join("")
+    .replace(/[. ]+$/, "");
 }
 
 /**

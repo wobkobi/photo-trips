@@ -28,7 +28,7 @@ import {
 import { tileSizeOf } from "../lib/display";
 import { count } from "../lib/format";
 import type { FilterTrip } from "../lib/libraryFilter";
-import { namingOf, tripFolder } from "../lib/naming";
+import { cleanName, namingOf, tripFolder } from "../lib/naming";
 import {
   EMPTY_FORM,
   formFromTrip,
@@ -556,6 +556,14 @@ function TripEditor({
             />
           </Field>
         </div>
+        {cleanName(form.name) !== "" && hasValidRange(form) && (
+          <p className="text-[14px] text-faint">
+            Folder:{" "}
+            <span className="selectable break-all">
+              {tripFolder(namingOf(settings).trips, form.startDate, form.name, form.endDate)}
+            </span>
+          </p>
+        )}
 
         <MatchSummary form={form} matches={matches} />
 

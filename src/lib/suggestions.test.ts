@@ -7,7 +7,6 @@ const japan: Suggestion = {
   startDay: "2025-03-12",
   endDay: "2025-03-17",
   name: "Kyoto and Tokyo",
-  namedByPlace: true,
   files: 184,
   awayDays: 0,
   awayKm: null,
