@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.29.2] - 2026-11-18
+
+### Fixed
+
+- Changing a Library filter shows the grid from the top, rather than somewhere in the middle of the
+  new list.
+
 ## [0.29.1] - 2026-11-18
 
 ### Fixed
