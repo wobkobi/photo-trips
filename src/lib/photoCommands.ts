@@ -54,7 +54,7 @@ export interface CommandHandlers {
   view?: (photo: Tile) => void;
   open?: (photo: Tile) => void;
   reveal?: (photo: Tile) => void;
-  copy?: (photo: Tile) => void;
+  copy?: (photos: Tile[]) => void;
   copyPath?: (photo: Tile) => void;
   setDate?: (photos: Tile[]) => void;
   fileDate?: (photos: Tile[]) => void;
@@ -144,13 +144,22 @@ export function photoCommands(
   const { photo, photos } = target;
   const many = photos.length > 1;
   const none = photos.length === 0;
-  const { setDate, fileDate, deselect, bin } = handlers;
+  const { copy, setDate, fileDate, deselect, bin } = handlers;
 
   const file = [
     onePhoto("view", "View", photo, handlers.view),
     onePhoto("open", "Open", photo, handlers.open),
     onePhoto("reveal", "Show in folder", photo, handlers.reveal),
-    onePhoto("copy", "Copy", photo, handlers.copy, "Ctrl+C"),
+    // Copy puts every target file on the clipboard at once, as Explorer's Copy does.
+    copy
+      ? {
+          id: "copy",
+          label: many ? `Copy ${count(photos.length, "photo", "photos")}` : "Copy",
+          shortcut: "Ctrl+C",
+          disabled: none,
+          run: copy.bind(null, photos),
+        }
+      : null,
     onePhoto("copy-path", "Copy path", photo, handlers.copyPath),
   ];
 

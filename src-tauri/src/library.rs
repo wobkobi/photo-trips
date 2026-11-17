@@ -223,16 +223,42 @@ pub fn open_media(state: State<'_, AppState>, id: i64) -> Result<()> {
     tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| Error::msg(e.to_string()))
 }
 
-/// Put an indexed file on the clipboard, to paste into a folder, an email or a chat. Only the
-/// photo itself: its Live Photo video or sidecars would just clutter wherever it's pasted.
+/// The paths of indexed files, in the order asked for, each once. Ids no longer in the library
+/// are skipped so the rest of a selection still copies; with none left it's an error.
+fn media_paths(conn: &rusqlite::Connection, ids: &[i64]) -> Result<Vec<PathBuf>> {
+    let mut lookup = conn.prepare("SELECT path FROM media WHERE id = ?1")?;
+    let mut seen = std::collections::HashSet::new();
+    let mut paths = Vec::new();
+    for &id in ids {
+        if !seen.insert(id) {
+            continue;
+        }
+        let path = lookup
+            .query_row([id], |row| row.get::<_, String>(0))
+            .optional()?;
+        paths.extend(path.map(PathBuf::from));
+    }
+    if paths.is_empty() {
+        return Err(Error::msg(if seen.len() > 1 {
+            "These files are no longer in the library"
+        } else {
+            "This file is no longer in the library"
+        }));
+    }
+    Ok(paths)
+}
+
+/// Put indexed files on the clipboard together, to paste into a folder, an email or a chat. Only
+/// the photos themselves: their Live Photo videos or sidecars would just clutter wherever they're
+/// pasted.
 #[tauri::command(async)]
-pub fn copy_media(state: State<'_, AppState>, id: i64) -> Result<()> {
-    let path = media_path(&state, id)?;
+pub fn copy_media(state: State<'_, AppState>, ids: Vec<i64>) -> Result<()> {
+    let paths = media_paths(&*crate::commands::lock_db(&state)?, &ids)?;
     #[cfg(windows)]
-    return crate::win::copy_files(&[path]);
+    return crate::win::copy_files(&paths);
     #[cfg(not(windows))]
     {
-        let _ = path;
+        let _ = paths;
         Err(Error::msg("Copying files is only on Windows"))
     }
 }
@@ -382,5 +408,26 @@ mod tests {
         let video = by_id(6);
         assert!(!video.live && !video.raw_twin);
         assert_eq!(video.linked, ["IMG_3.THM"]);
+    }
+
+    #[test]
+    fn copying_takes_each_file_once_in_order_and_skips_ones_gone() {
+        let conn = crate::db::open_in_memory().unwrap();
+        for (id, path) in [(1, "C:/lib/a.jpg"), (2, "C:/lib/b.jpg")] {
+            conn.execute(
+                "INSERT INTO media (id, path, group_key, kind, size, mtime, taken_at, date_source,
+                                    indexed_at)
+                 VALUES (?1, ?2, ?2, 'photo', 1, 1, '2025-03-12T10:00:00', 'exif', 0)",
+                rusqlite::params![id, path],
+            )
+            .unwrap();
+        }
+        let paths = media_paths(&conn, &[2, 99, 1, 2]).unwrap();
+        assert_eq!(
+            paths,
+            [PathBuf::from("C:/lib/b.jpg"), PathBuf::from("C:/lib/a.jpg")]
+        );
+        assert!(media_paths(&conn, &[99]).is_err());
+        assert!(media_paths(&conn, &[]).is_err());
     }
 }

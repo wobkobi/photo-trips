@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.56.0] - 2026-11-18
+
+### Added
+
+- Hovering a tile in the Library shows a tick that starts selecting; the toolbar button is now
+  Select, and the selection bar's Copy puts every selected photo on the clipboard at once
+
 ## [0.55.0] - 2026-11-18
 
 ### Added

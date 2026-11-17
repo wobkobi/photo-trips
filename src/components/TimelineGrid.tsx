@@ -141,6 +141,9 @@ function mayTakeFocus(grid: HTMLElement): boolean {
  * @param props.onTileMenu - called with a tile's index and the right-click
  * @param props.onTileZoom - called with a tile's index from its magnifier button; tiles only get
  * one when this is given
+ * @param props.onTileStart - called with a tile's index from the tick shown in its corner on
+ *   hover, to start selecting with that tile; tiles only get the tick when this is given and
+ *   nothing is being selected
  * @param props.onThumbError - called when Windows has no thumbnail for a tile
  * @param props.thumbOf - a tile's thumbnail URL (default: the library thumbnail for its id)
  * @param props.thumbRetry - raise to have tiles without a thumbnail ask for one again
@@ -171,6 +174,7 @@ export function TimelineGrid({
   onTileExtend,
   onTileMenu,
   onTileZoom,
+  onTileStart,
   onThumbError,
   thumbOf = libraryThumb,
   thumbRetry = 0,
@@ -192,6 +196,7 @@ export function TimelineGrid({
   onTileExtend?: (from: number, to: number, keep: boolean) => void;
   onTileMenu: (index: number, event: TileEvent) => void;
   onTileZoom?: (index: number) => void;
+  onTileStart?: (index: number) => void;
   onThumbError: (tile: Tile) => void;
   thumbOf?: (tile: Tile) => string;
   thumbRetry?: number;
@@ -549,6 +554,11 @@ export function TimelineGrid({
                           onClick={(event) => clickTile(row.start + offset, event)}
                           onMenu={(event) => onTileMenu(row.start + offset, event)}
                           onZoom={onTileZoom && (() => onTileZoom(row.start + offset))}
+                          onStart={
+                            onTileStart && !selecting
+                              ? () => onTileStart(row.start + offset)
+                              : undefined
+                          }
                           onThumbError={onThumbError}
                         />
                       ))}
@@ -621,6 +631,8 @@ export function MonthPickButton({
  * @param props.onClick - called with the click
  * @param props.onMenu - called with the right-click
  * @param props.onZoom - open the tile in the viewer from a magnifier button; no magnifier without it
+ * @param props.onStart - start selecting with this tile from a tick shown on hover; no tick
+ *   without it
  * @param props.onThumbError - called when the thumbnail fails to load
  * @returns the tile
  */
@@ -638,6 +650,7 @@ function TileButton({
   onClick,
   onMenu,
   onZoom,
+  onStart,
   onThumbError,
 }: {
   /** Position in the grid, for finding the tile to focus after a jump. */
@@ -656,6 +669,8 @@ function TileButton({
   onMenu: (event: TileEvent) => void;
   /** Open the tile in the viewer from a magnifier button, for when a click picks instead. */
   onZoom?: () => void;
+  /** Start selecting with this tile, from the tick shown on hover while nothing is selected. */
+  onStart?: () => void;
   onThumbError: (tile: Tile) => void;
 }): ReactElement {
   const [failed, setFailed] = useState(false);
@@ -789,6 +804,26 @@ function TileButton({
           className="on-dark absolute top-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-ground/70 text-ink opacity-0 group-hover:opacity-100 hover:bg-ground focus-visible:bg-ground focus-visible:opacity-100"
         >
           <Icon name="zoom" size={18} />
+        </button>
+      )}
+      {/* Drawn where the selecting tick sits, so the click lands on the tick that then shows.
+          Out of the Tab order: keyboard users start selecting with Shift and the arrows. Focus
+          goes to the tile, since the tick is gone once selecting starts. */}
+      {onStart && (
+        <button
+          type="button"
+          onClick={(event) => {
+            onStart();
+            event.currentTarget.parentElement
+              ?.querySelector<HTMLElement>("[data-tile]")
+              ?.focus({ preventScroll: true });
+          }}
+          tabIndex={-1}
+          aria-label={`Select ${tile.name}`}
+          title="Select"
+          className="on-dark absolute top-2 left-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-ink bg-ground/50 text-ink opacity-0 group-hover:opacity-100 hover:bg-ground/80"
+        >
+          <Icon name="check" size={20} />
         </button>
       )}
     </div>

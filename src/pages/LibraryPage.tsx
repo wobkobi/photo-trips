@@ -70,8 +70,9 @@ const THUMB_RETRY_MS = 60_000;
 /**
  * The whole library as a month-by-month timeline, with a viewer for single photos. The photos,
  * filter, selection and open photo live in the library store, so they are as they were on
- * coming back. "Make a trip" turns clicks into selecting, so the photos to make a trip from can
+ * coming back. Select, or the tick on a hovered tile, turns clicks into selecting, so photos can
  * be chosen without knowing any shortcuts; Ctrl-click, Shift-click and right-click select too.
+ * While selecting, the toolbar gives way to the selection's actions.
  *
  * A trip in the filter makes the page that trip's: its name as the title, its dates and count
  * beside it, Edit, and a back arrow to where it was opened from. Its other filters narrow within
@@ -245,6 +246,10 @@ export function LibraryPage({
     clearPicks();
     setMenu(null);
   }, [clearPicks]);
+  /** Put photos' files on the clipboard together, showing any failure as the page error. */
+  const copyFiles = useCallback((chosen: Tile[]) => {
+    api.copyMedia(chosen.map((t) => t.id)).catch((err) => setError(errorText(err)));
+  }, []);
 
   /** Re-read the library folder for new and changed files. */
   function refresh(): void {
@@ -361,7 +366,7 @@ export function LibraryPage({
       view: viewPhoto,
       open: fileAction.bind(null, api.openMedia, fail),
       reveal: fileAction.bind(null, api.revealMedia, fail),
-      copy: fileAction.bind(null, api.copyMedia, fail),
+      copy: copyAll.bind(null, fail),
       copyPath: copyPath.bind(null, fail),
       setDate: setDating,
       fileDate: fileDates,
@@ -470,8 +475,22 @@ export function LibraryPage({
   }
 
   /**
-   * Right-click menu: the file actions for the photo under the pointer, then the trip changes
-   * for the pick. Outside picking it acts on that photo alone without starting to pick; while
+   * Start selecting from a tile's hover tick, with that tile picked and the anchor for Shift.
+   * Picking stays on if it's deselected again, as after Select.
+   * @param index - position of the tile in the shown list
+   */
+  function startPicking(index: number): void {
+    if (!tiles) return;
+    const id = tiles[index].id;
+    setPicking(true);
+    setSelected(new Set([id]));
+    setAnchorId(id);
+  }
+
+  /**
+   * Right-click menu: the file actions for the photo under the pointer (Copy takes the whole
+   * pick), then the trip changes for the pick. Outside picking it acts on that photo alone
+   * without starting to pick; while
    * picking, an unpicked photo becomes the whole pick, as in Explorer.
    * @param index - position of the tile in the shown list
    * @param event - the right-click, for where to open the menu
@@ -573,8 +592,17 @@ export function LibraryPage({
   }
 
   /**
-   * Open, reveal or copy a file.
-   * @param action - {@link api.openMedia}, {@link api.revealMedia} or {@link api.copyMedia}
+   * Put photos' files on the clipboard together.
+   * @param fail - shows the failure
+   * @param chosen - the photos
+   */
+  function copyAll(fail: (err: unknown) => void, chosen: Tile[]): void {
+    api.copyMedia(chosen.map((t) => t.id)).catch(fail);
+  }
+
+  /**
+   * Open or reveal a file.
+   * @param action - {@link api.openMedia} or {@link api.revealMedia}
    * @param fail - shows the failure
    * @param photo - the file's photo
    */
@@ -701,13 +729,25 @@ export function LibraryPage({
             )
           ) : selecting ? (
             <>
+              <Button
+                variant="ghost"
+                onClick={clearSelection}
+                title="Done (Esc)"
+                aria-label="Done"
+                className="px-2.5"
+              >
+                <Icon name="close" size={18} />
+              </Button>
               <span className="mr-2 text-[14px] text-muted" aria-live="polite">
-                {selected.size > 0
-                  ? `${countOf(selected.size, "item", "items")} selected`
-                  : "Click photos to add"}
+                {selected.size.toLocaleString()} selected
               </span>
-              <Button variant="ghost" onClick={clearSelection}>
-                Cancel
+              <Button onClick={() => copyFiles(picked)} disabled={picked.length === 0}>
+                <Icon name="copy" size={18} />
+                Copy
+              </Button>
+              <Button onClick={() => setDating(picked)} disabled={picked.length === 0}>
+                <Icon name="calendar" size={18} />
+                Set date
               </Button>
               {[...edits.remove, ...edits.putBack].map((edit) => (
                 <Button
@@ -740,6 +780,15 @@ export function LibraryPage({
                 <Icon name="trips" size={18} />
                 Make trip
               </Button>
+              <Button
+                variant="danger"
+                onClick={() => setBinning(picked)}
+                disabled={picked.length === 0}
+                title="Send to the Recycle Bin (Delete)"
+              >
+                <Icon name="bin" size={18} />
+                Recycle Bin
+              </Button>
             </>
           ) : (
             <>
@@ -757,7 +806,7 @@ export function LibraryPage({
               {count > 0 && (
                 <Button onClick={() => setPicking(true)}>
                   <Icon name="check" size={18} />
-                  Make a trip
+                  Select
                 </Button>
               )}
               {tripInfo && (
@@ -885,6 +934,7 @@ export function LibraryPage({
           monthAction={monthAction}
           // While picking, a click picks, so the magnifier is the way to look at a photo.
           onTileZoom={selecting ? (index) => setOpenId(tiles[index].id) : undefined}
+          onTileStart={startPicking}
           onThumbError={onThumbError}
           thumbRetry={thumbRetry}
           showUncertain={filter.uncertain}
