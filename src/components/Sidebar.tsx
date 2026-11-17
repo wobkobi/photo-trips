@@ -95,7 +95,7 @@ export function Sidebar({
           title={iconsOnly ? "Widen the menu" : "Narrow the menu"}
           aria-label={iconsOnly ? "Widen the menu" : "Narrow the menu"}
           aria-expanded={!iconsOnly}
-          className="flex min-h-10 items-center rounded-md px-2.5 text-faint hover:bg-raised/60 hover:text-ink"
+          className="flex min-h-8.5 items-center rounded-md px-2.5 text-faint hover:bg-raised/60 hover:text-ink"
         >
           <Icon name="panel" size={iconsOnly ? 20 : 18} className="shrink-0" />
         </button>
@@ -112,7 +112,7 @@ export function Sidebar({
               aria-current={page === item.id ? "page" : undefined}
               data-nav={item.id}
               title={iconsOnly ? item.label : undefined}
-              className={`relative flex min-h-10 w-full items-center rounded-md py-2 text-[15px] transition-colors ${
+              className={`relative flex min-h-8.5 w-full items-center rounded-md py-1.5 text-[15px] transition-colors ${
                 iconsOnly ? "justify-center px-0" : "gap-3 px-2.5 text-left"
               } ${
                 page === item.id
@@ -134,7 +134,7 @@ export function Sidebar({
           onClick={() => api.menuAction("menu-open-library").catch(() => undefined)}
           title={`${libraryRoot}\nClick to open it in File Explorer.`}
           aria-label={`Open the library folder, ${folder}, in File Explorer`}
-          className={`flex min-h-10 items-center gap-2 rounded-md text-[14px] text-faint hover:bg-raised/60 hover:text-ink ${
+          className={`flex min-h-8.5 items-center gap-2 rounded-md text-[14px] text-faint hover:bg-raised/60 hover:text-ink ${
             iconsOnly ? "justify-center" : "px-2.5 text-left"
           }`}
         >

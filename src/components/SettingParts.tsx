@@ -96,19 +96,19 @@ export function Toggle({
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="flex min-h-11 items-center gap-3 rounded-lg px-1 disabled:opacity-40"
+      className="flex min-h-8.5 items-center gap-3 rounded-lg px-1 disabled:opacity-40"
     >
       <span className="w-8 text-right text-[16px] font-semibold" aria-hidden="true">
         {checked ? "On" : "Off"}
       </span>
       <span
-        className={`relative h-8 w-14 rounded-full border-2 transition-colors ${
+        className={`relative h-6 w-11 rounded-full border-2 transition-colors ${
           checked ? "border-brand bg-brand" : "border-line-strong bg-raised"
         }`}
       >
         <span
-          className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full transition-transform ${
-            checked ? "translate-x-6 bg-white" : "bg-muted"
+          className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full transition-transform ${
+            checked ? "translate-x-5 bg-white" : "bg-muted"
           }`}
         />
       </span>
@@ -242,7 +242,7 @@ export function Choices({
               aria-checked={chosen}
               tabIndex={chosen ? 0 : -1}
               onClick={() => onChange(option.value)}
-              className={`flex min-h-11 min-w-24 flex-col items-center justify-end gap-1.5 rounded-md border px-3 py-2.5 text-[14px] transition-colors ${
+              className={`flex min-h-8.5 min-w-24 flex-col items-center justify-end gap-1.5 rounded-md border px-3 py-1.5 text-[14px] transition-colors ${
                 chosen
                   ? "border-accent bg-accent/10 font-semibold text-ink ring-1 ring-accent"
                   : "border-line bg-raised/50 text-muted hover:border-line-strong hover:text-ink"

@@ -52,7 +52,7 @@ export function Button({
     <button
       type="button"
       title={waiting}
-      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3.5 py-1.5 text-[15px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
+      className={`inline-flex min-h-8.5 items-center justify-center gap-2 rounded-md px-3.5 py-1.5 text-[15px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
       {...rest}
     />
   );

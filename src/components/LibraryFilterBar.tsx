@@ -6,7 +6,7 @@ import { Button } from "./ui";
 
 /** A compact drop-down, styled to sit in a toolbar. */
 const SELECT =
-  "min-h-9 rounded-md border border-line-strong/60 bg-raised px-2 py-1 text-[14px] text-ink hover:border-line-strong";
+  "min-h-8.5 rounded-md border border-line-strong/60 bg-raised px-2 py-1 text-[14px] text-ink hover:border-line-strong";
 
 /**
  * A toolbar control with its name to its left.
@@ -121,7 +121,7 @@ export function LibraryFilterBar({
         </Inline>
       )}
       {(choices.uncertain || filter.uncertain) && (
-        <label className="flex min-h-9 cursor-pointer items-center gap-2 text-[14px] text-muted">
+        <label className="flex min-h-8.5 cursor-pointer items-center gap-2 text-[14px] text-muted">
           <input
             type="checkbox"
             checked={filter.uncertain}

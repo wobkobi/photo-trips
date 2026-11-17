@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.30.2] - 2026-11-18
+
+### Changed
+
+- Buttons, boxes, switches, menu rows and the sidebar are tighter, about 34px tall, like other
+  desktop apps; text stays the same size.
+
 ## [0.30.1] - 2026-11-18
 
 ### Fixed
