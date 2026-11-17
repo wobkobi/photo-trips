@@ -17,6 +17,7 @@ All notable changes to this project are documented here. The format follows
   than stopping at 200, and offers to sort or import again when some files failed.
 - Arrow keys move between photos in the grid, Ctrl+A picks every photo shown, Home and End go to the
   first and last photo in the viewer, and Help lists them.
+- The Library can find photos by any part of their file name.
 
 ## [0.24.0] - 2026-11-16
 

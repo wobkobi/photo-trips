@@ -34,6 +34,7 @@ function tile(id: number, takenAt: string, trip: TripInfo | null = null): Tile {
     takenAt,
     kind: "photo",
     ext: "jpg",
+    name: `IMG_${id}.jpg`,
     uncertain: false,
     extra: 0,
     version: 1,

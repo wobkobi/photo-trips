@@ -15,6 +15,8 @@ export interface Tile {
   takenAt: string;
   kind: MediaKind;
   ext: string;
+  /** The file name, for finding it by name. */
+  name: string;
   /** Date guessed from the file's modified time. */
   uncertain: boolean;
   /** Companion files (Live Photo video, RAW twin, sidecars). */

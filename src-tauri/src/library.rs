@@ -24,6 +24,8 @@ pub struct Tile {
     pub taken_at: String,
     pub kind: &'static str,
     pub ext: String,
+    /// The leader's file name, for finding it by name.
+    pub name: String,
     /// Date guessed from the file's modified time.
     pub uncertain: bool,
     /// Companion files travelling with the leader (Live Photo video, RAW twin, sidecars).
@@ -100,6 +102,7 @@ pub fn tile(group: &Group, trips: &[Trip]) -> Tile {
         taken_at: dates::format(&group.taken_at),
         kind: leader.kind.as_str(),
         ext: formats::ext_of(&leader.path),
+        name: file_name(&leader.path),
         uncertain: group.date_source == DateSource::Modified,
         extra: group.members.len() - 1,
         version: leader.mtime,

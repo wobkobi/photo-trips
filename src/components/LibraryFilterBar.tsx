@@ -26,7 +26,8 @@ function Inline({ label, children }: { label: string; children: ReactNode }): Re
 
 /**
  * The menus above the Library timeline that narrow it to a trip, a year, photos or videos, or
- * dates that may be wrong. Menus with only one sensible choice are left out.
+ * dates that may be wrong, and a box for finding files by name. Menus with only one sensible
+ * choice are left out.
  * @param props - Component props.
  * @param props.tiles - every tile in the library, newest first
  * @param props.filter - the current filter
@@ -60,6 +61,15 @@ export function LibraryFilterBar({
       aria-label="Filters"
       className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-line bg-surface px-5 py-1.5"
     >
+      <input
+        type="search"
+        value={filter.name}
+        onChange={(e) => onChange({ ...filter, name: e.target.value })}
+        placeholder="File name"
+        aria-label="Find by file name"
+        spellCheck={false}
+        className={`${SELECT} w-40 placeholder:text-faint`}
+      />
       {(choices.trips.length > 0 || filter.trip !== "any") && (
         <Inline label="Trip">
           <select
