@@ -99,3 +99,28 @@ export function zoomLabel(scale: number, fitted: boolean): string {
   const percent = `${Math.max(1, Math.round(scale * 100))}%`;
   return fitted ? `Fit ${percent}` : percent;
 }
+
+/**
+ * The zoom to keep after the fitted size changes (a turn, the details panel, fullscreen, a
+ * resize): a zoom no closer than the new fitted size fits the photo instead, so a zoomed photo is
+ * never drawn smaller than fitted.
+ * @param scale - the zoom now, or null while fitted
+ * @param fit - the new fitted scale, 0 while the photo's size isn't known
+ * @returns the zoom to keep, or null to fit
+ */
+export function refit(scale: number | null, fit: number): number | null {
+  return scale !== null && fit > 0 && scale <= fit + EPSILON ? null : scale;
+}
+
+/**
+ * A pan kept within reach of the photo's edges. The same pan comes back when it is already
+ * within reach, so a state holding it doesn't redraw for no change.
+ * @param pan - the pan wanted
+ * @param reach - how far the pan may go each way, from the centre
+ * @returns the pan, pulled back where needed
+ */
+export function clampPan(pan: Point, reach: Point): Point {
+  const x = Math.max(-reach.x, Math.min(reach.x, pan.x));
+  const y = Math.max(-reach.y, Math.min(reach.y, pan.y));
+  return x === pan.x && y === pan.y ? pan : { x, y };
+}

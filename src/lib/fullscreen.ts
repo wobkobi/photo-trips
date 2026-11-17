@@ -21,9 +21,15 @@ export function isFullscreenKey(event: KeyPress): boolean {
 /**
  * Fullscreen for as long as the calling component is mounted: it is left on unmount, so closing
  * the viewer always gives the window back with its menu bar.
- * @returns whether the window is fullscreen, and a setter that asks the engine to change it
+ * @returns whether the window is fullscreen, a setter that asks the engine to change it, and a
+ *   toggle that flips the last state asked for, so a quick second press undoes the first even
+ *   before the engine has answered it
  */
-export function useFullscreen(): { on: boolean; set: (on: boolean) => void } {
+export function useFullscreen(): {
+  on: boolean;
+  set: (on: boolean) => void;
+  toggle: () => void;
+} {
   const [on, setOn] = useState(false);
   // What was last asked for or reported, read on unmount. A ref, so a request still on its way
   // when the viewer closes is undone too.
@@ -50,5 +56,7 @@ export function useFullscreen(): { on: boolean; set: (on: boolean) => void } {
     );
   }, []);
 
-  return useMemo(() => ({ on, set }), [on, set]);
+  const toggle = useCallback(() => set(!wanted.current), [set]);
+
+  return useMemo(() => ({ on, set, toggle }), [on, set, toggle]);
 }

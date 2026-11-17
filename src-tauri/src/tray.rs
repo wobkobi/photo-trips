@@ -8,6 +8,7 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::AppState;
+use crate::commands;
 use crate::commands::lock_db;
 use crate::db;
 use crate::devices::Device;
@@ -58,7 +59,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
             IMPORT_ID => open_import(app),
             PAUSE_ID => watch::toggle_pause(app),
             UPDATE_ID => open_updates(app),
-            "quit" => app.exit(0),
+            "quit" => commands::quit(app),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {

@@ -227,23 +227,31 @@ export const DIALOG_BUTTONS = "mt-6 flex flex-wrap items-center justify-end gap-
  *
  * Focus starts on the element marked `data-autofocus` (the main button, or the box to type in),
  * so Enter answers at once, and goes back to what had it when the dialog closes. Escape cancels.
+ * While that element is disabled (its button waits for a running job) focus rests on the dialog
+ * itself, so Enter does nothing rather than landing on Cancel, and moves to the element once it
+ * is enabled.
  *
  * Keys pressed in the dialog stop here, as a Windows dialog holds its window's keys, so the
  * page's own shortcuts (Delete, Ctrl+A, the viewer's zoom) don't act behind it. Handlers that
  * listen on the window's capture phase run before the dialog sees a key, so those check the
- * layer stack in `layers.ts` and stand aside while a dialog is open over them.
+ * layer stack in `layers.ts` and stand aside while a dialog is open over them. A held Enter or
+ * Space answers once: its repeats are dropped, so a dialog that reopens under the held key (from
+ * the button focus returns to) isn't answered again.
  * @param props - Component props.
  * @param props.title - the dialog's heading, which also names it to screen readers
+ * @param props.describedBy - id of the text that asks the question, read out with the title
  * @param props.children - the text and buttons; {@link DIALOG_BUTTONS} lays out the button row
  * @param props.onCancel - close without doing anything, from Escape or the owner's Cancel button
  * @returns the dialog element
  */
 export function Dialog({
   title,
+  describedBy,
   children,
   onCancel,
 }: {
   title: string;
+  describedBy?: string;
   children: ReactNode;
   onCancel: () => void;
 }): ReactElement {
@@ -257,8 +265,17 @@ export function Dialog({
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const layer = layers.push();
     dialog.showModal();
-    dialog.querySelector<HTMLElement>("[data-autofocus]:not(:disabled)")?.focus();
+    const target = dialog.querySelector<HTMLElement>("[data-autofocus]");
+    if (target && !target.matches(":disabled")) target.focus();
+    else dialog.focus();
+    // A disabled target takes focus once enabled, unless focus has since gone somewhere else.
+    const waiting = new MutationObserver(() => {
+      if (document.activeElement !== dialog) return;
+      dialog.querySelector<HTMLElement>("[data-autofocus]:not(:disabled)")?.focus();
+    });
+    waiting.observe(dialog, { subtree: true, attributeFilter: ["disabled"] });
     return () => {
+      waiting.disconnect();
       dialog.close();
       layers.pop(layer);
       if (opener?.isConnected) opener.focus({ preventScroll: true });
@@ -269,12 +286,20 @@ export function Dialog({
   return createPortal(
     <dialog
       ref={ref}
+      tabIndex={-1}
       aria-labelledby={titleId}
+      aria-describedby={describedBy}
       // React's stopPropagation also stops the native event at the body, so the document
       // and window listeners behind never see it. Escape cancels here rather than through the
       // browser's own close, which can shut the dialog while its owner still has it open.
       onKeyDown={(event) => {
         event.stopPropagation();
+        // A held Space still types spaces into a box.
+        const answers = event.key === "Enter" || (event.key === " " && !isTextEntry(event.target));
+        if (event.repeat && answers) {
+          event.preventDefault();
+          return;
+        }
         if (event.key !== "Escape") return;
         event.preventDefault();
         onCancel();
@@ -283,7 +308,7 @@ export function Dialog({
         event.preventDefault();
         onCancel();
       }}
-      className="m-auto w-[min(30rem,calc(100vw-2rem))] rounded-xl border border-line bg-surface p-6 text-ink shadow-lg shadow-black/50 backdrop:bg-black/60 motion-safe:animate-dialog-in"
+      className="m-auto w-[min(30rem,calc(100vw-2rem))] rounded-xl border border-line bg-surface p-6 text-ink shadow-lg shadow-black/50 outline-none backdrop:bg-black/60 motion-safe:animate-dialog-in"
     >
       <h2 id={titleId} className="text-[20px] font-semibold">
         {title}

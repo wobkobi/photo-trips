@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { MAX_SCALE, stepIn, stepOut, wheelScale, zoomLabel, zoomLadder, zoomPan } from "./zoom";
+import {
+  clampPan,
+  MAX_SCALE,
+  refit,
+  stepIn,
+  stepOut,
+  wheelScale,
+  zoomLabel,
+  zoomLadder,
+  zoomPan,
+} from "./zoom";
 
 describe("zoomLadder", () => {
   it("starts at the fitted size and runs up to the top", () => {
@@ -94,5 +104,36 @@ describe("zoomLabel", () => {
 
   it("never rounds down to 0%", () => {
     expect(zoomLabel(0.001, true)).toBe("Fit 1%");
+  });
+});
+
+describe("refit", () => {
+  it("fits a zoom the new fitted size has caught up with", () => {
+    expect(refit(0.5, 0.5)).toBeNull();
+    expect(refit(0.5, 0.8)).toBeNull();
+  });
+
+  it("keeps a zoom still closer than fitted", () => {
+    expect(refit(2, 0.5)).toBe(2);
+  });
+
+  it("keeps fitted fitted, and any zoom while the size isn't known", () => {
+    expect(refit(null, 0.5)).toBeNull();
+    expect(refit(2, 0)).toBe(2);
+  });
+});
+
+describe("clampPan", () => {
+  it("pulls a pan back within reach", () => {
+    expect(clampPan({ x: 300, y: -300 }, { x: 100, y: 50 })).toEqual({ x: 100, y: -50 });
+  });
+
+  it("centres a pan with no reach left, as when the photo fits again", () => {
+    expect(clampPan({ x: 40, y: 20 }, { x: 0, y: 0 })).toEqual({ x: 0, y: 0 });
+  });
+
+  it("gives back the same pan when it is within reach", () => {
+    const pan = { x: 10, y: -10 };
+    expect(clampPan(pan, { x: 100, y: 100 })).toBe(pan);
   });
 });

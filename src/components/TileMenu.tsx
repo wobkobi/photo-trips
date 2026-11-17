@@ -103,12 +103,14 @@ export function TileMenu({
   }, [onClose]);
 
   /**
-   * Escape closes the menu; the arrow keys move focus between items, wrapping at the ends.
+   * Escape closes the menu; the arrow keys move focus between items, wrapping at the ends. Every
+   * key stops here, as in a dialog, so the shortcuts of what's behind (the viewer's zoom and turn
+   * keys, the menu bar's) don't act while the menu is open.
    * @param event - the key press inside the menu
    */
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    event.stopPropagation();
     if (event.key === "Escape") {
-      event.stopPropagation();
       onClose();
       return;
     }
