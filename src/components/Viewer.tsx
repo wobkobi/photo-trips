@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { api, errorText, type MediaKind } from "../lib/api";
+import { MissingExtensions } from "./CodecHint";
 import { Icon, type IconName } from "./Icon";
 import { Button } from "./ui";
 import { VideoPlayer } from "./VideoPlayer";
@@ -462,6 +463,12 @@ function Media({
           <Icon name={video ? "play" : "open"} size={16} />
           {openLabel}
         </Button>
+        {failed && (
+          <MissingExtensions
+            ext={item.name.slice(item.name.lastIndexOf(".") + 1).toLowerCase()}
+            kind={item.kind}
+          />
+        )}
       </div>
     );
   }

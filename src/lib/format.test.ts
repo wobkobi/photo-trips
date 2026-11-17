@@ -35,6 +35,7 @@ function tile(id: number, takenAt: string): Tile {
     extra: 0,
     version: 0,
     trip: null,
+    empty: false,
   };
 }
 

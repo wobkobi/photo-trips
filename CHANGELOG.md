@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.30.5] - 2026-11-18
+
+### Fixed
+
+- The Store extension hint no longer blames a codec for one damaged file: it waits for three files
+  of a type to fail (or all of them when there are fewer), ignores empty files, and also shows on
+  the Import preview. A photo the viewer can't show offers the extension it needs.
+
 ## [0.30.4] - 2026-11-18
 
 ### Fixed
