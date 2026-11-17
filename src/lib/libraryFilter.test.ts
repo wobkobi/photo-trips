@@ -7,6 +7,7 @@ import {
   isFiltered,
   isFilteredBesidesTrip,
   NO_FILTER,
+  sameFilter,
   tripOf,
 } from "./libraryFilter";
 
@@ -118,5 +119,27 @@ describe("trips as places", () => {
     const filter = { ...NO_FILTER, trip, year: "2025", uncertain: true, name: "img" };
     expect(clearFilters(filter)).toEqual({ ...NO_FILTER, trip });
     expect(clearFilters({ ...NO_FILTER, trip: "none", kind: "photos" })).toEqual(NO_FILTER);
+  });
+});
+
+describe("sameFilter", () => {
+  const trip = { id: 7, name: "Japan" };
+
+  it("matches equal filters, and a trip by id even after a rename", () => {
+    expect(sameFilter(NO_FILTER, { ...NO_FILTER })).toBe(true);
+    expect(
+      sameFilter({ ...NO_FILTER, trip }, { ...NO_FILTER, trip: { id: 7, name: "Tokyo" } }),
+    ).toBe(true);
+  });
+
+  it("tells apart any part that differs", () => {
+    expect(
+      sameFilter({ ...NO_FILTER, trip }, { ...NO_FILTER, trip: { id: 8, name: "Japan" } }),
+    ).toBe(false);
+    expect(sameFilter(NO_FILTER, { ...NO_FILTER, trip: "none" })).toBe(false);
+    expect(sameFilter(NO_FILTER, { ...NO_FILTER, year: "2025" })).toBe(false);
+    expect(sameFilter(NO_FILTER, { ...NO_FILTER, kind: "videos" })).toBe(false);
+    expect(sameFilter(NO_FILTER, { ...NO_FILTER, uncertain: true })).toBe(false);
+    expect(sameFilter(NO_FILTER, { ...NO_FILTER, name: "img" })).toBe(false);
   });
 });

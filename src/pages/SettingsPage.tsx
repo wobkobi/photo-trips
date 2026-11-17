@@ -412,6 +412,8 @@ function SettingsTabs({
    * @param event - the key press on a tab
    */
   function onKey(event: KeyboardEvent): void {
+    // Alt+arrows are the app's Back and Forward.
+    if (event.altKey) return;
     const at = TABS.findIndex((t) => t.id === tab);
     const steps: Record<string, number> = {
       ArrowDown: at + 1,

@@ -8,6 +8,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { historyStepForButton, historyStepForKey, isTextEntry, modalOnScreen } from "../lib/menu";
 import { JOB_NAMES, JobsContext } from "../lib/useJobs";
 import { Icon } from "./Icon";
 
@@ -81,38 +82,15 @@ export function Button({
   );
 }
 
-/** Input types that take no typing, so Escape on one still steps back. */
-const NOT_TEXT_INPUTS = new Set([
-  "checkbox",
-  "radio",
-  "button",
-  "submit",
-  "reset",
-  "range",
-  "color",
-]);
-
-/**
- * A key press aimed at a box that takes typing, where Escape belongs to the box.
- * @param target - the key press's target
- * @returns true for a text-like input, a textarea, a select or editable text
- */
-function isTextEntry(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  if (target.isContentEditable || target.tagName === "TEXTAREA" || target.tagName === "SELECT") {
-    return true;
-  }
-  return target instanceof HTMLInputElement && !NOT_TEXT_INPUTS.has(target.type);
-}
-
 /**
  * The toolbar along the top of a page: its name, a short note beside it (a count, say), and
  * actions on the right. It stays in view while the page scrolls.
  *
  * A sub-step of a page (a review, a form) passes `onBack`, which puts a back arrow before the
- * title and makes Escape and Alt+Left step back too. The keys are left alone when something else
- * has already handled them, when Escape is for a box being typed in, and while a modal (the photo
- * viewer, the tour, an open dialog) is on screen, since it handles its own keys.
+ * title and makes Escape, Alt+Left and the mouse's back button step back too, ahead of the app's
+ * own back through the places visited. The keys are left alone when something else has already
+ * handled them, when Escape is for a box being typed in, and while a modal (the photo viewer, the
+ * tour, an open dialog) is on screen, since it handles its own keys.
  * @param props - Component props.
  * @param props.title - page title, or the step's name on a sub-step
  * @param props.detail - a short note after the title
@@ -142,22 +120,37 @@ export function PageHeader({
     if (!hasBack) return;
     /**
      * Escape or Alt+Left steps back. A held key steps back once, not through every step.
-     * @param event - the window's keydown
+     * @param event - the document's keydown
      */
     function onKey(event: KeyboardEvent): void {
       if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey) return;
       if (event.shiftKey) return;
       const escape = event.key === "Escape" && !event.altKey && !isTextEntry(event.target);
-      const altLeft = event.key === "ArrowLeft" && event.altKey;
-      if (!escape && !altLeft) return;
-      // The viewer and the tour mark themselves aria-modal; a native dialog is open when shown.
-      if (document.querySelector('dialog[open], [aria-modal="true"]')) return;
-      // Marks the key as used, so a page's own Escape handler (clearing a selection) skips it.
+      const altLeft = historyStepForKey(event) === "back";
+      if ((!escape && !altLeft) || modalOnScreen()) return;
+      // Marks the key as used, so a page's own Escape handler (clearing a selection) and the
+      // app's history back both skip it.
       event.preventDefault();
       back.current?.();
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    /**
+     * The mouse's back button steps back, as Alt+Left does.
+     * @param event - the document's mouseup
+     */
+    function onMouse(event: MouseEvent): void {
+      if (event.defaultPrevented || historyStepForButton(event.button) !== "back") return;
+      if (modalOnScreen()) return;
+      event.preventDefault();
+      back.current?.();
+    }
+    // On the document rather than the window, so these run before the app's history back and
+    // forward, which listen on the window and leave a key or button already used here alone.
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mouseup", onMouse);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mouseup", onMouse);
+    };
   }, [hasBack]);
 
   return (

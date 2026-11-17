@@ -6,8 +6,23 @@ import type { TripInfo } from "./lib/api";
 import { themeOf } from "./lib/display";
 import { JobsProvider } from "./lib/jobs";
 import { LibraryProvider } from "./lib/library";
-import { NO_FILTER, tripOf, type FilterTrip } from "./lib/libraryFilter";
-import { useMenuBar, type MenuRequest } from "./lib/menu";
+import {
+  NO_FILTER,
+  sameFilter,
+  tripOf,
+  type FilterTrip,
+  type LibraryFilter,
+} from "./lib/libraryFilter";
+import {
+  historyStepForButton,
+  historyStepForKey,
+  isTextEntry,
+  modalOnScreen,
+  useMenuBar,
+  type HistoryStep,
+  type MenuRequest,
+} from "./lib/menu";
+import { pushEntry, startHistory, stepBack, stepForward, type NavEntry } from "./lib/navHistory";
 import { SettingsProvider } from "./lib/settings";
 import type { TripStart } from "./lib/trips";
 import { UpdatesProvider } from "./lib/updates";
@@ -98,43 +113,136 @@ function Shell(): ReactElement | null {
   // returns to.
   const [tripFrom, setTripFrom] = useState<PageId>("library");
   const { filter, setFilter } = useLibrary();
+  // The places visited, for Alt+Left/Right and the mouse's side buttons. A ref, since nothing on
+  // screen shows it. Every way of going somewhere records the place it opens, and a filter changed
+  // on the page since is saved over the current entry, so back finds the page as it was left.
+  const visits = useRef(startHistory<PageId>({ page: "library", filter: NO_FILTER }));
+  const remember = useCallback(
+    (next: NavEntry<PageId>) => {
+      visits.current = pushEntry(visits.current, { page, filter }, next);
+    },
+    [page, filter],
+  );
   const showTrip = useCallback(
     (trip: FilterTrip) => {
       // The viewer's link to the trip already on show keeps where Back goes.
       if (page !== "library" || tripOf(filter)?.id !== trip.id) setTripFrom(page);
-      setFilter({ ...NO_FILTER, trip });
+      const next: LibraryFilter = { ...NO_FILTER, trip };
+      remember({ page: "library", filter: next });
+      setFilter(next);
       setPage("library");
     },
-    [page, filter, setFilter],
+    [page, filter, setFilter, remember],
   );
   // Leaving takes the trip out of the filter wherever Back goes, so the Library next opens on
   // everything rather than on the trip just left.
   const leaveTrip = useCallback(() => {
-    setFilter({ ...filter, trip: "any" });
+    const next: LibraryFilter = { ...filter, trip: "any" };
+    remember({ page: tripFrom, filter: next });
+    setFilter(next);
     setPage(tripFrom);
-  }, [filter, setFilter, tripFrom]);
+  }, [filter, setFilter, tripFrom, remember]);
   // Opening the Library by name (sidebar, Ctrl+1, the tray, Import's link) means the whole
   // library, so any trip the filter still holds is left. Only showTrip opens a trip.
   const openPage = useCallback(
     (next: PageId) => {
-      if (next === "library" && tripOf(filter)) setFilter({ ...filter, trip: "any" });
+      const leaving = next === "library" && tripOf(filter) !== null;
+      const nextFilter: LibraryFilter = leaving ? { ...filter, trip: "any" } : filter;
+      remember({ page: next, filter: nextFilter });
+      if (leaving) setFilter(nextFilter);
       setPage(next);
     },
-    [filter, setFilter],
+    [filter, setFilter, remember],
   );
+  // A page opened as it is, keeping the Library's filter and any trip in it.
+  const goTo = useCallback(
+    (next: PageId) => {
+      remember({ page: next, filter });
+      setPage(next);
+    },
+    [filter, remember],
+  );
+  // Back and forward put back the page and the filter. The filter is set only when it differs,
+  // since setting it clears the selection, the open photo and the grid's place.
+  const step = useCallback(
+    (direction: HistoryStep) => {
+      const here = { page, filter };
+      visits.current =
+        direction === "back" ? stepBack(visits.current, here) : stepForward(visits.current, here);
+      const to = visits.current.entries[visits.current.at];
+      if (!sameFilter(to.filter, filter)) setFilter(to.filter);
+      setPage(to.page);
+    },
+    [page, filter, setFilter],
+  );
+  // The listeners are added once, so they call the latest step through a ref.
+  const stepRef = useRef(step);
+  useEffect(() => {
+    stepRef.current = step;
+  });
+  useEffect(() => {
+    /**
+     * Alt+Left and Alt+Right step through the places visited. A sub-step's own back (PageHeader
+     * listens on the document, so it runs first) marks the key used and keeps it; so does a text
+     * box, and a modal on screen.
+     * @param event - the window's keydown
+     */
+    function onKey(event: KeyboardEvent): void {
+      if (event.defaultPrevented || event.repeat) return;
+      const direction = historyStepForKey(event);
+      if (!direction || isTextEntry(event.target) || modalOnScreen()) return;
+      event.preventDefault();
+      stepRef.current(direction);
+    }
+    /**
+     * The mouse's side buttons do what Alt+Left and Alt+Right do. Every press is marked used,
+     * even when nothing moves, so WebView2 never tries to go back a page in the document itself.
+     * @param event - the window's mouseup
+     */
+    function onButton(event: MouseEvent): void {
+      const direction = historyStepForButton(event.button);
+      if (!direction) return;
+      const used = event.defaultPrevented;
+      event.preventDefault();
+      if (!used && !modalOnScreen()) stepRef.current(direction);
+    }
+    /**
+     * Mark a side button's press and click used too, for the same reason.
+     * @param event - the window's mousedown or auxclick
+     */
+    function onButtonOther(event: MouseEvent): void {
+      if (historyStepForButton(event.button)) event.preventDefault();
+    }
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mouseup", onButton);
+    window.addEventListener("mousedown", onButtonOther);
+    window.addEventListener("auxclick", onButtonOther);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mouseup", onButton);
+      window.removeEventListener("mousedown", onButtonOther);
+      window.removeEventListener("auxclick", onButtonOther);
+    };
+  }, []);
   // The navigate listener is added once, so it calls the latest openPage through a ref.
   const openPageRef = useRef(openPage);
   useEffect(() => {
     openPageRef.current = openPage;
   });
-  const editTrip = useCallback((trip: TripInfo) => {
-    setTripEdit(trip);
-    setPage("trips");
-  }, []);
-  const createTrip = useCallback((start: TripStart) => {
-    setTripDraft(start);
-    setPage("trips");
-  }, []);
+  const editTrip = useCallback(
+    (trip: TripInfo) => {
+      setTripEdit(trip);
+      goTo("trips");
+    },
+    [goTo],
+  );
+  const createTrip = useCallback(
+    (start: TripStart) => {
+      setTripDraft(start);
+      goTo("trips");
+    },
+    [goTo],
+  );
   // Menu requests waiting for their page to open: File > Refresh, View > Find, and
   // Help > About or Check for updates (from Help or the tray), which both open Settings at About.
   const [refresh, setRefresh] = useState(false);
@@ -157,14 +265,14 @@ function Shell(): ReactElement | null {
   useMenuBar((request: MenuRequest) => {
     if (request === "refresh") {
       setRefresh(true);
-      setPage("library");
+      goTo("library");
     } else if (request === "find") {
       setFind(true);
-      setPage("library");
+      goTo("library");
     } else {
       if (request === "updates") void runCheck();
       setShowAbout(true);
-      setPage("settings");
+      goTo("settings");
     }
   });
 
@@ -221,7 +329,7 @@ function Shell(): ReactElement | null {
             onClose={closeTour}
             onHelp={() => {
               closeTour();
-              setPage("help");
+              goTo("help");
             }}
           />
         )}
