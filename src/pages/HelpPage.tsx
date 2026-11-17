@@ -61,6 +61,7 @@ const SHORTCUTS: [keys: string, does: string][] = [
   ["Ctrl+I", "Import"],
   ["F5", "Refresh"],
   ["Ctrl+F", "Find"],
+  ["Ctrl+Z", "Undo the last change, after asking"],
   ["Ctrl+,", "Settings"],
   ["F1", "Help"],
   ["Arrow keys", "Move between photos in the Library"],

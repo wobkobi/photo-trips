@@ -4,13 +4,12 @@ import { Icon, type IconName } from "../components/Icon";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { api, errorText, type BatchEntry, type BatchInfo, type EntryStatus } from "../lib/api";
 import { count, formatWhen } from "../lib/format";
+import { BATCH_PAGE } from "../lib/lastUndo";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { usePageMemory } from "../lib/usePageMemory";
 
 /** Files listed per batch by the backend (history.rs ENTRY_LIMIT). */
 const ENTRY_LIMIT = 2000;
-/** Batches listed at first, and how many more each "Show older" adds. */
-const BATCH_PAGE = 200;
 
 /**
  * Where to go to try failed files again, by batch kind: running the same task again picks up
@@ -45,9 +44,19 @@ function isOpen(batch: BatchInfo, open: OpenBatch | null): boolean {
  * Every change Pic Cabinet made to the library, newest first, each with undo.
  * @param props - Component props.
  * @param props.onNavigate - open another page, to try failed files again
+ * @param props.undoAsk - a batch Ctrl+Z picked, to ask about undoing, or null
+ * @param props.onUndoAskUsed - called once that question is showing, or the batch isn't listed
  * @returns the page
  */
-export function HistoryPage({ onNavigate }: { onNavigate: (page: PageId) => void }): ReactElement {
+export function HistoryPage({
+  onNavigate,
+  undoAsk,
+  onUndoAskUsed,
+}: {
+  onNavigate: (page: PageId) => void;
+  undoAsk: number | null;
+  onUndoAskUsed: () => void;
+}): ReactElement {
   const { running } = useJobs();
   const [batches, setBatches] = useState<BatchInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +64,9 @@ export function HistoryPage({ onNavigate }: { onNavigate: (page: PageId) => void
   // undone, so undoing it since closes it, and one pruned from the list matches no row.
   const [expanded, setExpanded] = usePageMemory<OpenBatch | null>("history.expanded", null);
   const [confirming, setConfirming] = useState<number | null>(null);
+  // Ctrl+Z asked the question, so its Undo takes the focus; a click on Undo leaves focus alone,
+  // since a held Enter would otherwise run straight through the question.
+  const [askedByKey, setAskedByKey] = useState(false);
   const [limit, setLimit] = useState(BATCH_PAGE);
 
   const load = useCallback(() => {
@@ -70,12 +82,42 @@ export function HistoryPage({ onNavigate }: { onNavigate: (page: PageId) => void
   useEffect(load, [load]);
   useJobDone(["apply", "undo", "remove", "import", "inbox"], load);
 
+  // Ctrl+Z: list afresh, so the batch it picked is there even when this page was already open,
+  // then ask about undoing it. One undone in the meantime gets no question.
+  useEffect(() => {
+    if (undoAsk === null) return;
+    api.listBatches(limit).then(
+      (loaded) => {
+        setBatches(loaded);
+        setError(null);
+        if (loaded.some((batch) => batch.id === undoAsk && batch.canUndo)) {
+          setConfirming(undoAsk);
+          setAskedByKey(true);
+        }
+        onUndoAskUsed();
+      },
+      (err) => {
+        setError(errorText(err));
+        onUndoAskUsed();
+      },
+    );
+  }, [undoAsk, limit, onUndoAskUsed]);
+
+  /**
+   * Show or dismiss the undo question from its row's buttons.
+   * @param batchId - the batch asked about, or null to dismiss
+   */
+  function ask(batchId: number | null): void {
+    setConfirming(batchId);
+    setAskedByKey(false);
+  }
+
   /**
    * Undo a batch and reload the list, showing any failure as the page error.
    * @param batchId - the batch to undo
    */
   async function undo(batchId: number): Promise<void> {
-    setConfirming(null);
+    ask(null);
     setError(null);
     try {
       await api.undoBatch(batchId);
@@ -107,13 +149,14 @@ export function HistoryPage({ onNavigate }: { onNavigate: (page: PageId) => void
               busy={running !== null}
               expanded={isOpen(batch, expanded)}
               confirming={confirming === batch.id}
+              focusConfirm={askedByKey}
               onToggle={() =>
                 setExpanded(
                   isOpen(batch, expanded) ? null : { id: batch.id, undoneAt: batch.undoneAt },
                 )
               }
-              onAskUndo={() => setConfirming(batch.id)}
-              onCancelUndo={() => setConfirming(null)}
+              onAskUndo={() => ask(batch.id)}
+              onCancelUndo={() => ask(null)}
               onUndo={() => undo(batch.id)}
               onRetry={RETRY[batch.kind] && onNavigate.bind(null, RETRY[batch.kind].page)}
             />
@@ -139,6 +182,8 @@ export function HistoryPage({ onNavigate }: { onNavigate: (page: PageId) => void
  * @param props.busy - a job is running, so undo is disabled
  * @param props.expanded - its file list is open
  * @param props.confirming - the undo question is showing
+ * @param props.focusConfirm - the question's Undo takes the focus as it shows, scrolling it into
+ * view
  * @param props.onToggle - open or close the file list
  * @param props.onAskUndo - show the undo question
  * @param props.onCancelUndo - dismiss the undo question
@@ -151,6 +196,7 @@ function BatchRow({
   busy,
   expanded,
   confirming,
+  focusConfirm,
   onToggle,
   onAskUndo,
   onCancelUndo,
@@ -161,6 +207,7 @@ function BatchRow({
   busy: boolean;
   expanded: boolean;
   confirming: boolean;
+  focusConfirm: boolean;
   onToggle: () => void;
   onAskUndo: () => void;
   onCancelUndo: () => void;
@@ -183,7 +230,7 @@ function BatchRow({
         {confirming ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[15px]">{confirmText(batch)}</span>
-            <Button variant="primary" onClick={onUndo} busy={busy}>
+            <Button variant="primary" onClick={onUndo} busy={busy} autoFocus={focusConfirm}>
               Undo
             </Button>
             <Button variant="ghost" onClick={onCancelUndo}>

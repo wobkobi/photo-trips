@@ -9,9 +9,10 @@ import {
 } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { Tour } from "./components/Tour";
-import type { TripInfo } from "./lib/api";
+import { api, type TripInfo } from "./lib/api";
 import { themeOf } from "./lib/display";
 import { JobsProvider } from "./lib/jobs";
+import { BATCH_PAGE, newestUndoable } from "./lib/lastUndo";
 import { LibraryProvider } from "./lib/library";
 import {
   NO_FILTER,
@@ -311,9 +312,24 @@ function Shell(): ReactElement | null {
     setTourClosed(true);
     void save("tour_done", "true").catch(() => undefined);
   }, [save]);
+  // The batch Ctrl+Z picked, until History shows its undo question.
+  const [undoAsk, setUndoAsk] = useState<number | null>(null);
+  const undoAskUsed = useCallback(() => setUndoAsk(null), []);
 
   useMenuBar((request: MenuRequest) => {
-    if (request === "refresh") {
+    if (request === "undo") {
+      // Nothing to undo leaves the page as it is. A failed list opens History, which shows why.
+      if (!settings?.library_root) return;
+      api.listBatches(BATCH_PAGE).then(
+        (batches) => {
+          const id = newestUndoable(batches);
+          if (id === null) return;
+          setUndoAsk(id);
+          openPageRef.current("history");
+        },
+        () => openPageRef.current("history"),
+      );
+    } else if (request === "refresh") {
       setRefresh(true);
       goTo("library");
     } else if (request === "find") {
@@ -387,6 +403,8 @@ function Shell(): ReactElement | null {
             onFindStarted={findStarted}
             showAbout={showAbout}
             onAboutShown={aboutShown}
+            undoAsk={undoAsk}
+            onUndoAskUsed={undoAskUsed}
             onTour={() => setTourAsked(true)}
           />
         </main>
@@ -431,6 +449,8 @@ function Shell(): ReactElement | null {
  * @param props.onFindStarted - called once the Library has taken the find request
  * @param props.showAbout - Settings should open at About
  * @param props.onAboutShown - called once Settings has shown About
+ * @param props.undoAsk - a batch Ctrl+Z picked, for History to ask about undoing
+ * @param props.onUndoAskUsed - called once History has taken that batch
  * @param props.onTour - start the tour, from Help
  * @returns the page
  */
@@ -453,6 +473,8 @@ function CurrentPage({
   onFindStarted,
   showAbout,
   onAboutShown,
+  undoAsk,
+  onUndoAskUsed,
   onTour,
 }: {
   page: PageId;
@@ -473,6 +495,8 @@ function CurrentPage({
   onFindStarted: () => void;
   showAbout: boolean;
   onAboutShown: () => void;
+  undoAsk: number | null;
+  onUndoAskUsed: () => void;
   onTour: () => void;
 }): ReactElement {
   switch (page) {
@@ -513,7 +537,9 @@ function CurrentPage({
     case "duplicates":
       return <DuplicatesPage onNavigate={onNavigate} />;
     case "history":
-      return <HistoryPage onNavigate={onNavigate} />;
+      return (
+        <HistoryPage onNavigate={onNavigate} undoAsk={undoAsk} onUndoAskUsed={onUndoAskUsed} />
+      );
     case "settings":
       return (
         <SettingsPage showAbout={showAbout} onAboutShown={onAboutShown} onNavigate={onNavigate} />
