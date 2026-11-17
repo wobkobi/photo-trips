@@ -65,6 +65,7 @@ strip = true
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
+tauri-plugin-window-state = "2"
 
 # The WebView2 COM types Tauri's own webview handle hands out, for settings Tauri doesn't expose.
 [target.'cfg(windows)'.dependencies]
