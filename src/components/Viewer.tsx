@@ -267,11 +267,19 @@ export function Viewer({
 
   // Focus moves into the viewer, and back to whatever opened it on closing. That return doesn't
   // scroll: after stepping through photos the page may bring the last one shown into view
-  // instead, and the opener mustn't pull the view back to where the viewer started.
+  // instead, and the opener mustn't pull the view back to where the viewer started. The app
+  // behind (the viewer is portalled out of #root) is inert meanwhile, so Tab and screen readers
+  // stay in the viewer; it's let go before the opener is focused, which an inert page refuses.
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const page = document.getElementById("root");
+    const wasInert = page?.inert ?? false;
+    if (page) page.inert = true;
     dialog.current?.focus();
-    return () => opener?.focus({ preventScroll: true });
+    return () => {
+      if (page) page.inert = wasInert;
+      opener?.focus({ preventScroll: true });
+    };
   }, []);
 
   // A file taken out from under the viewer is replaced by the next one sliding in from the

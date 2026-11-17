@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.54.0] - 2026-11-18
+
+### Added
+
+- The Library's grid is a single Tab stop with the arrow keys, Page Up and Page Down moving within
+  it, and it takes focus when the Library opens; while the viewer is open, Tab and screen readers
+  stay inside it
+
 ## [0.53.0] - 2026-11-18
 
 ### Added

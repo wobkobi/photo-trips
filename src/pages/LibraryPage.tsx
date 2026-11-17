@@ -853,6 +853,7 @@ export function LibraryPage({
           onJumpDone={jumpDone}
           place={place}
           onSizeStep={(step) => photoSize.setSize(stepPhotoSize(photoSize.size, step))}
+          takeFocus
         />
       )}
       {menu && <TileMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)} items={menu.items} />}

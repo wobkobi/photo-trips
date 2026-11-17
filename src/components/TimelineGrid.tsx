@@ -1,4 +1,4 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import {
   useEffect,
   useLayoutEffect,
@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ReactElement,
+  type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
@@ -67,12 +68,62 @@ export interface TileJump {
 }
 
 /**
+ * The tile that holds the grid's one Tab stop (see the roving Tab stop in {@link TimelineGrid}).
+ * @param rows - the grid's rows
+ * @param drawn - the rows drawn now, overscan included
+ * @param range - the rows on screen, or null before the first layout
+ * @param current - the tile last focused, if any
+ * @param focusIn - focus is in the grid now
+ * @returns the tile's index; 0 when no tile row is drawn
+ */
+function gridTabStop(
+  rows: TimelineRow[],
+  drawn: VirtualItem[],
+  range: { startIndex: number; endIndex: number } | null,
+  current: number | null,
+  focusIn: boolean,
+): number {
+  /**
+   * Whether a row is on screen.
+   * @param row - the row's index
+   * @returns true when it's within the visible range
+   */
+  const onScreen = (row: number): boolean =>
+    range !== null && row >= range.startIndex && row <= range.endIndex;
+  if (current !== null) {
+    const row = tileRow(rows, current);
+    if (row >= 0 && (focusIn ? drawn.some((item) => item.index === row) : onScreen(row))) {
+      return current;
+    }
+  }
+  const tileRows = drawn.filter((item) => rows[item.index]?.type === "tiles");
+  const first = tileRows.find((item) => onScreen(item.index)) ?? tileRows[0];
+  return first ? rows[first.index].start : 0;
+}
+
+/**
  * A library tile's thumbnail.
  * @param tile - the tile
  * @returns the thumbnail URL
  */
 function libraryThumb(tile: Tile): string {
   return thumbUrl(tile.id, tile.version);
+}
+
+/**
+ * Whether the grid may take keyboard focus on showing: not over a dialog or the viewer, not in
+ * a page that's inert (under the tour), and not from anything already focused in the page, such
+ * as the search box Ctrl+F just focused. Focus left on the menu that opened the page, or on
+ * nothing, is fair game.
+ * @param grid - the grid's scroller
+ * @returns true when focusing a tile takes focus from nothing that wants it
+ */
+function mayTakeFocus(grid: HTMLElement): boolean {
+  if (grid.closest("[inert]")) return false;
+  if (document.querySelector('dialog[open], [aria-modal="true"]')) return false;
+  const active = document.activeElement;
+  if (!active || active === document.body) return true;
+  return !active.closest("main");
 }
 
 /**
@@ -103,6 +154,8 @@ function libraryThumb(tile: Tile): string {
  *   which still holds its place when the column count changes
  * @param props.onSizeStep - called with 1 (bigger) or -1 (smaller) for each Ctrl+wheel notch over
  *   the grid; without it Ctrl+wheel is left alone
+ * @param props.takeFocus - focus the grid's Tab stop once it's first laid out, unless that would
+ *   take focus from something in the page or from a dialog
  * @returns the scrolling grid
  */
 export function TimelineGrid({
@@ -124,6 +177,7 @@ export function TimelineGrid({
   ownsHeight = false,
   place,
   onSizeStep,
+  takeFocus = false,
 }: {
   tiles: Tile[];
   tileSize: number;
@@ -143,6 +197,7 @@ export function TimelineGrid({
   ownsHeight?: boolean;
   place?: RefObject<GridPlace | null>;
   onSizeStep?: (step: 1 | -1) => void;
+  takeFocus?: boolean;
 }): ReactElement {
   const outerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -327,21 +382,74 @@ export function TimelineGrid({
     return () => el.removeEventListener("wheel", onWheel);
   }, [onSizeStep]);
 
+  // On first showing, focus the tile Tab would land on. A frame later, so a kept place has been
+  // gone back to and the Tab stop is a tile on screen there.
+  const tookFocus = useRef(false);
+  useEffect(() => {
+    if (!takeFocus || !laidOut || tookFocus.current) return;
+    const frame = requestAnimationFrame(() => {
+      tookFocus.current = true;
+      const el = scrollRef.current;
+      if (!el || !mayTakeFocus(el)) return;
+      el.querySelector<HTMLElement>('[data-tile][tabindex="0"]')?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [takeFocus, laidOut]);
+
+  // The grid is one Tab stop, and the arrow keys move between its tiles. The stop is the tile
+  // last focused while that's on screen, or while focus is still in the grid (so Tab from a
+  // focused tile scrolled off screen leaves the grid rather than landing on another tile), else
+  // the first tile on screen. A focused tile scrolled far enough to unmount drops focus to the
+  // page, and Tab back in lands on the first tile on screen.
+  const [current, setCurrent] = useState<number | null>(null);
+  const [focusIn, setFocusIn] = useState(false);
+  const items = virtualizer.getVirtualItems();
+  const range = virtualizer.range;
+  const tabTile = gridTabStop(rows, items, range, current, focusIn);
+
   /**
-   * Arrow keys, Home and End move focus between tiles. The tile may not be drawn yet, so its row
-   * is scrolled into view first and the tile focused once it's there, as for a jump.
+   * Note the focused tile as the grid's Tab stop.
+   * @param event - focus arriving on something in the grid
+   */
+  function onGridFocus(event: ReactFocusEvent<HTMLDivElement>): void {
+    setFocusIn(true);
+    const tile = event.target.dataset.tile ?? event.target.dataset.zoomTile;
+    if (tile !== undefined) setCurrent(Number(tile));
+  }
+
+  /**
+   * Note focus leaving the grid altogether.
+   * @param event - focus leaving something in the grid
+   */
+  function onGridBlur(event: ReactFocusEvent<HTMLDivElement>): void {
+    if (!event.currentTarget.contains(event.relatedTarget)) setFocusIn(false);
+  }
+
+  /**
+   * Arrow keys, Page Up, Page Down, Home and End move focus between tiles; a page is as many tile
+   * rows as fit on screen whole.
    * @param event - a key press inside the grid
    */
   function onGridKey(event: ReactKeyboardEvent<HTMLDivElement>): void {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     const from = (event.target as HTMLElement).dataset.tile;
     if (from === undefined) return;
-    const to = stepTile(rows, Number(from), event.key, tiles.length);
+    const page = Math.floor(viewHeight / (tileSize + GAP));
+    const to = stepTile(rows, Number(from), event.key, tiles.length, page);
     if (to === null) return;
     event.preventDefault();
+    focusTileAt(to);
+  }
+
+  /**
+   * Move focus to a tile. It may not be drawn yet, so its row is scrolled into view first and the
+   * tile focused once it's there, retrying each frame up to JUMP_FRAMES, as for a jump.
+   * @param to - the tile's index
+   */
+  function focusTileAt(to: number): void {
     virtualizer.scrollToIndex(tileRow(rows, to), { align: "auto" });
     let tries = 0;
-    /** Focus the tile once it's drawn, retrying each frame up to JUMP_FRAMES. */
+    /** Look for the tile, and try again next frame while it isn't drawn. */
     const focusTile = (): void => {
       const tile = scrollRef.current?.querySelector<HTMLButtonElement>(`[data-tile="${to}"]`);
       if (tile) tile.focus({ preventScroll: true });
@@ -357,6 +465,8 @@ export function TimelineGrid({
       <div
         ref={scrollRef}
         onKeyDown={onGridKey}
+        onFocus={onGridFocus}
+        onBlur={onGridBlur}
         className={`min-w-0 flex-1 overflow-y-auto ${showRail ? "no-scrollbar" : ""}`}
       >
         {width > 0 && (
@@ -364,7 +474,7 @@ export function TimelineGrid({
             className="relative w-full"
             style={{ height: virtualizer.getTotalSize() + END_SPACE }}
           >
-            {virtualizer.getVirtualItems().map((item) => {
+            {items.map((item) => {
               const row = rows[item.index];
               return (
                 <div
@@ -399,6 +509,7 @@ export function TimelineGrid({
                           index={row.start + offset}
                           tile={tile}
                           size={tileSize}
+                          tabStop={row.start + offset === tabTile}
                           selecting={selecting}
                           thumb={thumbOf(tile)}
                           retry={thumbRetry}
@@ -434,6 +545,7 @@ export function TimelineGrid({
  * @param props.thumb - thumbnail URL
  * @param props.retry - a count that, when raised, has a tile without a thumbnail ask again
  * @param props.size - tile edge in CSS pixels
+ * @param props.tabStop - the grid's one Tab stop; every other tile is reached by the arrow keys
  * @param props.selecting - picking photos, so a plain click picks instead of opening
  * @param props.selected - the tile is picked
  * @param props.faded - dim the tile, for an unpicked one when most are picked
@@ -450,6 +562,7 @@ function TileButton({
   thumb,
   retry,
   size,
+  tabStop,
   selecting,
   selected,
   faded,
@@ -465,6 +578,7 @@ function TileButton({
   thumb: string;
   retry: number;
   size: number;
+  tabStop: boolean;
   /** Picking photos, so a plain click picks instead of opening. */
   selecting: boolean;
   selected: boolean;
@@ -516,6 +630,7 @@ function TileButton({
         onClick={onClick}
         onContextMenu={onMenu}
         data-tile={index}
+        tabIndex={tabStop ? 0 : -1}
         aria-label={label}
         title={tip}
         aria-pressed={selecting ? selected : undefined}
@@ -599,6 +714,8 @@ function TileButton({
         <button
           type="button"
           onClick={onZoom}
+          data-zoom-tile={index}
+          tabIndex={tabStop ? 0 : -1}
           aria-label={`Open ${tile.name}`}
           title="Open"
           className="on-dark absolute top-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-ground/70 text-ink opacity-0 group-hover:opacity-100 hover:bg-ground focus-visible:bg-ground focus-visible:opacity-100"
