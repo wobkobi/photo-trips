@@ -548,7 +548,7 @@ export function LibraryPage({
           // The Library's counts don't describe a trip change under review.
           review !== null && !moving ? undefined : (
             <Detail
-              count={count}
+              count={tiles === null ? null : count}
               total={placeTotal}
               dates={tripInfo ? rangeText(tripInfo.startAt, tripInfo.endAt) : undefined}
               summary={summary}
@@ -816,12 +816,12 @@ export function LibraryPage({
  * The count beside the title, after a trip's dates when one is on show, with how many other
  * files are left alone in its tooltip.
  * @param props - Component props.
- * @param props.count - photos and videos the filter shows
+ * @param props.count - photos and videos the filter shows, or null until the photos have loaded
  * @param props.total - photos and videos in the library, or in the trip on show
  * @param props.dates - the trip's dates, when one is on show
  * @param props.summary - the last library read, for its count of other files
  * @param props.indexing - the first read is still running
- * @returns the detail text
+ * @returns the detail text, or null while there's nothing to count yet
  */
 function Detail({
   count,
@@ -830,13 +830,15 @@ function Detail({
   summary,
   indexing,
 }: {
-  count: number;
+  count: number | null;
   total: number;
   dates?: string;
   summary: IndexSummary | null;
   indexing: boolean;
-}): ReactElement {
+}): ReactElement | null {
   if (indexing) return <>Reading the library folder</>;
+  // No count until the photos are in, so the header never flashes a 0 on the way.
+  if (count === null) return dates ? <>{dates}</> : null;
   const items =
     count === total
       ? total.toLocaleString()

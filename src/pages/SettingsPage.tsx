@@ -28,6 +28,7 @@ import { count } from "../lib/format";
 import { normaliseExtensions } from "../lib/settingValues";
 import { useAction } from "../lib/useAction";
 import { useJobDone, useJobs } from "../lib/useJobs";
+import { usePageMemory } from "../lib/usePageMemory";
 import { useSettings } from "../lib/useSettings";
 
 /** The groups of settings, one shown at a time, in the order the list shows them. */
@@ -75,7 +76,8 @@ export function SettingsPage({
   const windowing = useAction();
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [version, setVersion] = useState<string | null>(null);
-  const [tab, setTab] = useState<TabId>(showAbout ? "about" : "display");
+  // Opens on the tab last shown; a request for About (below) still wins.
+  const [tab, setTab] = usePageMemory<TabId>("settings.tab", showAbout ? "about" : "display");
   /** A new library folder picked and waiting for the user to confirm it. */
   const [newRoot, setNewRoot] = useState<string | null>(null);
 
@@ -89,8 +91,9 @@ export function SettingsPage({
     };
   }, []);
 
-  // Also while the page is already open, when the menu asks for About again. Switched while
-  // rendering, so About shows in the same paint; the effect then marks the request done.
+  // Also over a remembered tab, and while the page is already open when the menu asks for About
+  // again. Switched while rendering, so About shows in the same paint; the effect then marks the
+  // request done.
   if (showAbout && tab !== "about") setTab("about");
   useEffect(() => {
     if (showAbout) onAboutShown();

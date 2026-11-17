@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DupCopy, DupSet } from "./api";
-import { keeperOf, pickWithPartners, removalPlan } from "./duplicates";
+import { keeperOf, pickWithPartners, prunePicks, removalPlan } from "./duplicates";
 
 /**
  * A copy of a duplicate, not in place.
@@ -85,5 +85,26 @@ describe("pickWithPartners", () => {
 
   it("leaves sets of other tiles alone", () => {
     expect(pickWithPartners(sets, "o", 6)).toEqual({ o: 6 });
+  });
+});
+
+describe("prunePicks", () => {
+  const sets = [set("a", 100, [1, 2]), set("b", 50, [3, 4])];
+
+  it("keeps picks whose set and copy are still listed", () => {
+    const picks = { a: 2, b: null };
+    expect(prunePicks(sets, picks)).toBe(picks);
+  });
+
+  it("drops a pick whose set has gone", () => {
+    expect(prunePicks(sets, { a: 2, c: 7, d: null })).toEqual({ a: 2 });
+  });
+
+  it("drops a pick whose copy has left the set", () => {
+    expect(prunePicks(sets, { a: 9, b: 4 })).toEqual({ b: 4 });
+  });
+
+  it("drops everything when no sets are left", () => {
+    expect(prunePicks([], { a: 1, b: null })).toEqual({});
   });
 });

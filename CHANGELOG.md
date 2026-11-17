@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.37.0] - 2026-11-18
+
+### Added
+
+- Settings reopens on the tab you left, History keeps the batch you had open, and Duplicates keeps
+  the copies you chose to keep. Each page opens at its top, and the Library header no longer flashes
+  a 0 while it loads.
+
 ## [0.36.0] - 2026-11-18
 
 ### Added
