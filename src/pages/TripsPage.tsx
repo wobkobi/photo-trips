@@ -11,7 +11,7 @@ import { Field, INPUT } from "../components/Field";
 import { Icon } from "../components/Icon";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
-import { Button, EmptyState, LIST_FILL, PageHeader } from "../components/ui";
+import { Button, EmptyState, HOVER_RING, LIST_FILL, PageHeader } from "../components/ui";
 import { useLibrarySource } from "../components/viewSources";
 import {
   api,
@@ -370,7 +370,7 @@ function TripRow({
         type="button"
         onClick={onShow}
         aria-label={`See ${trip.name} in the Library`}
-        className="group relative aspect-3/2 w-full overflow-hidden bg-raised focus-visible:outline-offset-[-3px]"
+        className={`group relative aspect-3/2 w-full overflow-hidden bg-raised focus-visible:outline-offset-[-3px] ${HOVER_RING}`}
       >
         <Cover sample={trip.sample} />
         <span
@@ -444,7 +444,7 @@ function CoverImage({ tile }: { tile: SampleTile }): ReactElement {
           decoding="async"
           draggable={false}
           onError={() => setFailed(true)}
-          className="h-full w-full object-cover transition-opacity group-hover:opacity-90"
+          className="h-full w-full object-cover"
         />
       )}
     </span>
