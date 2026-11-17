@@ -75,6 +75,47 @@ export function clearFilters(filter: LibraryFilter): LibraryFilter {
   return { ...NO_FILTER, trip: tripOf(filter) ?? "any" };
 }
 
+/** One active filter as a chip under the toolbar, with the filter that removing it leaves. */
+export interface FilterChip {
+  id: "kind" | "year" | "uncertain" | "trip";
+  label: string;
+  without: LibraryFilter;
+}
+
+/**
+ * The chips for the filters in use, besides the trip on show and the name (the search box shows
+ * that). Kind comes first as it sits first in the toolbar, then the Filter popover's in its order.
+ * @param filter - the filter
+ * @returns one chip per active part, empty when only a trip or a name is set
+ */
+export function activeChips(filter: LibraryFilter): FilterChip[] {
+  const chips: FilterChip[] = [];
+  if (filter.kind !== "all") {
+    const label = filter.kind === "photos" ? "Photos" : "Videos";
+    chips.push({ id: "kind", label, without: { ...filter, kind: "all" } });
+  }
+  if (filter.year !== "any") {
+    chips.push({ id: "year", label: filter.year, without: { ...filter, year: "any" } });
+  }
+  if (filter.uncertain) {
+    const without = { ...filter, uncertain: false };
+    chips.push({ id: "uncertain", label: "Uncertain dates", without });
+  }
+  if (filter.trip === "none") {
+    chips.push({ id: "trip", label: "Not on a trip", without: { ...filter, trip: "any" } });
+  }
+  return chips;
+}
+
+/**
+ * How many of the Filter popover's choices are in use: year, uncertain dates, not on a trip.
+ * @param filter - the filter
+ * @returns 0 to 3, for the Filter button's badge
+ */
+export function popoverFilterCount(filter: LibraryFilter): number {
+  return Number(filter.year !== "any") + Number(filter.uncertain) + Number(filter.trip === "none");
+}
+
 /**
  * Whether one tile passes the filter. RAW files count as photos.
  * @param tile - the tile

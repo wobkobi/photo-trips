@@ -4,7 +4,7 @@ import { BinDialog } from "../components/BinDialog";
 import { CodecHint } from "../components/CodecHint";
 import { DateEditor } from "../components/DateEditor";
 import { Icon } from "../components/Icon";
-import { LibraryFilterBar } from "../components/LibraryFilterBar";
+import { LibraryFilterChips, LibraryFilterControls } from "../components/LibraryFilterBar";
 import { PhotoSizeControl } from "../components/PhotoSizeControl";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
 import { TileMenu, type MenuItem } from "../components/TileMenu";
@@ -79,7 +79,7 @@ const THUMB_RETRY_MS = 60_000;
  * @param props.onEditTrip - open the trip on show in the Trips page's editor
  * @param props.refreshRequested - File > Refresh (F5) was picked; refresh on opening
  * @param props.onRefreshStarted - called once that refresh has been asked for
- * @param props.findRequested - View > Find (Ctrl+F) was picked; focus the file name box
+ * @param props.findRequested - View > Find (Ctrl+F) was picked; focus the search box
  * @param props.onFindStarted - called once that box has been focused, or can't be
  * @returns the page
  */
@@ -250,21 +250,24 @@ export function LibraryPage({
     api.indexLibrary().catch((err) => setError(errorText(err)));
   }, [refreshRequested, onRefreshStarted]);
 
-  // Find closes the viewer, which covers the file name box. The focus below waits for the
-  // commit that unmounts the viewer, so it lands after the viewer's cleanup hands focus back
-  // to the tile.
+  const selecting = picking || selected.size > 0;
+  // Find closes the viewer, which covers the search box, and stops selecting, whose actions take
+  // the toolbar's place (a new search would drop the selection anyway). The focus below waits for
+  // the commit that shows the box, so after the viewer it lands once the viewer's cleanup has
+  // handed focus back to the tile.
   useEffect(() => {
-    if (findRequested && open !== null) setOpenId(null);
-  }, [findRequested, open, setOpenId]);
+    if (!findRequested) return;
+    if (open !== null) setOpenId(null);
+    if (selecting) clearPicks();
+  }, [findRequested, open, setOpenId, selecting, clearPicks]);
   // The box only shows once the list has loaded, so Find waits for that.
   const loaded = allTiles !== null;
   useEffect(() => {
-    if (!findRequested || open !== null || !loaded) return;
+    if (!findRequested || open !== null || selecting || !loaded) return;
     onFindStarted();
     searchBox.current?.focus();
-  }, [findRequested, onFindStarted, open, loaded]);
+  }, [findRequested, onFindStarted, open, selecting, loaded]);
 
-  const selecting = picking || selected.size > 0;
   const picked = useMemo(
     () => (allTiles ?? []).filter((t) => selected.has(t.id)),
     [allTiles, selected],
@@ -283,7 +286,8 @@ export function LibraryPage({
   const gridShown = open === null && !reviewOpen;
   // Capture phase, so Escape deselects before the header's back arrow sees it: inside a trip the
   // first Escape clears the selection and the second leaves the trip. A text box (the name search
-  // clears itself), a menu, the viewer or a modal on screen keeps its own Escape.
+  // clears itself), a menu, a popover such as Filter's, the viewer or a modal on screen keeps its
+  // own Escape.
   useEffect(() => {
     if (!selecting || !gridShown) return;
     /**
@@ -292,7 +296,12 @@ export function LibraryPage({
      */
     function onEscape(event: KeyboardEvent): void {
       if (event.key !== "Escape" || event.defaultPrevented || isTextEntry(event.target)) return;
-      if (event.target instanceof Element && event.target.closest('[role="menu"]')) return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest('[role="menu"], [role="dialog"]')
+      ) {
+        return;
+      }
       if (modalOnScreen()) return;
       event.preventDefault();
       clearSelection();
@@ -671,6 +680,14 @@ export function LibraryPage({
             </>
           ) : (
             <>
+              {placeTiles !== null && placeTotal > 0 && (
+                <LibraryFilterControls
+                  tiles={placeTiles}
+                  filter={filter}
+                  onChange={changeFilter}
+                  searchBox={searchBox}
+                />
+              )}
               {count > 0 && (
                 <PhotoSizeControl value={photoSize.size} onChange={photoSize.setSize} />
               )}
@@ -753,13 +770,8 @@ export function LibraryPage({
         />
       )}
 
-      {!reviewing && placeTiles !== null && placeTotal > 0 && (
-        <LibraryFilterBar
-          tiles={placeTiles}
-          filter={filter}
-          onChange={changeFilter}
-          searchBox={searchBox}
-        />
+      {!reviewing && placeTotal > 0 && (
+        <LibraryFilterChips filter={filter} onChange={changeFilter} />
       )}
 
       {!reviewing && total > 0 && trip && placeTotal === 0 && (

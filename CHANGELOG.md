@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.51.0] - 2026-11-18
+
+### Added
+
+- The Library's filters sit in its toolbar: a search box, All / Photos / Videos, and one Filter
+  button for year and uncertain dates, with a chip for each filter that is on
+
 ## [0.50.0] - 2026-11-18
 
 ### Added
