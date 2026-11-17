@@ -86,6 +86,7 @@ function libraryThumb(tile: Tile): string {
  *   for when those are what's being looked for
  * @param props.jump - scroll to this tile ({@link TileJump} says how far) and move keyboard focus
  *   to it unless asked not to
+ * @param props.onJumpDone - called once `jump` has been carried out, so the page can drop it
  * @param props.ownsHeight - the grid sits straight in a page column, so it keeps its own minimum
  *   height ({@link LIST_FILL}); otherwise its parent row does
  * @param props.place - where the grid is scrolled to ({@link GridPlace}), kept up to date as it
@@ -108,6 +109,7 @@ export function TimelineGrid({
   fadeUnselected = false,
   showUncertain = false,
   jump,
+  onJumpDone,
   ownsHeight = false,
   place,
 }: {
@@ -125,6 +127,7 @@ export function TimelineGrid({
   fadeUnselected?: boolean;
   showUncertain?: boolean;
   jump?: TileJump | null;
+  onJumpDone?: () => void;
   ownsHeight?: boolean;
   place?: RefObject<GridPlace | null>;
 }): ReactElement {
@@ -224,17 +227,24 @@ export function TimelineGrid({
 
   // Only the rows on screen exist, so the tile can be focused only once the scroll has drawn it,
   // usually a frame or two later; it's looked for each frame, up to JUMP_FRAMES. Focus is moved
-  // without scrolling again, so the month heading stays in view above it. Each request is handled
-  // once, so a later re-layout (the grid hidden and shown again) doesn't replay an old jump.
+  // without scrolling again, so the month heading stays in view above it. A request runs once per
+  // mount, and once it's carried out onJumpDone has the page drop it, so a grid mounted again
+  // later (after a trip review) goes back to its kept place rather than replaying it.
   const handledJump = useRef<TileJump | null>(null);
+  const jumpDone = useRef(onJumpDone);
+  useEffect(() => {
+    jumpDone.current = onJumpDone;
+  });
   useEffect(() => {
     if (!jump || !laidOut || handledJump.current === jump) return;
     handledJump.current = jump;
     const align = jump.align ?? "start";
     const row = align === "auto" ? tileRow(rows, jump.index) : jumpRow(rows, jump.index);
-    if (row < 0) return;
-    virtualizer.scrollToIndex(row, { align });
-    if (jump.focus === false) return;
+    if (row >= 0) virtualizer.scrollToIndex(row, { align });
+    if (row < 0 || jump.focus === false) {
+      jumpDone.current?.();
+      return;
+    }
     let tries = 0;
     let done = false;
     /** Focus the jumped-to tile once it's drawn, retrying each frame up to JUMP_FRAMES. */
@@ -245,6 +255,8 @@ export function TimelineGrid({
       if (tile) tile.focus({ preventScroll: true });
       else if (++tries < JUMP_FRAMES) frame = requestAnimationFrame(focusTile);
       done = tile != null || tries >= JUMP_FRAMES;
+      // Not sooner: dropping the request cancels the frames still looking for the tile.
+      if (done) jumpDone.current?.();
     };
     let frame = requestAnimationFrame(focusTile);
     return () => {
