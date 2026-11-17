@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.1] - 2026-11-18
+
+### Fixed
+
+- Two different pictures or videos with the same name in one folder (image.jpg and image.png, a film
+  and its trailer) are now separate tiles with their own dates, instead of one hiding the other and
+  going to the Recycle Bin with it. Sidecars stay with the file they belong to.
+
 ## [0.25.0] - 2026-11-17
 
 ### Added
