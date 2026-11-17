@@ -20,6 +20,8 @@ import {
   Luggage,
   MapIcon,
   MapPin,
+  Maximize,
+  Minimize,
   PanelLeft,
   Pause,
   Play,
@@ -86,6 +88,8 @@ const ICONS = {
   panel: PanelLeft,
   info: Info,
   bin: Trash2,
+  fullscreen: Maximize,
+  windowed: Minimize,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

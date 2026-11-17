@@ -12,6 +12,7 @@ import {
 import { createPortal } from "react-dom";
 import { api, errorText, type MediaKind } from "../lib/api";
 import { formatTaken } from "../lib/format";
+import { isFullscreenKey, useFullscreen } from "../lib/fullscreen";
 import { useLayer } from "../lib/layers";
 import { savedPanel, savePanel } from "../lib/viewerPanel";
 import {
@@ -140,9 +141,10 @@ export interface ViewSource {
  *
  * A slim bar over the top of the stage carries Back, the file's name and date, its place in the
  * source and an icon row: the photo's zoom and rotate, then Show in folder, Copy and Open, built
- * from the source so every caller gets them, then Info and, where the caller passes one, Bin. The
- * bar and side arrows fade once the pointer has rested for {@link REST_MS}, and stay while the
- * pointer is over them or keyboard focus is inside them.
+ * from the source so every caller gets them, then Info, Fullscreen and, where the caller passes
+ * one, Bin. The bar and side arrows fade once the pointer has rested for {@link REST_MS}, and stay
+ * while the pointer is over them or keyboard focus is inside them. Fullscreen is left when the
+ * viewer closes.
  * @param props - Component props.
  * @param props.source - the files
  * @param props.index - which file is open
@@ -242,22 +244,30 @@ export function Viewer({
     });
   }, []);
 
+  const fullscreen = useFullscreen();
+
   // Capture phase, so Escape closes only the viewer, not the selection or menu of the page behind.
   // That also runs before a dialog over the viewer sees the key, so while one is open (the viewer
   // is no longer the top layer) every key is left to the dialog.
   const onTop = useLayer();
   useEffect(() => {
     /**
-     * Escape closes the viewer; the left and right arrows step through the source, and Home and
-     * End go to its first and last, and I toggles the details panel. Keys meant for a focused
-     * video's controls or a box in the side panel are left to them.
+     * Escape leaves fullscreen, or closes the viewer when not in it; the left and right arrows
+     * step through the source, and Home and End go to its first and last; I toggles the details
+     * panel and F or F11 fullscreen. Keys meant for a focused video's controls or a box in the
+     * side panel are left to them.
      * @param event - the window's keydown, caught before the page behind sees it
      */
     function onKey(event: KeyboardEvent): void {
       if (!onTop()) return;
       if (event.key === "Escape") {
         event.stopPropagation();
-        onClose();
+        // Held down, Escape repeats; one press does one thing, so holding it to leave
+        // fullscreen doesn't close the viewer as well.
+        if (!event.repeat) {
+          if (fullscreen.on) fullscreen.set(false);
+          else onClose();
+        }
       }
       // A box being typed in uses the arrows itself.
       if (event.target instanceof HTMLInputElement) return;
@@ -270,12 +280,16 @@ export function Viewer({
       if (plainI && !event.repeat) {
         toggleInfo();
       }
+      if (isFullscreenKey(event)) {
+        event.preventDefault();
+        if (!event.repeat) fullscreen.set(!fullscreen.on);
+      }
       if (event.key === "Home" && index > 0) onIndex(0);
       if (event.key === "End" && index < source.count - 1) onIndex(source.count - 1);
     }
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [index, source.count, onIndex, onClose, toggleInfo, onTop]);
+  }, [index, source.count, onIndex, onClose, toggleInfo, onTop, fullscreen]);
 
   // Focus moves into the viewer, and back to whatever opened it on closing. That return doesn't
   // scroll: after stepping through photos the page may bring the last one shown into view
@@ -451,6 +465,13 @@ export function Viewer({
               />
             )}
             <ToolButton icon="info" label="Info" shortcut="I" pressed={info} onClick={toggleInfo} />
+            <ToolButton
+              icon={fullscreen.on ? "windowed" : "fullscreen"}
+              label="Fullscreen"
+              shortcut="F"
+              pressed={fullscreen.on}
+              onClick={() => fullscreen.set(!fullscreen.on)}
+            />
             {onBin && item && <ToolButton icon="bin" label="Move to Recycle Bin" onClick={onBin} />}
           </div>
         </div>

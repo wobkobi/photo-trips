@@ -515,6 +515,12 @@ export const api = {
    */
   menuAction: (id: string) => invoke<void>("menu_action", { id }),
   /**
+   * Put the window in or out of fullscreen; the menu bar hides while it is in.
+   * @param on - true to enter fullscreen, false to leave it
+   * @returns resolves once changed
+   */
+  setFullscreen: (on: boolean) => invoke<void>("set_fullscreen", { on }),
+  /**
    * The update the last check found, without checking again.
    * @returns the update, or null when none was found
    */
