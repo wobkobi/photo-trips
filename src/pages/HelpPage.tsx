@@ -65,6 +65,7 @@ const SHORTCUTS: [keys: string, does: string][] = [
   ["Ctrl+,", "Settings"],
   ["F1", "Help"],
   ["Arrow keys", "Move between photos in the Library"],
+  ["Shift+arrow keys", "Select a run of photos in the Library"],
   ["Ctrl+A", "Select every item shown in the Library"],
   ["Delete", "Send the selected items to the Recycle Bin"],
   ["Left and Right", "Previous and next photo, full size"],

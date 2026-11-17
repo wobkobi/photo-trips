@@ -8,7 +8,13 @@ import { LibraryFilterChips, LibraryFilterControls } from "../components/Library
 import { PhotoSizeControl } from "../components/PhotoSizeControl";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
 import { TileMenu, type MenuItem } from "../components/TileMenu";
-import { TimelineGrid, type TileEvent, type TileJump } from "../components/TimelineGrid";
+import {
+  MonthPickButton,
+  TimelineGrid,
+  type MonthRow,
+  type TileEvent,
+  type TileJump,
+} from "../components/TimelineGrid";
 import { Viewer } from "../components/Viewer";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { useLibrarySource } from "../components/viewSources";
@@ -42,6 +48,7 @@ import {
   type CommandTarget,
   type PhotoCommand,
 } from "../lib/photoCommands";
+import { rangeStart, selectRange, toggleRun } from "../lib/selection";
 import {
   addEdit,
   editDone,
@@ -404,23 +411,17 @@ export function LibraryPage({
   }
 
   /**
-   * Explorer-style selection: Ctrl toggles, Shift extends from the last clicked tile, and a
-   * plain click toggles while picking or while anything is picked. Otherwise a plain click
-   * opens the viewer.
+   * Explorer-style selection: Ctrl toggles, Shift extends from the last clicked tile (or with
+   * none, from the tile that had focus, which becomes the anchor), and a plain click toggles
+   * while picking or while anything is picked. Otherwise a plain click opens the viewer.
    * @param index - position of the clicked tile in the shown list
    * @param event - the click, for its modifier keys
+   * @param focused - the tile that had focus before the click, or null
    */
-  function onTileClick(index: number, event: TileEvent): void {
+  function onTileClick(index: number, event: TileEvent, focused: number | null): void {
     if (!tiles) return;
     const id = tiles[index].id;
-    const anchor = anchorId === null ? undefined : indexOf.get(anchorId);
-    if (event.shiftKey && anchor !== undefined) {
-      const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
-      const next = new Set(event.ctrlKey ? selected : []);
-      for (let i = from; i <= to; i += 1) next.add(tiles[i].id);
-      setSelected(next);
-      return;
-    }
+    if (event.shiftKey && extendTo(index, focused, event.ctrlKey)) return;
     if (event.ctrlKey || event.metaKey || selecting) {
       const next = new Set(selected);
       if (next.has(id)) next.delete(id);
@@ -430,6 +431,42 @@ export function LibraryPage({
       return;
     }
     setOpenId(id);
+  }
+
+  /**
+   * Select the run from the anchor to a tile, or from `from` when there's no anchor, which then
+   * becomes the anchor so further Shift moves extend from the same place.
+   * @param to - the tile the run ends at
+   * @param from - where to start without an anchor, or null
+   * @param keep - keep the selection so far besides the run (Ctrl held too)
+   * @returns false when there was nowhere to start from, so nothing changed
+   */
+  function extendTo(to: number, from: number | null, keep: boolean): boolean {
+    if (!tiles) return false;
+    const anchor = anchorId === null ? undefined : indexOf.get(anchorId);
+    const start = rangeStart(anchor, from, tiles.length);
+    if (start === null) return false;
+    setSelected(selectRange(ids, start, to, keep ? selected : []));
+    if (anchor === undefined) setAnchorId(ids[start]);
+    return true;
+  }
+
+  /**
+   * A month heading's button: shown on hover while nothing is selected, and always while
+   * selecting, when it's also a Tab stop.
+   * @param month - the month row the button belongs to
+   * @returns the button
+   */
+  function monthAction(month: MonthRow): ReactElement {
+    const run = ids.slice(month.start, month.end);
+    return (
+      <MonthPickButton
+        month={month}
+        allPicked={run.every((id) => selected.has(id))}
+        onPick={() => setSelected(toggleRun(selected, run))}
+        onHover={!selecting}
+      />
+    );
   }
 
   /**
@@ -843,7 +880,9 @@ export function LibraryPage({
           selecting={selecting}
           selected={selected}
           onTileClick={onTileClick}
+          onTileExtend={(from, to, keep) => extendTo(to, from, keep)}
           onTileMenu={onTileMenu}
+          monthAction={monthAction}
           // While picking, a click picks, so the magnifier is the way to look at a photo.
           onTileZoom={selecting ? (index) => setOpenId(tiles[index].id) : undefined}
           onThumbError={onThumbError}

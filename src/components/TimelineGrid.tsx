@@ -30,7 +30,7 @@ import { tripBg } from "../lib/trips";
 import { DateRail, RAIL_SPACE } from "./DateRail";
 import { Icon } from "./Icon";
 import { MonthPin } from "./MonthPin";
-import { HOVER_RING, LIST_FILL } from "./ui";
+import { Button, HOVER_RING, LIST_FILL } from "./ui";
 
 // Tight gutters, so the grid reads as one wall of photos rather than a page of cards.
 const GAP = 3;
@@ -133,7 +133,11 @@ function mayTakeFocus(grid: HTMLElement): boolean {
  * @param props.tileSize - preferred tile edge in CSS pixels; tiles stretch to fill each row
  * @param props.selecting - picking photos, so tiles show a tick box and a click picks
  * @param props.selected - ids of selected tiles
- * @param props.onTileClick - called with a tile's index and the click
+ * @param props.onTileClick - called with a tile's index, the click, and the tile that had focus
+ *   before it (null when none has), for a Shift+click with no anchor to range from
+ * @param props.onTileExtend - called with the tile focus left and the tile it moved to when
+ *   Shift (or Ctrl+Shift, with true) and an arrow, Page Up, Page Down, Home or End moves focus;
+ *   without it those keys are left alone
  * @param props.onTileMenu - called with a tile's index and the right-click
  * @param props.onTileZoom - called with a tile's index from its magnifier button; tiles only get
  * one when this is given
@@ -164,6 +168,7 @@ export function TimelineGrid({
   selecting,
   selected,
   onTileClick,
+  onTileExtend,
   onTileMenu,
   onTileZoom,
   onThumbError,
@@ -183,7 +188,8 @@ export function TimelineGrid({
   tileSize: number;
   selecting: boolean;
   selected: ReadonlySet<number>;
-  onTileClick: (index: number, event: TileEvent) => void;
+  onTileClick: (index: number, event: TileEvent, focused: number | null) => void;
+  onTileExtend?: (from: number, to: number, keep: boolean) => void;
   onTileMenu: (index: number, event: TileEvent) => void;
   onTileZoom?: (index: number) => void;
   onThumbError: (tile: Tile) => void;
@@ -406,6 +412,10 @@ export function TimelineGrid({
   const items = virtualizer.getVirtualItems();
   const range = virtualizer.range;
   const tabTile = gridTabStop(rows, items, range, current, focusIn);
+  // A press focuses the tile pressed before its click arrives, so the tile focused before the
+  // press is noted as the press starts, for a Shift+click to range from.
+  const lastFocused = useRef<number | null>(null);
+  const focusedBeforePress = useRef<number | null>(null);
 
   /**
    * Note the focused tile as the grid's Tab stop.
@@ -414,7 +424,23 @@ export function TimelineGrid({
   function onGridFocus(event: ReactFocusEvent<HTMLDivElement>): void {
     setFocusIn(true);
     const tile = event.target.dataset.tile ?? event.target.dataset.zoomTile;
-    if (tile !== undefined) setCurrent(Number(tile));
+    if (tile === undefined) return;
+    setCurrent(Number(tile));
+    lastFocused.current = Number(tile);
+  }
+
+  /**
+   * Pass a tile's click on with the tile focused before it. A click from the keyboard (detail 0)
+   * has no press, and the tile clicked is the one focused.
+   * @param index - the clicked tile
+   * @param event - the click
+   */
+  function clickTile(index: number, event: TileEvent): void {
+    onTileClick(
+      index,
+      event,
+      event.detail === 0 ? lastFocused.current : focusedBeforePress.current,
+    );
   }
 
   /**
@@ -427,11 +453,13 @@ export function TimelineGrid({
 
   /**
    * Arrow keys, Page Up, Page Down, Home and End move focus between tiles; a page is as many tile
-   * rows as fit on screen whole.
+   * rows as fit on screen whole. With Shift (and `onTileExtend` given) the move also extends the
+   * selection, and Ctrl+Shift keeps what was selected besides. Ctrl alone is left to the page.
    * @param event - a key press inside the grid
    */
   function onGridKey(event: ReactKeyboardEvent<HTMLDivElement>): void {
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.altKey || event.metaKey) return;
+    if (event.shiftKey ? !onTileExtend : event.ctrlKey) return;
     const from = (event.target as HTMLElement).dataset.tile;
     if (from === undefined) return;
     const page = Math.floor(viewHeight / (tileSize + GAP));
@@ -439,6 +467,7 @@ export function TimelineGrid({
     if (to === null) return;
     event.preventDefault();
     focusTileAt(to);
+    if (event.shiftKey) onTileExtend?.(Number(from), to, event.ctrlKey);
   }
 
   /**
@@ -465,6 +494,7 @@ export function TimelineGrid({
       <div
         ref={scrollRef}
         onKeyDown={onGridKey}
+        onPointerDownCapture={() => (focusedBeforePress.current = lastFocused.current)}
         onFocus={onGridFocus}
         onBlur={onGridBlur}
         className={`min-w-0 flex-1 overflow-y-auto ${showRail ? "no-scrollbar" : ""}`}
@@ -490,7 +520,7 @@ export function TimelineGrid({
                   {row.type === "month" ? (
                     // The row has a fixed height (HEADER_HEIGHT), so nothing in it may wrap: a long
                     // month name is cut short instead of growing up over the photos above.
-                    <div className="flex h-full items-end gap-4 px-1 pb-1">
+                    <div className="group/month flex h-full items-end gap-4 px-1 pb-1">
                       <h2 className="flex min-w-0 items-baseline gap-2.5 pb-2.5">
                         <span className="truncate text-[16px] leading-none font-semibold">
                           {row.label}
@@ -516,7 +546,7 @@ export function TimelineGrid({
                           selected={selected.has(tile.id)}
                           faded={fadeUnselected && !selected.has(tile.id)}
                           showUncertain={showUncertain}
-                          onClick={(event) => onTileClick(row.start + offset, event)}
+                          onClick={(event) => clickTile(row.start + offset, event)}
                           onMenu={(event) => onTileMenu(row.start + offset, event)}
                           onZoom={onTileZoom && (() => onTileZoom(row.start + offset))}
                           onThumbError={onThumbError}
@@ -533,6 +563,44 @@ export function TimelineGrid({
       {width > 0 && <MonthPin months={months} scrollRef={scrollRef} inset={SIDE_PADDING} />}
       {showRail && <DateRail months={months} total={total} scrollRef={scrollRef} />}
     </div>
+  );
+}
+
+/**
+ * A month heading's button, for {@link TimelineGrid}'s `monthAction`, that selects the whole
+ * month, or deselects it when all of it is selected. Short on screen so it fits the fixed-height
+ * heading beside the name; the full wording is read out.
+ * @param props - Component props.
+ * @param props.month - the month row the button belongs to
+ * @param props.allPicked - every photo in the month is selected, so the button deselects
+ * @param props.onPick - called with true to select the month or false to deselect it
+ * @param props.onHover - show the button only while the heading is hovered, and leave it out of
+ *   the Tab order, for when nothing is being selected yet
+ * @returns the button
+ */
+export function MonthPickButton({
+  month,
+  allPicked,
+  onPick,
+  onHover = false,
+}: {
+  month: MonthRow;
+  allPicked: boolean;
+  onPick: (pick: boolean) => void;
+  onHover?: boolean;
+}): ReactElement {
+  return (
+    <Button
+      variant="ghost"
+      className={`ml-auto shrink-0 whitespace-nowrap ${
+        onHover ? "opacity-0 group-hover/month:opacity-100 focus-visible:opacity-100" : ""
+      }`}
+      tabIndex={onHover ? -1 : undefined}
+      aria-label={allPicked ? `Deselect all of ${month.label}` : `Select all of ${month.label}`}
+      onClick={() => onPick(!allPicked)}
+    >
+      {allPicked ? "Deselect month" : "Select month"}
+    </Button>
   );
 }
 

@@ -3,7 +3,13 @@ import type { Tile } from "../lib/api";
 import { count } from "../lib/format";
 import { setPicked } from "../lib/picker";
 import { Icon } from "./Icon";
-import { TimelineGrid, type MonthRow, type TileEvent, type TileJump } from "./TimelineGrid";
+import {
+  MonthPickButton,
+  TimelineGrid,
+  type MonthRow,
+  type TileEvent,
+  type TileJump,
+} from "./TimelineGrid";
 import { Button } from "./ui";
 import { Viewer, type ViewSource } from "./Viewer";
 
@@ -80,18 +86,12 @@ export function PhotoPicker({
    */
   function monthAction(month: MonthRow): ReactElement {
     const ids = tiles.slice(month.start, month.end).map((t) => t.id);
-    const allPicked = ids.every((id) => picked.has(id));
     return (
-      // Short on screen so it fits the fixed-height month heading beside the name; the full
-      // wording is read out.
-      <Button
-        variant="ghost"
-        className="ml-auto shrink-0 whitespace-nowrap"
-        aria-label={allPicked ? `Deselect all of ${month.label}` : `Select all of ${month.label}`}
-        onClick={() => onChange(setPicked(left, ids, !allPicked))}
-      >
-        {allPicked ? "Deselect month" : "Select month"}
-      </Button>
+      <MonthPickButton
+        month={month}
+        allPicked={ids.every((id) => picked.has(id))}
+        onPick={(pick) => onChange(setPicked(left, ids, pick))}
+      />
     );
   }
 
