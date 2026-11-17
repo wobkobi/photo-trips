@@ -285,11 +285,13 @@ export function LibraryPage({
   useEffect(() => {
     if (!selecting || !gridShown) return;
     /**
-     * Escape stops selecting and marks the key handled.
+     * Escape stops selecting and marks the key handled. A held Escape that closed a dialog or menu
+     * leaves the selection alone.
      * @param event - the window's keydown, caught before the page sees it
      */
     function onEscape(event: KeyboardEvent): void {
-      if (event.key !== "Escape" || event.defaultPrevented || isTextEntry(event.target)) return;
+      if (event.key !== "Escape" || event.repeat || event.defaultPrevented) return;
+      if (isTextEntry(event.target)) return;
       if (event.target instanceof Element && event.target.closest('[role="menu"]')) return;
       if (modalOnScreen()) return;
       event.preventDefault();
@@ -329,15 +331,20 @@ export function LibraryPage({
    * The commands for some photos, each run by this page.
    * @param target - the photos
    * @param withTrips - offer trip changes, which only a menu shows
+   * @param fail - shows a file action's failure (default the page error)
    * @returns the commands, in menu order
    */
-  function commandsFor(target: CommandTarget, withTrips: boolean): PhotoCommand[] {
+  function commandsFor(
+    target: CommandTarget,
+    withTrips: boolean,
+    fail: (err: unknown) => void = showError,
+  ): PhotoCommand[] {
     return photoCommands(target, withTrips ? { trips, tiles: allTiles ?? [] } : null, {
       view: viewPhoto,
-      open: fileAction.bind(null, api.openMedia),
-      reveal: fileAction.bind(null, api.revealMedia),
-      copy: fileAction.bind(null, api.copyMedia),
-      copyPath,
+      open: fileAction.bind(null, api.openMedia, fail),
+      reveal: fileAction.bind(null, api.revealMedia, fail),
+      copy: fileAction.bind(null, api.copyMedia, fail),
+      copyPath: copyPath.bind(null, fail),
       setDate: setDating,
       fileDate: fileDates,
       tripEdit: startEdit,
@@ -349,13 +356,14 @@ export function LibraryPage({
 
   /**
    * The viewer's right-click menu: the photo on show's tile menu, less View, since it's already
-   * in view.
+   * in view. File actions fail over the viewer, where the page error would be hidden.
+   * @param fail - shows a failure over the viewer
    * @returns the menu entries, or none when no photo is open
    */
-  function viewerMenu(): MenuItem[] {
+  function viewerMenu(fail: (err: unknown) => void): MenuItem[] {
     if (!tiles || open === null) return [];
     const tile = tiles[open];
-    const commands = commandsFor({ photo: tile, photos: [tile], selection: false }, true);
+    const commands = commandsFor({ photo: tile, photos: [tile], selection: false }, true, fail);
     return menuItems(commands.filter((c) => c.id !== "view"));
   }
 
@@ -437,15 +445,19 @@ export function LibraryPage({
   /**
    * Send the photos waiting for confirmation to the Recycle Bin; the job's end shows the result.
    * They leave the grid at once, and an open viewer moves on to the next photo, closing only when
-   * none is left. If the job can't start they come back.
+   * none is left. If the job can't start they come back. They leave the selection too, which
+   * ends only when nothing is left in it, so binning one photo from the viewer keeps the rest.
    */
   function confirmBin(): void {
     if (binning === null) return;
     const binIds = binning.map((t) => t.id);
     setBinning(null);
     setBinResult(null);
-    clearSelection();
-    const next = afterRemoval(ids, new Set(binIds), openId);
+    const gone = new Set(binIds);
+    const kept = [...selected].filter((id) => !gone.has(id));
+    if (selected.size > 0 && kept.length === 0) clearSelection();
+    else if (kept.length !== selected.size) setSelected(new Set(kept));
+    const next = afterRemoval(ids, gone, openId);
     if (next !== openId) {
       setOpenId(next);
       if (next !== null) setBinnedOpen((n) => n + 1);
@@ -505,23 +517,37 @@ export function LibraryPage({
   }
 
   /**
-   * Open, reveal or copy a file, showing any failure as the page error.
+   * Show a failure as the page error.
+   * @param err - the failure
+   */
+  function showError(err: unknown): void {
+    setError(errorText(err));
+  }
+
+  /**
+   * Open, reveal or copy a file.
    * @param action - {@link api.openMedia}, {@link api.revealMedia} or {@link api.copyMedia}
+   * @param fail - shows the failure
    * @param photo - the file's photo
    */
-  function fileAction(action: (id: number) => Promise<void>, photo: Tile): void {
-    action(photo.id).catch((err) => setError(errorText(err)));
+  function fileAction(
+    action: (id: number) => Promise<void>,
+    fail: (err: unknown) => void,
+    photo: Tile,
+  ): void {
+    action(photo.id).catch(fail);
   }
 
   /**
    * Put a file's full path on the clipboard.
+   * @param fail - shows the failure
    * @param photo - the file's photo
    */
-  function copyPath(photo: Tile): void {
+  function copyPath(fail: (err: unknown) => void, photo: Tile): void {
     api
       .mediaDetail(photo.id)
       .then((detail) => navigator.clipboard.writeText(detail.path))
-      .catch((err) => setError(errorText(err)));
+      .catch(fail);
   }
 
   /**

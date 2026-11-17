@@ -9,6 +9,7 @@ import {
 } from "react";
 import { api, errorText, type IndexSummary, type Tile, type TripInfo } from "./api";
 import type { GridPlace } from "./format";
+import { NONE, withIds, withoutIds } from "./hiddenIds";
 import { NO_FILTER, type LibraryFilter } from "./libraryFilter";
 import { useJobDone } from "./useJobs";
 import { LibraryContext } from "./useLibrary";
@@ -20,16 +21,14 @@ import { useSettings } from "./useSettings";
  */
 const RELOAD_ON = ["apply", "undo", "import", "inbox"];
 
-/** No photos hidden. */
-const NONE: ReadonlySet<number> = new Set();
-
 /**
  * Loads the library's photos and trips and keeps the Library page's filter, selection and open
  * photo, so leaving the page and coming back finds everything as it was. Reloads when a job
  * that changes the library ends, whichever page is showing. Photos on their way to the Recycle
  * Bin are hidden from the moment the job starts until the first load after it ends lands, which
- * drops them or, when the job failed, brings them back. Must be under JobsProvider and
- * SettingsProvider.
+ * drops them or, when the job failed, brings them back. Only the photos hidden by the time that
+ * job ended come back, so a second job started before that load lands keeps its own hidden.
+ * Must be under JobsProvider and SettingsProvider.
  * @param props - Component props.
  * @param props.children - app content
  * @returns the provider element
@@ -51,8 +50,13 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
   const place = useRef<GridPlace | null>(null);
   // Loads can overlap (a job ends while the last one is still reading); only the newest lands.
   const loadSeq = useRef(0);
-  // Set when the bin job ends, so the next load to land shows the photos as they now are.
-  const unhideOnLoad = useRef(false);
+  // The photos hidden when a bin job ended, for the next load to land to show as they now are.
+  const unhideOnLoad = useRef<ReadonlySet<number>>(NONE);
+  // The hidden set as last drawn, read when a bin job ends.
+  const hiddenNow = useRef(hidden);
+  useEffect(() => {
+    hiddenNow.current = hidden;
+  });
 
   const reload = useCallback((): Promise<void> => {
     loadSeq.current += 1;
@@ -63,9 +67,10 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
         setLoaded(loadedTiles);
         setTrips(loadedTrips);
         setError(null);
-        if (unhideOnLoad.current) {
-          unhideOnLoad.current = false;
-          setHidden(NONE);
+        const ended = unhideOnLoad.current;
+        if (ended.size > 0) {
+          unhideOnLoad.current = NONE;
+          setHidden((prev) => withoutIds(prev, ended));
         }
       },
       (err) => {
@@ -80,14 +85,10 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
   );
 
   const hide = useCallback((ids: number[]) => {
-    setHidden((prev) => new Set([...prev, ...ids]));
+    setHidden((prev) => withIds(prev, ids));
   }, []);
   const unhide = useCallback((ids: number[]) => {
-    setHidden((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) next.delete(id);
-      return next.size === 0 ? NONE : next;
-    });
+    setHidden((prev) => withoutIds(prev, ids));
   }, []);
 
   const clearSelection = useCallback(() => {
@@ -124,6 +125,7 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
   }
   useEffect(() => {
     place.current = null;
+    unhideOnLoad.current = NONE;
     if (root) void reload();
   }, [root, reload]);
 
@@ -136,7 +138,7 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
   // back from a read made after the job.
   useJobDone("remove", () => {
     void reload();
-    unhideOnLoad.current = true;
+    unhideOnLoad.current = withIds(unhideOnLoad.current, hiddenNow.current);
   });
 
   // One object per change, so pages that read the store redraw only when it changes, not on

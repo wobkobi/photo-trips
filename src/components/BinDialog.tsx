@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useId, useState, type ReactElement } from "react";
 import { api, type Tile } from "../lib/api";
 import { binQuestion } from "../lib/binText";
 import { Button, Dialog, DIALOG_BUTTONS } from "./ui";
@@ -6,7 +6,8 @@ import { Button, Dialog, DIALOG_BUTTONS } from "./ui";
 /**
  * The question asked before photos go to the Recycle Bin, from the grid or the viewer. A single
  * photo with linked files names them once read, so a Live Photo video or RAW twin never goes
- * unseen. The Send button starts focused, so Enter answers yes, as in Windows' own question.
+ * unseen. The Send button starts focused, so Enter answers yes, as in Windows' own question;
+ * while a job runs it waits, and takes focus once the job ends.
  * @param props - Component props.
  * @param props.tiles - the photos and videos about to go
  * @param props.busy - a job is running, so Send waits
@@ -26,6 +27,7 @@ export function BinDialog({
   onCancel: () => void;
 }): ReactElement {
   const one = tiles.length === 1 && tiles[0].extra > 0 ? tiles[0].id : null;
+  const questionId = useId();
   const [partners, setPartners] = useState<{ id: number; names: string[] } | null>(null);
   useEffect(() => {
     if (one === null) return;
@@ -45,8 +47,8 @@ export function BinDialog({
   }, [one]);
 
   return (
-    <Dialog title="Recycle Bin" onCancel={onCancel}>
-      <p className="mt-2 text-muted">
+    <Dialog title="Recycle Bin" describedBy={questionId} onCancel={onCancel}>
+      <p id={questionId} className="mt-2 text-muted">
         {binQuestion(tiles, partners?.id === one ? partners.names : null)} You can undo this from
         History.
       </p>

@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.47.1] - 2026-11-18
+
+### Fixed
+
+- Fixed: Enter no longer cancels the Recycle Bin question while another job runs, and a held Enter
+  answers it once; photos sent to the Recycle Bin no longer flash back when two go in quick
+  succession; keys no longer zoom or turn the photo behind the viewer's menu; Ctrl+C copies the open
+  photo; a zoomed photo refits after turning it or hiding the details; quitting in fullscreen keeps
+  the window's own size
+
 ## [0.47.0] - 2026-11-18
 
 ### Added

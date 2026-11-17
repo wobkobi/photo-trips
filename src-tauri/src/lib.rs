@@ -159,15 +159,11 @@ pub fn run() {
                     .ok()
                     .and_then(|conn| db::get_bool(&conn, "close_to_tray", true).ok())
                     .unwrap_or(true);
+                // Leave fullscreen first, so the saved place is the window's own and, from the
+                // tray, it comes back with its menu bar.
+                commands::leave_fullscreen(window);
                 if to_tray {
                     api.prevent_close();
-                    // Leave fullscreen first, so the saved place is the window's own and it comes
-                    // back from the tray with its menu bar.
-                    if window.is_fullscreen().unwrap_or(false)
-                        && let Err(err) = commands::fullscreen(window, false)
-                    {
-                        log::warn!("Couldn't leave fullscreen: {err}");
-                    }
                     // The plugin writes its file only when the app exits, and an app living in
                     // the tray may never exit cleanly, so save the window's place as it hides.
                     if let Err(err) = window.app_handle().save_window_state(WINDOW_STATE) {
