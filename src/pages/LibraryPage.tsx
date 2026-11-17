@@ -658,6 +658,7 @@ export function LibraryPage({
       {!reviewing && settings?.codec_hint_dismissed !== "true" && (
         <CodecHint
           failed={failedThumbs}
+          shown={allTiles ?? []}
           onDismiss={() => save("codec_hint_dismissed", "true")}
           onChange={() => setThumbRetry((n) => n + 1)}
         />

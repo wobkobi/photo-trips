@@ -40,6 +40,7 @@ function tile(id: number, takenAt: string, trip: TripInfo | null = null): Tile {
     extra: 0,
     version: 1,
     trip: trip && { id: trip.id, name: trip.name, colour: trip.colour },
+    empty: false,
   };
 }
 

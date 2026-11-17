@@ -1,7 +1,8 @@
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
+import { CodecHint } from "../components/CodecHint";
 import { Icon } from "../components/Icon";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
 import {
@@ -375,8 +376,17 @@ function IncomingView({
   left: ReadonlySet<number>;
   onLeftChange: (left: ReadonlySet<number>) => void;
 }): ReactElement {
-  const { settings } = useSettings();
+  const { settings, save } = useSettings();
   const tiles = useMemo(() => importTiles(preview.items), [preview.items]);
+  // HEIC is usually first met here, coming off a phone, so the extension hint shows here too.
+  const [failedThumbs, setFailedThumbs] = useState<Tile[]>([]);
+  const onThumbError = useCallback(
+    (tile: Tile) =>
+      setFailedThumbs((prev) =>
+        prev.length >= 50 || prev.some((t) => t.id === tile.id) ? prev : [...prev, tile],
+      ),
+    [],
+  );
   const order = useMemo(() => tiles.map((t) => t.id), [tiles]);
   const source = useImportSource(preview, order);
   const folders = useMemo(() => pickedFolders(preview.items, left), [preview.items, left]);
@@ -468,6 +478,13 @@ function IncomingView({
           </>
         }
       />
+      {settings?.codec_hint_dismissed !== "true" && (
+        <CodecHint
+          failed={failedThumbs}
+          shown={tiles}
+          onDismiss={() => save("codec_hint_dismissed", "true")}
+        />
+      )}
       <PickBar
         ticked={totals.items}
         total={preview.items.length}
@@ -487,6 +504,7 @@ function IncomingView({
           source={source}
           tickLabel="Bring this one in"
           jump={jump}
+          onThumbError={onThumbError}
         />
       </div>
     </div>

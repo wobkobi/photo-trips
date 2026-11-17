@@ -21,6 +21,7 @@ import { Viewer, type ViewSource } from "./Viewer";
  * @param props.source - the viewer's files, in the same order as `tiles`
  * @param props.tickLabel - what ticking means, for the viewer's tick, e.g. "Bring this one in"
  * @param props.jump - scroll to this tile and focus it
+ * @param props.onThumbError - called when Windows has no thumbnail for a tile
  * @returns the scrolling grid
  */
 export function PhotoPicker({
@@ -32,6 +33,7 @@ export function PhotoPicker({
   source,
   tickLabel,
   jump,
+  onThumbError,
 }: {
   tiles: Tile[];
   left: ReadonlySet<number>;
@@ -41,6 +43,7 @@ export function PhotoPicker({
   source: ViewSource;
   tickLabel: string;
   jump?: TileJump | null;
+  onThumbError?: (tile: Tile) => void;
 }): ReactElement {
   const [anchor, setAnchor] = useState<number | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
@@ -103,7 +106,7 @@ export function PhotoPicker({
         onTileClick={onTileClick}
         onTileMenu={(_, event) => event.preventDefault()}
         onTileZoom={setViewing}
-        onThumbError={() => undefined}
+        onThumbError={onThumbError ?? (() => undefined)}
         thumbOf={thumbOf}
         monthAction={monthAction}
         jump={jump}

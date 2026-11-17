@@ -37,6 +37,8 @@ pub struct Tile {
     pub version: i64,
     /// Trip the photo was taken during, if any.
     pub trip: Option<TileTrip>,
+    /// The leader is 0 bytes, so it has no picture whatever codecs are installed.
+    pub empty: bool,
 }
 
 /// Enough of a trip to draw its band on a tile.
@@ -117,6 +119,7 @@ pub fn tile(group: &Group, trips: &[Trip]) -> Tile {
             name: t.name.clone(),
             colour: trips::colour(t.id),
         }),
+        empty: leader.size == 0,
     }
 }
 
