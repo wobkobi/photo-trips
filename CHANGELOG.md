@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.3] - 2026-11-18
+
+### Fixed
+
+- Files ending in .ts, .mts or .m2ts only count as videos when they really are video streams, so
+  code files in a folder inside the library or an inbox are no longer moved by Sort. node_modules
+  folders are skipped.
+
 ## [0.25.2] - 2026-11-18
 
 ### Fixed
