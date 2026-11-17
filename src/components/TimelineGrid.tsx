@@ -11,7 +11,15 @@ import {
   type ReactNode,
 } from "react";
 import { thumbUrl, type Tile } from "../lib/api";
-import { count, jumpRow, stepTile, tileRow, timelineRows, type TimelineRow } from "../lib/format";
+import {
+  count,
+  formatTaken,
+  jumpRow,
+  stepTile,
+  tileRow,
+  timelineRows,
+  type TimelineRow,
+} from "../lib/format";
 import { tripBg } from "../lib/trips";
 import { DateRail, type RailMonth } from "./DateRail";
 import { Icon } from "./Icon";
@@ -333,8 +341,10 @@ function TileButton({
 }): ReactElement {
   const [failed, setFailed] = useState(false);
   const kind = tile.kind === "video" ? "Video" : "Photo";
+  const taken = formatTaken(tile.takenAt);
   const trip = tile.trip ? `, ${tile.trip.name} trip` : "";
-  const label = `${kind} taken ${tile.takenAt.replace("T", " ")}${trip}`;
+  const label = `${tile.name}, ${kind.toLowerCase()} taken ${taken}${trip}`;
+  const tip = [tile.name, taken, tile.trip && `${tile.trip.name} trip`].filter(Boolean).join("\n");
 
   // The magnifier sits beside the tile's button rather than in it, since a button can't hold
   // another button.
@@ -346,6 +356,7 @@ function TileButton({
         onContextMenu={onMenu}
         data-tile={index}
         aria-label={label}
+        title={tip}
         aria-pressed={selecting ? selected : undefined}
         className="relative h-full w-full overflow-hidden rounded-xs bg-raised focus-visible:outline-offset-0"
       >
@@ -415,7 +426,7 @@ function TileButton({
         <button
           type="button"
           onClick={onZoom}
-          aria-label={`Look at ${kind.toLowerCase()} taken ${tile.takenAt.replace("T", " ")}`}
+          aria-label={`Look at ${tile.name}`}
           title="Look at this one bigger"
           className="on-dark absolute top-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-ground/70 text-ink opacity-0 group-hover:opacity-100 hover:bg-ground focus-visible:bg-ground focus-visible:opacity-100"
         >
