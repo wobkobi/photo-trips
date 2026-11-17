@@ -30,6 +30,7 @@ import {
   type FilterTrip,
   type LibraryFilter,
 } from "../lib/libraryFilter";
+import { isTextEntry, modalOnScreen } from "../lib/menu";
 import {
   addEdit,
   editDone,
@@ -201,7 +202,10 @@ export function LibraryPage({
   }, [anyThumbFailed, thumbRetry]);
   // Closing the viewer brings the last photo it showed into view in the grid and focuses it,
   // since stepping through photos may have gone well past the one it opened on.
+  // The grid reports each jump done, and it's dropped then, so a grid mounted again later (after a
+  // trip review) goes back to its kept place instead of replaying it.
   const [jump, setJump] = useState<TileJump | null>(null);
+  const jumpDone = useCallback(() => setJump(null), []);
   // A new filter shows a different list, so the grid goes back to its top. Focus stays put, so
   // typing in the name box (a new filter each key) carries on. From the prop, so a trip opened
   // from elsewhere does the same.
@@ -272,8 +276,8 @@ export function LibraryPage({
   const reviewOpen = tripReview.review !== null;
   const gridShown = open === null && !reviewOpen;
   // Capture phase, so Escape deselects before the header's back arrow sees it: inside a trip the
-  // first Escape clears the selection and the second leaves the trip. A menu, the viewer or a
-  // modal on screen keeps its own Escape.
+  // first Escape clears the selection and the second leaves the trip. A text box (the name search
+  // clears itself), a menu, the viewer or a modal on screen keeps its own Escape.
   useEffect(() => {
     if (!selecting || !gridShown) return;
     /**
@@ -281,9 +285,9 @@ export function LibraryPage({
      * @param event - the window's keydown, caught before the page sees it
      */
     function onEscape(event: KeyboardEvent): void {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.key !== "Escape" || event.defaultPrevented || isTextEntry(event.target)) return;
       if (event.target instanceof Element && event.target.closest('[role="menu"]')) return;
-      if (document.querySelector('dialog[open], [aria-modal="true"]')) return;
+      if (modalOnScreen()) return;
       event.preventDefault();
       clearSelection();
     }
@@ -776,6 +780,7 @@ export function LibraryPage({
           thumbRetry={thumbRetry}
           showUncertain={filter.uncertain}
           jump={jump}
+          onJumpDone={jumpDone}
           place={place}
         />
       )}

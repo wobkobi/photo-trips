@@ -29,7 +29,14 @@ import {
   type HistoryStep,
   type MenuRequest,
 } from "./lib/menu";
-import { pushEntry, startHistory, stepBack, stepForward, type NavEntry } from "./lib/navHistory";
+import {
+  backReturnsTo,
+  pushEntry,
+  startHistory,
+  stepBack,
+  stepForward,
+  type NavEntry,
+} from "./lib/navHistory";
 import { PageMemoryProvider } from "./lib/pageMemory";
 import { SettingsProvider } from "./lib/settings";
 import type { TripStart } from "./lib/trips";
@@ -60,6 +67,17 @@ export type PageId =
   | "history"
   | "settings"
   | "help";
+
+/**
+ * A place for the history. With a trip on show it carries where the trip's Back returns to.
+ * @param page - the page
+ * @param filter - the Library's filter
+ * @param from - the page the trip on show was opened from
+ * @returns the entry
+ */
+function placeOf(page: PageId, filter: LibraryFilter, from: PageId): NavEntry<PageId> {
+  return tripOf(filter) === null ? { page, filter } : { page, filter, from };
+}
 
 /**
  * Root component: settings, job, library and page memory providers around the shell.
@@ -127,63 +145,84 @@ function Shell(): ReactElement | null {
   // screen shows it. Every way of going somewhere records the place it opens, and a filter changed
   // on the page since is saved over the current entry, so back finds the page as it was left.
   const visits = useRef(startHistory<PageId>({ page: "library", filter: NO_FILTER }));
+  // Another library folder is another set of places: what was visited, a trip's way back and any
+  // trip waiting for the Trips page belong to the old one.
+  const root = settings?.library_root || null;
+  const [shownRoot, setShownRoot] = useState(root);
+  if (shownRoot !== root) {
+    setShownRoot(root);
+    setTripFrom("library");
+    setTripEdit(null);
+    setTripDraft(null);
+  }
+  useEffect(() => {
+    visits.current = startHistory<PageId>({ page: "library", filter: NO_FILTER });
+  }, [root]);
   const remember = useCallback(
     (next: NavEntry<PageId>) => {
-      visits.current = pushEntry(visits.current, { page, filter }, next);
+      visits.current = pushEntry(visits.current, placeOf(page, filter, tripFrom), next);
     },
-    [page, filter],
+    [page, filter, tripFrom],
   );
   const showTrip = useCallback(
     (trip: FilterTrip) => {
       // The viewer's link to the trip already on show keeps where Back goes.
-      if (page !== "library" || tripOf(filter)?.id !== trip.id) setTripFrom(page);
+      const from = page !== "library" || tripOf(filter)?.id !== trip.id ? page : tripFrom;
       const next: LibraryFilter = { ...NO_FILTER, trip };
-      remember({ page: "library", filter: next });
+      remember(placeOf("library", next, from));
+      setTripFrom(from);
       setFilter(next);
       setPage("library");
     },
-    [page, filter, setFilter, remember],
+    [page, filter, tripFrom, setFilter, remember],
   );
-  // Leaving takes the trip out of the filter wherever Back goes, so the Library next opens on
-  // everything rather than on the trip just left.
-  const leaveTrip = useCallback(() => {
-    const next: LibraryFilter = { ...filter, trip: "any" };
-    remember({ page: tripFrom, filter: next });
-    setFilter(next);
-    setPage(tripFrom);
-  }, [filter, setFilter, tripFrom, remember]);
-  // Opening the Library by name (sidebar, Ctrl+1, the tray, Import's link) means the whole
-  // library, so any trip the filter still holds is left. Only showTrip opens a trip.
-  const openPage = useCallback(
-    (next: PageId) => {
-      const leaving = next === "library" && tripOf(filter) !== null;
-      const nextFilter: LibraryFilter = leaving ? { ...filter, trip: "any" } : filter;
-      remember({ page: next, filter: nextFilter });
-      if (leaving) setFilter(nextFilter);
-      setPage(next);
-    },
-    [filter, setFilter, remember],
-  );
-  // A page opened as it is, keeping the Library's filter and any trip in it.
-  const goTo = useCallback(
-    (next: PageId) => {
-      remember({ page: next, filter });
-      setPage(next);
-    },
-    [filter, remember],
-  );
-  // Back and forward put back the page and the filter. The filter is set only when it differs,
-  // since setting it clears the selection, the open photo and the grid's place.
+  // Back and forward put back the page, the filter and, for a trip, where its Back returns to.
+  // The filter is set only when it differs, since setting it clears the selection, the open photo
+  // and the grid's place.
   const step = useCallback(
     (direction: HistoryStep) => {
-      const here = { page, filter };
+      const here = placeOf(page, filter, tripFrom);
       visits.current =
         direction === "back" ? stepBack(visits.current, here) : stepForward(visits.current, here);
       const to = visits.current.entries[visits.current.at];
       if (!sameFilter(to.filter, filter)) setFilter(to.filter);
+      if (to.from) setTripFrom(to.from);
       setPage(to.page);
     },
-    [page, filter, setFilter],
+    [page, filter, tripFrom, setFilter],
+  );
+  // Leaving a trip goes back when the place before it is the page it was opened from, so that
+  // page comes back with its own filter, and Forward returns to the trip. Otherwise it opens that
+  // page anew, with the trip, and anything else it had narrowed, left behind.
+  const leaveTrip = useCallback(() => {
+    if (backReturnsTo(visits.current, tripFrom)) {
+      step("back");
+      return;
+    }
+    remember({ page: tripFrom, filter: NO_FILTER });
+    setFilter(NO_FILTER);
+    setPage(tripFrom);
+  }, [setFilter, tripFrom, remember, step]);
+  // Opening the Library by name (sidebar, Ctrl+1, the tray, Import's link) means the whole
+  // library: inside a trip that's everything, with nothing else narrowed either. Only showTrip
+  // opens a trip.
+  const openPage = useCallback(
+    (next: PageId) => {
+      const leaving = next === "library" && tripOf(filter) !== null;
+      const nextFilter = leaving ? NO_FILTER : filter;
+      remember(placeOf(next, nextFilter, tripFrom));
+      if (leaving) setFilter(nextFilter);
+      setPage(next);
+    },
+    [filter, tripFrom, setFilter, remember],
+  );
+  // A page opened as it is, keeping the Library's filter and any trip in it.
+  const goTo = useCallback(
+    (next: PageId) => {
+      remember(placeOf(next, filter, tripFrom));
+      setPage(next);
+    },
+    [filter, tripFrom, remember],
   );
   // The listeners are added once, so they call the latest step through a ref.
   const stepRef = useRef(step);

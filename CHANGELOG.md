@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.37.1] - 2026-11-18
+
+### Fixed
+
+- Back from a trip returns to the page it was opened from, Esc and Alt+Left no longer drop an
+  unsaved trip or import, and focus lands on the page title after Back
+
 ## [0.37.0] - 2026-11-18
 
 ### Added

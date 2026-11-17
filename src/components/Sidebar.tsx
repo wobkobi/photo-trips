@@ -138,7 +138,8 @@ export function Sidebar({
         <li className="shrink-0">
           <PageRow
             item={LIBRARY}
-            current={page === "library" && shownId === null}
+            // The narrow menu has no trip rows, so inside a trip the Library is what's current.
+            current={page === "library" && (shownId === null || iconsOnly)}
             iconsOnly={iconsOnly}
             highlight={highlight}
             onPage={onPage}

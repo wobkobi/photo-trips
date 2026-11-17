@@ -1,12 +1,17 @@
 // Back and forward through the places visited, the way a browser keeps its history. A place is a
 // page and the Library's filter, which also holds the trip on show.
 
-import { sameFilter, type LibraryFilter } from "./libraryFilter";
+import { sameFilter, tripOf, type LibraryFilter } from "./libraryFilter";
 
 /** One place visited. */
 export interface NavEntry<P extends string = string> {
   page: P;
   filter: LibraryFilter;
+  /**
+   * With a trip on show, the page the trip's own Back returns to, so stepping back into the trip
+   * puts that back too. Not part of what makes two places the same.
+   */
+  from?: P;
 }
 
 /** The places visited, oldest first, and which one is current. */
@@ -53,6 +58,19 @@ export function canBack<P extends string>(history: NavHistory<P>): boolean {
  */
 export function canForward<P extends string>(history: NavHistory<P>): boolean {
   return history.at < history.entries.length - 1;
+}
+
+/**
+ * Whether stepping back would land on a page with no trip on show, so leaving a trip opened from
+ * that page can step back to it rather than add a new place.
+ * @param history - the history
+ * @param page - the page the trip was opened from
+ * @returns true when the previous entry is that page, holding no trip
+ */
+export function backReturnsTo<P extends string>(history: NavHistory<P>, page: P): boolean {
+  if (!canBack(history)) return false;
+  const previous = history.entries[history.at - 1];
+  return previous.page === page && tripOf(previous.filter) === null;
 }
 
 /**

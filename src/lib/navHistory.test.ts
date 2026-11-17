@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NO_FILTER } from "./libraryFilter";
 import {
+  backReturnsTo,
   canBack,
   canForward,
   HISTORY_LIMIT,
@@ -99,6 +100,38 @@ describe("navHistory", () => {
     history = pushEntry(history, narrowed, place("trips"));
     history = stepBack(history, current(history));
     expect(current(history)).toEqual(narrowed);
+  });
+
+  it("keeps where a trip's Back returns to through back and forward", () => {
+    const inTrip: NavEntry = { ...place("library", { trip: { id: 1, name: "A" } }), from: "trips" };
+    let history = pushEntry(visit("trips"), place("trips"), inTrip);
+    history = stepBack(history, inTrip);
+    history = stepForward(history, current(history));
+    expect(current(history).from).toBe("trips");
+  });
+
+  it("counts places differing only in where a trip's Back goes as the same", () => {
+    const trip = { trip: { id: 1, name: "A" } };
+    let history = pushEntry(startHistory(place("trips")), place("trips"), {
+      ...place("library", trip),
+      from: "trips",
+    });
+    history = pushEntry(history, current(history), { ...place("library", trip), from: "help" });
+    expect(history.entries).toHaveLength(2);
+  });
+
+  it("goes back from a trip only to the page it was opened from, with no trip on show", () => {
+    const trip = place("library", { trip: { id: 1, name: "A" } });
+    const fromTrips = pushEntry(visit("trips"), place("trips"), trip);
+    expect(backReturnsTo(fromTrips, "trips")).toBe(true);
+    expect(backReturnsTo(fromTrips, "library")).toBe(false);
+    const fromTrip = pushEntry(
+      startHistory(place("library", { trip: { id: 2, name: "B" } })),
+      place("library", { trip: { id: 2, name: "B" } }),
+      trip,
+    );
+    expect(backReturnsTo(fromTrip, "library")).toBe(false);
+    expect(backReturnsTo(startHistory(trip), "library")).toBe(false);
   });
 
   it("keeps only the newest places", () => {

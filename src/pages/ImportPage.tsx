@@ -134,6 +134,8 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
       <PageHeader
         title={checked ? `Import from ${preview.source}` : "Import"}
         onBack={checked ? otherSources : undefined}
+        // Stepping back drops the checked preview and its unticked photos, so only the arrow does.
+        backKeys={false}
         detail={ready ? undefined : "From a memory card, a phone or a folder"}
         actions={
           ready && (

@@ -57,6 +57,11 @@ interface Editor {
    * days can start unticked.
    */
   picked: ReadonlySet<number> | null;
+  /**
+   * The name, dates or ticks have been changed by hand since the editor opened, so stepping back
+   * would lose work. Ticks set from the Library's picks don't count.
+   */
+  changed: boolean;
 }
 
 /**
@@ -70,6 +75,7 @@ function newEditor(start: TripStart | null): Editor {
     form: start?.form ?? EMPTY_FORM,
     left: NONE_LEFT,
     picked: start?.picked ? new Set(start.picked) : null,
+    changed: false,
   };
 }
 
@@ -79,7 +85,13 @@ function newEditor(start: TripStart | null): Editor {
  * @returns the editor state
  */
 function editorOf(trip: TripInfo): Editor {
-  return { trip, form: formFromTrip(trip), left: new Set(trip.excluded), picked: null };
+  return {
+    trip,
+    form: formFromTrip(trip),
+    left: new Set(trip.excluded),
+    picked: null,
+    changed: false,
+  };
 }
 
 /** A trip change previewed and waiting for the user to confirm it. */
@@ -277,6 +289,8 @@ export function TripsPage({
           listing && trips !== null && trips.length > 0 ? trips.length.toLocaleString() : undefined
         }
         onBack={onBack}
+        // A changed form steps back by its arrow only, so a stray Esc can't lose the work.
+        backKeys={!(editing && editor.changed)}
         actions={
           listing ? (
             <Button
@@ -516,13 +530,13 @@ function TripEditor({
   const set =
     (field: keyof TripForm) =>
     (value: string): void =>
-      onChange({ ...editor, form: { ...form, [field]: value } });
+      onChange({ ...editor, form: { ...form, [field]: value }, changed: true });
   /**
    * Store new unticked photos; a manual change ends the Library picks' hold on the ticks.
    * @param next - ids of the photos unticked
    */
   const setLeft = (next: ReadonlySet<number>): void => {
-    onChange({ ...editor, left: next, picked: null });
+    onChange({ ...editor, left: next, picked: null, changed: true });
   };
 
   // Photos picked in the Library become the ticked ones once their days have loaded. Later date

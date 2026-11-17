@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { api, errorText, type IndexSummary, type Tile, type TripInfo } from "./api";
 import type { GridPlace } from "./format";
 import { NO_FILTER, type LibraryFilter } from "./libraryFilter";
@@ -75,6 +83,7 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
     setTiles(null);
     setTrips([]);
     setSummary(null);
+    setError(null);
     setFilterState(NO_FILTER);
     setSelected(new Set());
     setPicking(false);
@@ -92,29 +101,44 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
   });
   useJobDone(RELOAD_ON, () => void reload());
 
-  return (
-    <LibraryContext.Provider
-      value={{
-        tiles,
-        trips,
-        summary,
-        error,
-        filter,
-        setFilter,
-        selected,
-        setSelected,
-        picking,
-        setPicking,
-        anchorId,
-        setAnchorId,
-        openId,
-        setOpenId,
-        place,
-        clearSelection,
-        reload,
-      }}
-    >
-      {children}
-    </LibraryContext.Provider>
+  // One object per change, so pages that read the store redraw only when it changes, not on
+  // every render of the provider.
+  const value = useMemo(
+    () => ({
+      tiles,
+      trips,
+      summary,
+      error,
+      filter,
+      setFilter,
+      selected,
+      setSelected,
+      picking,
+      setPicking,
+      anchorId,
+      setAnchorId,
+      openId,
+      setOpenId,
+      place,
+      clearSelection,
+      reload,
+    }),
+    // State setters and the place ref never change, so they aren't listed.
+    [
+      tiles,
+      trips,
+      summary,
+      error,
+      filter,
+      setFilter,
+      selected,
+      picking,
+      anchorId,
+      openId,
+      clearSelection,
+      reload,
+    ],
   );
+
+  return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;
 }
