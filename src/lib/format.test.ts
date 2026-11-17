@@ -7,10 +7,12 @@ import {
   folderName,
   formatBytes,
   formatTaken,
+  gridPlace,
   jumpRow,
   libraryFolder,
   monthLabel,
   parseTaken,
+  placeRow,
   splitPath,
   stepTile,
   tileRow,
@@ -98,6 +100,31 @@ describe("timelineRows", () => {
     expect(tileRow(rows, 2)).toBe(3);
     expect(tileRow(rows, 3)).toBe(4);
     expect(tileRow(rows, 9)).toBe(-1);
+  });
+
+  it("finds the same place again at another column count", () => {
+    const tiles = [
+      tile(1, "2024-08-02T10:00:00"),
+      tile(2, "2024-07-30T10:00:00"),
+      tile(3, "2024-07-20T10:00:00"),
+      tile(4, "2024-07-10T10:00:00"),
+      tile(5, "2024-07-01T10:00:00"),
+    ];
+    // Two across: August heading, 0-1, July heading, 1-3, 3-5
+    const two = timelineRows(tiles, 2);
+    // Scrolled to the July heading: it comes back with the heading at the top.
+    const heading = gridPlace(two, tiles, 2);
+    expect(heading).toEqual({ id: 2, heading: true });
+    // Scrolled to July's second row: that row's first photo stays at the top.
+    const row = gridPlace(two, tiles, 4);
+    expect(row).toEqual({ id: 4, heading: false });
+    // Three across: August heading, 0-1, July heading, 1-4, 4-5
+    const three = timelineRows(tiles, 3);
+    expect(placeRow(three, tiles, heading!)).toBe(2);
+    expect(placeRow(three, tiles, row!)).toBe(3);
+    // A photo no longer shown has no place.
+    expect(placeRow(three, tiles.slice(0, 2), row!)).toBe(-1);
+    expect(gridPlace(two, tiles, 9)).toBeNull();
   });
 
   it("moves focus through the grid by arrow key, keeping the column across a month break", () => {

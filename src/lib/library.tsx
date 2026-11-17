@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { api, errorText, type IndexSummary, type Tile, type TripInfo } from "./api";
+import type { GridPlace } from "./format";
 import { NO_FILTER, type LibraryFilter } from "./libraryFilter";
 import { useJobDone } from "./useJobs";
 import { LibraryContext } from "./useLibrary";
@@ -29,6 +30,8 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
   const [picking, setPicking] = useState(false);
   const [anchorId, setAnchorId] = useState<number | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
+  // A ref, not state: it changes on every scroll and nothing redraws for it.
+  const place = useRef<GridPlace | null>(null);
   // Loads can overlap (a job ends while the last one is still reading); only the newest lands.
   const loadSeq = useRef(0);
 
@@ -58,6 +61,8 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
     (next: LibraryFilter) => {
       clearSelection();
       setOpenId(null);
+      // Another set of photos starts at its top.
+      place.current = null;
       setFilterState(next);
     },
     [clearSelection],
@@ -77,6 +82,7 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
     setOpenId(null);
   }
   useEffect(() => {
+    place.current = null;
     if (root) void reload();
   }, [root, reload]);
 
@@ -103,6 +109,7 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
         setAnchorId,
         openId,
         setOpenId,
+        place,
         clearSelection,
         reload,
       }}

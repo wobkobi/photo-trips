@@ -1,5 +1,12 @@
-import { createContext, useContext, type Dispatch, type SetStateAction } from "react";
+import {
+  createContext,
+  useContext,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from "react";
 import type { IndexSummary, Tile, TripInfo } from "./api";
+import type { GridPlace } from "./format";
 import type { LibraryFilter } from "./libraryFilter";
 
 export interface LibraryContextValue {
@@ -26,6 +33,8 @@ export interface LibraryContextValue {
   /** Id of the photo open in the viewer. */
   openId: number | null;
   setOpenId: Dispatch<SetStateAction<number | null>>;
+  /** Where the Library's grid is scrolled to, so it opens there again. */
+  place: RefObject<GridPlace | null>;
   /** Leave select mode and deselect everything. */
   clearSelection: () => void;
   /** Read the photos and trips again; resolves once both are in. */

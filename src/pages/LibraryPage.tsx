@@ -91,6 +91,7 @@ export function LibraryPage({
     setAnchorId,
     openId,
     setOpenId,
+    place,
     clearSelection: clearPicks,
     reload,
   } = useLibrary();
@@ -705,6 +706,7 @@ export function LibraryPage({
           thumbRetry={thumbRetry}
           showUncertain={filter.uncertain}
           jump={jump}
+          place={place}
         />
       )}
       {menu && <TileMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)} items={menu.items} />}

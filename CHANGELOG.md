@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.32.0] - 2026-11-18
+
+### Added
+
+- The Library opens scrolled to where you left it, including after a trip review, and resizing the
+  window keeps the same photos at the top.
+
 ## [0.31.0] - 2026-11-18
 
 ### Added

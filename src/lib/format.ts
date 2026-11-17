@@ -227,6 +227,44 @@ export function jumpRow(rows: TimelineRow[], tile: number): number {
 }
 
 /**
+ * Where the grid is scrolled to, by photo rather than by pixels, so it can be found again after
+ * the grid is laid out afresh: on coming back to the page, or at another column count.
+ */
+export interface GridPlace {
+  /** Id of the first tile in the row at the top of the view. */
+  id: number;
+  /** That row is a month heading, so the heading goes back to the top too. */
+  heading: boolean;
+}
+
+/**
+ * The place a grid is at, from the row at the top of its view.
+ * @param rows - rows from {@link timelineRows}
+ * @param tiles - the tiles the rows index into
+ * @param row - index of the row at the top of the view (partly scrolled off counts)
+ * @returns the place, or null when there's no such row
+ */
+export function gridPlace(rows: TimelineRow[], tiles: Tile[], row: number): GridPlace | null {
+  const at = rows[row];
+  const tile = at && tiles[at.start];
+  return tile ? { id: tile.id, heading: at.type === "month" } : null;
+}
+
+/**
+ * The row to put at the top of the view to get back to a place: the month heading it was at,
+ * or the tile's own row.
+ * @param rows - rows from {@link timelineRows}
+ * @param tiles - the tiles the rows index into
+ * @param place - a place from {@link gridPlace}
+ * @returns the row index, or -1 when the tile is no longer shown
+ */
+export function placeRow(rows: TimelineRow[], tiles: Tile[], place: GridPlace): number {
+  const tile = tiles.findIndex((t) => t.id === place.id);
+  if (tile < 0) return -1;
+  return place.heading ? jumpRow(rows, tile) : tileRow(rows, tile);
+}
+
+/**
  * The tile a key moves focus to in the grid. Left and Right step through the tiles in order,
  * across month breaks. Up and Down keep the column in the tile row above or below, skipping
  * month headings; a shorter row (a month's last) lands on its last tile. Home and End go to the
