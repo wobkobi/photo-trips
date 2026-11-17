@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.59.5] - 2026-11-18
+
+### Fixed
+
+- The map beside a photo is drawn in full colour (OpenFreeMap Liberty), with green parks, blue water
+  and coloured main roads, and a dark version of it for the dark theme
+
 ## [0.59.4] - 2026-11-18
 
 ### Fixed

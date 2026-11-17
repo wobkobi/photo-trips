@@ -5,67 +5,76 @@ import type { TransformStyleFunction } from "maplibre-gl";
 type Style = ReturnType<TransformStyleFunction>;
 
 /**
- * The OpenFreeMap Positron style (OpenStreetMap data, no key or account needed). The dark theme
- * recolours it with {@link darkenStyle} rather than using OpenFreeMap's own dark styles, whose
- * dim labels are hard to read in the small side-panel map.
+ * The OpenFreeMap Liberty style (OpenStreetMap data, no key or account needed): full colour, with
+ * green parks, blue water and orange main roads. The dark theme recolours it with
+ * {@link darkenStyle}, since OpenFreeMap has no dark version of Liberty.
  */
-export const MAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
+export const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
-/** Dark-theme map colours, in step with the app's dark tokens (ground, surface, map-water). */
+/** Dark-theme map colours: the land in step with the app's dark ground, the rest keeping Liberty's hues. */
 const LAND = "#1f2226";
-const WATER = "#173f46";
+const WATER = "#1b3556";
+const GREEN = "#1f3324";
 const HALO = "#121417";
 
 /**
- * The dark fill colour for a Positron fill layer.
+ * The dark fill colour for a Liberty fill layer.
  * @param id - the layer's id
  * @returns the colour
  */
 function darkFill(id: string): string {
   if (id === "water") return WATER;
-  if (id === "park" || id === "landcover_wood") return "#1c2620";
-  if (id === "landuse_residential") return "#23272c";
-  if (id === "building") return "#2b3037";
-  if (id === "road_area_pier") return LAND;
+  if (id === "park" || id === "landcover_wood" || id === "landcover_grass") return GREEN;
+  if (id === "landuse_residential") return "#25282d";
+  if (id === "landuse_hospital") return "#33262c";
+  if (id === "landcover_sand") return "#302c22";
+  if (id === "landcover_ice") return "#2b3236";
+  if (id.startsWith("landuse_")) return "#262d24";
+  if (id.startsWith("building")) return "#2e3238";
   return "#272b31";
 }
 
 /**
- * The dark line colour for a Positron line layer: roads get lighter the bigger they are, so the
- * main roads read first, and casings turn into a dark outline.
+ * The dark line colour for a Liberty line layer. Roads keep their colour by class (orange
+ * motorways, ochre main roads, grey streets), lighter than the land so they read first, and
+ * casings turn into a dark outline.
  * @param id - the layer's id
  * @returns the colour
  */
 function darkLine(id: string): string {
-  if (id === "waterway") return "#1f5561";
   if (id.endsWith("_casing")) return HALO;
+  if (id.startsWith("waterway")) return "#2a4f7a";
+  if (id === "park_outline") return "#2c4a33";
   if (id.startsWith("boundary")) return "#6b7682";
-  if (id.endsWith("dashline") || id === "road_pier") return LAND;
-  if (id.startsWith("highway_motorway") && id.endsWith("inner")) return "#7d8792";
-  if (id === "highway_major_inner") return "#5f6872";
-  if (id === "highway_minor") return "#464e57";
   if (id.startsWith("aeroway")) return "#30363d";
-  return "#3b424a";
+  if (id.includes("rail")) return "#4a4f55";
+  if (id.includes("motorway")) return "#b8763a";
+  if (/trunk_primary|secondary_tertiary|_link$/.test(id)) return "#8c7a3e";
+  if (id.includes("path_pedestrian")) return "#3b424a";
+  return "#4a525b";
 }
 
 /**
- * The dark text colour for a Positron label layer: place names brightest, then road and water
- * names.
+ * The dark text colour for a Liberty label layer: place names brightest, then road, shop and
+ * water names.
  * @param id - the layer's id
  * @returns the colour
  */
 function darkText(id: string): string {
-  if (id.startsWith("water")) return "#86bcc8";
-  if (id.startsWith("highway") || id === "airport") return "#aab3bb";
+  if (id.startsWith("water") || id === "poi_transit") return "#8fb4e0";
+  if (id.startsWith("highway") || id.startsWith("poi") || id === "airport") return "#aab3bb";
   if (id === "label_other" || id === "label_state") return "#bcc4cb";
   return "#eef0f2";
 }
 
 /**
- * Positron recoloured for the dark theme: dark land and water, roads lighter than the land, and
- * light labels on a dark halo. Layers are matched by their Positron ids; any it doesn't know
- * keep a neutral dark colour of their type, so a new layer upstream can't come out white.
- * @param style - the Positron style as fetched
+ * Liberty recoloured for the dark theme: dark land, deep blue water and dark green parks, roads
+ * in dimmed versions of their colours, and light labels on a dark halo. Layers are matched by
+ * their Liberty ids; any it doesn't know keep a neutral dark colour of their type, so a new layer
+ * upstream can't come out white. Patterned fills (wetland, pedestrian areas) have no colour to
+ * change, so they're faded instead, and the shaded-relief backdrop for zoomed-out views is dimmed.
+ * Road shields keep their own light badge with dark text, so labels without a text colour are left.
+ * @param style - the Liberty style as fetched
  * @returns the dark style
  */
 export function darkenStyle(style: Style): Style {
@@ -73,11 +82,32 @@ export function darkenStyle(style: Style): Style {
     switch (layer.type) {
       case "background":
         return { ...layer, paint: { ...layer.paint, "background-color": LAND } };
-      case "fill":
-        return { ...layer, paint: { ...layer.paint, "fill-color": darkFill(layer.id) } };
+      case "raster":
+        return { ...layer, paint: { ...layer.paint, "raster-brightness-max": 0.35 } };
+      case "fill": {
+        if (layer.paint && "fill-pattern" in layer.paint) {
+          return { ...layer, paint: { ...layer.paint, "fill-opacity": 0.15 } };
+        }
+        const colour = darkFill(layer.id);
+        const outline = layer.paint && "fill-outline-color" in layer.paint;
+        return {
+          ...layer,
+          paint: {
+            ...layer.paint,
+            "fill-color": colour,
+            ...(outline ? { "fill-outline-color": colour } : {}),
+          },
+        };
+      }
+      case "fill-extrusion":
+        return {
+          ...layer,
+          paint: { ...layer.paint, "fill-extrusion-color": darkFill(layer.id) },
+        };
       case "line":
         return { ...layer, paint: { ...layer.paint, "line-color": darkLine(layer.id) } };
       case "symbol":
+        if (!layer.paint || !("text-color" in layer.paint)) return layer;
         return {
           ...layer,
           paint: {
