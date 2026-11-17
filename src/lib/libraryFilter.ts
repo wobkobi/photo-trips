@@ -45,6 +45,34 @@ export function isFiltered(filter: LibraryFilter): boolean {
 }
 
 /**
+ * The trip the filter shows, which makes the Library that trip's page.
+ * @param filter - the filter
+ * @returns the trip, or null for the whole library (including "Not on a trip")
+ */
+export function tripOf(filter: LibraryFilter): FilterTrip | null {
+  return typeof filter.trip === "object" ? filter.trip : null;
+}
+
+/**
+ * Whether the filter hides anything beyond the trip on show, so Clear filters has something to
+ * clear. "Not on a trip" counts, since it's a filter rather than a place.
+ * @param filter - the filter
+ * @returns true when any part other than a chosen trip is set
+ */
+export function isFilteredBesidesTrip(filter: LibraryFilter): boolean {
+  return isFiltered({ ...filter, trip: tripOf(filter) === null ? filter.trip : "any" });
+}
+
+/**
+ * The filter with everything cleared but the trip on show.
+ * @param filter - the filter
+ * @returns no filter, still in the same trip if there is one
+ */
+export function clearFilters(filter: LibraryFilter): LibraryFilter {
+  return { ...NO_FILTER, trip: tripOf(filter) ?? "any" };
+}
+
+/**
  * Whether one tile passes the filter. RAW files count as photos.
  * @param tile - the tile
  * @param filter - the filter
@@ -72,36 +100,27 @@ export function filterTiles(tiles: Tile[], filter: LibraryFilter): Tile[] {
 }
 
 /**
- * The trips and years to offer, newest first, from what's in the library. A chosen trip that no
- * longer has any photos is still offered so the menu can show what's picked.
- * @param tiles - every tile, newest first
+ * The years to offer, newest first, and which other filters have anything to find, from the
+ * photos on show (the whole library, or one trip's). A chosen year with no photos left is still
+ * offered so the menu can show what's picked.
+ * @param tiles - the tiles to choose from, newest first
  * @param filter - the current filter
- * @returns trips and years
+ * @returns years, and whether any tile is on a trip, a video, or of uncertain date
  */
 export function filterChoices(
   tiles: Tile[],
   filter: LibraryFilter,
-): { trips: FilterTrip[]; years: string[]; videos: boolean; uncertain: boolean } {
-  const trips = new Map<number, FilterTrip>();
+): { years: string[]; onTrip: boolean; videos: boolean; uncertain: boolean } {
   const years = new Set<string>();
+  let onTrip = false;
   let videos = false;
   let uncertain = false;
   for (const tile of tiles) {
-    if (tile.trip && !trips.has(tile.trip.id)) {
-      trips.set(tile.trip.id, { id: tile.trip.id, name: tile.trip.name });
-    }
     years.add(tile.takenAt.slice(0, 4));
+    onTrip ||= tile.trip !== null;
     videos ||= tile.kind === "video";
     uncertain ||= tile.uncertain;
   }
-  if (typeof filter.trip === "object" && !trips.has(filter.trip.id)) {
-    trips.set(filter.trip.id, filter.trip);
-  }
   if (filter.year !== "any") years.add(filter.year);
-  return {
-    trips: [...trips.values()],
-    years: [...years].sort().reverse(),
-    videos,
-    uncertain,
-  };
+  return { years: [...years].sort().reverse(), onTrip, videos, uncertain };
 }

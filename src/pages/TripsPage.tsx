@@ -73,6 +73,15 @@ function newEditor(start: TripStart | null): Editor {
   };
 }
 
+/**
+ * The editor for an existing trip, with the photos taken out of it unticked.
+ * @param trip - the trip to edit
+ * @returns the editor state
+ */
+function editorOf(trip: TripInfo): Editor {
+  return { trip, form: formFromTrip(trip), left: new Set(trip.excluded), picked: null };
+}
+
 /** A trip change previewed and waiting for the user to confirm it. */
 interface Review {
   preview: Preview;
@@ -91,6 +100,8 @@ interface Review {
  * @param props - Component props.
  * @param props.draft - a trip started elsewhere (a Library selection or a suggestion) to open
  * @param props.onDraftUsed - called once the draft has opened in the editor
+ * @param props.edit - a trip to open in the editor, from the Library's Edit
+ * @param props.onEditUsed - called once that trip has opened in the editor
  * @param props.onNavigate - switch to another page
  * @param props.onShowTrip - open the Library showing only one trip's photos
  * @returns the page
@@ -98,18 +109,25 @@ interface Review {
 export function TripsPage({
   draft,
   onDraftUsed,
+  edit,
+  onEditUsed,
   onNavigate,
   onShowTrip,
 }: {
   draft: TripStart | null;
   onDraftUsed: () => void;
+  edit: TripInfo | null;
+  onEditUsed: () => void;
   onNavigate: (page: PageId) => void;
   onShowTrip: (trip: FilterTrip) => void;
 }): ReactElement {
   const { running } = useJobs();
   const { settings } = useSettings();
   const [trips, setTrips] = useState<TripInfo[] | null>(null);
-  const [editor, setEditor] = useState<Editor | null>(() => (draft ? newEditor(draft) : null));
+  const [editor, setEditor] = useState<Editor | null>(() => {
+    if (draft) return newEditor(draft);
+    return edit ? editorOf(edit) : null;
+  });
   const [review, setReview] = useState<Review | null>(null);
   const [applying, setApplying] = useState<string | null>(null);
   const [result, setResult] = useState<{ summary: ApplySummary; done: string } | null>(null);
@@ -119,6 +137,9 @@ export function TripsPage({
   useEffect(() => {
     if (draft) onDraftUsed();
   }, [draft, onDraftUsed]);
+  useEffect(() => {
+    if (edit) onEditUsed();
+  }, [edit, onEditUsed]);
 
   const load = useCallback(() => {
     api.listTrips().then(
@@ -330,12 +351,7 @@ export function TripsPage({
               onShow={() => onShowTrip({ id: trip.id, name: trip.name })}
               onEdit={() => {
                 setResult(null);
-                setEditor({
-                  trip,
-                  form: formFromTrip(trip),
-                  left: new Set(trip.excluded),
-                  picked: null,
-                });
+                setEditor(editorOf(trip));
               }}
               onDelete={() => {
                 setResult(null);
