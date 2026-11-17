@@ -690,8 +690,9 @@ pub fn scan_import(app: AppHandle, source: SourceSpec) -> Result<()> {
 }
 
 /// The first folder among paths dropped on the window, for Import to check. Dropped files are
-/// passed over, so dropping one photo never imports everything beside it.
-#[tauri::command]
+/// passed over, so dropping one photo never imports everything beside it. Async, so looking at
+/// paths on a slow or sleeping drive doesn't hold up the window.
+#[tauri::command(async)]
 pub fn dropped_folder(paths: Vec<PathBuf>) -> Option<PathBuf> {
     paths.into_iter().find(|path| path.is_dir())
 }

@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.59.1] - 2026-11-18
+
+### Fixed
+
+- Ctrl+Z and dropping a folder no longer leave the trip editor, an import review or Sort with
+  unsaved changes; a folder dropped over the viewer or a dialog is ignored, and dropping files says
+  to drop a folder; a failed date change shows in the dialog or as a toast; Alt+Left and Alt+Right
+  on the Library's kind and size controls go back and forward; choosing the filter already in use
+  keeps your place
+
 ## [0.59.0] - 2026-11-18
 
 ### Added

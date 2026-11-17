@@ -25,6 +25,7 @@ import {
 import {
   historyStepForButton,
   historyStepForKey,
+  holdsWork,
   isTextEntry,
   modalOnScreen,
   useMenuBar,
@@ -48,6 +49,7 @@ import { useFolderDrop } from "./lib/useFolderDrop";
 import { useJobDone } from "./lib/useJobs";
 import { useLibrary } from "./lib/useLibrary";
 import { useSettings } from "./lib/useSettings";
+import { useToasts } from "./lib/useToasts";
 import { useUpdates } from "./lib/useUpdates";
 import { keepsWebviewMenu } from "./lib/webviewMenu";
 import { DuplicatesPage } from "./pages/DuplicatesPage";
@@ -136,6 +138,7 @@ function Shell(): ReactElement | null {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
   const { runCheck } = useUpdates();
+  const toasts = useToasts();
   const [page, setPage] = useState<PageId>("library");
   // A trip started in the Library or Suggestions, until the Trips page opens it.
   const [tripDraft, setTripDraft] = useState<TripStart | null>(null);
@@ -364,7 +367,16 @@ function Shell(): ReactElement | null {
   // A folder dropped on the window, until the Import page starts checking it.
   const [importDrop, setImportDrop] = useState<string | null>(null);
   const clearImportDrop = useCallback(() => setImportDrop(null), []);
+  // A page holding work keeps it rather than opening Import over it.
   const dropping = useFolderDrop(Boolean(settings?.library_root), (folder) => {
+    if (folder === null) {
+      toasts.show({ text: "Drop a folder, not files", problem: true });
+      return;
+    }
+    if (holdsWork()) {
+      toasts.show({ text: "Finish or leave this step first", problem: true });
+      return;
+    }
     setImportDrop(folder);
     openPageRef.current("import");
   });

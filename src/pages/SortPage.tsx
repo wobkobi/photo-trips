@@ -91,6 +91,8 @@ export function SortPage(): ReactElement {
     <div className="flex h-full flex-col">
       <PageHeader
         title="Sort"
+        // Unticked photos are lost on leaving, so Ctrl+Z and a dropped folder stay put.
+        holdsWork={ready && skipped.size > 0}
         actions={
           ready && (
             <>

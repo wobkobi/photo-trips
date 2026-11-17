@@ -1,31 +1,32 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { modalOnScreen } from "./menu";
 
 /**
- * Watch for things dragged onto the window. A drop hands over its first folder; dropped files
- * are passed over, so a stray photo dropped on the window does nothing.
+ * Watch for things dragged onto the window. A drop hands over its first folder, or null when it
+ * held only files. Drops while a modal (the viewer, a dialog, the tour) is on screen are ignored,
+ * and no hint shows for them, since the modal covers the page the folder would open.
  * @param enabled - listen at all (off until a library folder is chosen)
- * @param onFolder - called with the dropped folder
+ * @param onDrop - called with the dropped folder, or null for files only
  * @returns true while something is being dragged over the window
  */
-export function useFolderDrop(enabled: boolean, onFolder: (path: string) => void): boolean {
+export function useFolderDrop(enabled: boolean, onDrop: (folder: string | null) => void): boolean {
   const [dragging, setDragging] = useState(false);
-  // The listener is added once, so it calls the latest onFolder through a ref.
-  const onFolderRef = useRef(onFolder);
+  // The listener is added once, so it calls the latest onDrop through a ref.
+  const onDropRef = useRef(onDrop);
   useEffect(() => {
-    onFolderRef.current = onFolder;
+    onDropRef.current = onDrop;
   });
   useEffect(() => {
     if (!enabled) return;
     const unlisten = getCurrentWebview().onDragDropEvent(({ payload }) => {
-      setDragging(payload.type === "enter" || payload.type === "over");
-      if (payload.type !== "drop") return;
-      // A drop that can't be looked at is treated like a drop of files: nothing happens.
+      const over = payload.type === "enter" || payload.type === "over";
+      setDragging(over && !modalOnScreen());
+      if (payload.type !== "drop" || modalOnScreen()) return;
+      // A drop that can't be looked at does nothing, rather than claiming it held only files.
       api.droppedFolder(payload.paths).then(
-        (folder) => {
-          if (folder !== null) onFolderRef.current(folder);
-        },
+        (folder) => onDropRef.current(folder),
         () => undefined,
       );
     });

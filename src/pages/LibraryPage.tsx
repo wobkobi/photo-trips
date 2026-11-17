@@ -26,6 +26,7 @@ import {
   filterTiles,
   isFilteredBesidesTrip,
   NO_FILTER,
+  sameFilter,
   tripOf,
   type FilterTrip,
   type LibraryFilter,
@@ -148,6 +149,8 @@ export function LibraryPage({
   /** Photos waiting for a new date, picked from the menu. */
   const [dating, setDating] = useState<Tile[] | null>(null);
   const [savingDate, setSavingDate] = useState(false);
+  /** Why the date in the open Set date dialog couldn't be saved. */
+  const [dateError, setDateError] = useState<string | null>(null);
   // Raised after a date change or an undo, so the viewer shows the new date.
   const [revision, setRevision] = useState(0);
   const tripReview = useTripReview();
@@ -221,11 +224,6 @@ export function LibraryPage({
     clearPicks();
     setMenu(null);
   }, [clearPicks]);
-  /** Put photos' files on the clipboard together, showing any failure as the page error. */
-  const copyFiles = useCallback((chosen: Tile[]) => {
-    api.copyMedia(chosen.map((t) => t.id)).catch((err) => setError(errorText(err)));
-  }, []);
-
   /** Re-read the library folder for new and changed files. */
   function refresh(): void {
     api.indexLibrary().catch((err) => setError(errorText(err)));
@@ -343,7 +341,7 @@ export function LibraryPage({
       reveal: fileAction.bind(null, api.revealMedia, fail),
       copy: copyAll.bind(null, fail),
       copyPath: copyPath.bind(null, fail),
-      setDate: setDating,
+      setDate: openDating,
       fileDate: fileDates,
       tripEdit: startEdit,
       makeTrip: createTrip,
@@ -522,6 +520,10 @@ export function LibraryPage({
    */
   async function saveDates(chosen: Tile[], date: string | null): Promise<void> {
     setSavingDate(true);
+    setDateError(null);
+    // The page error is hidden behind the viewer and the dialog, so a failure shows in the
+    // dialog while it's open and as a toast otherwise.
+    let inDialog = dating !== null;
     try {
       const batch = await api.setDates(
         chosen.map((t) => t.id),
@@ -533,13 +535,30 @@ export function LibraryPage({
         text: date ? `Date set for ${photos}.` : `Back to the file's own date for ${photos}.`,
       });
       setDating(null);
+      inDialog = false;
       await reload();
       setRevision((r) => r + 1);
     } catch (err) {
-      setError(errorText(err));
+      if (inDialog) setDateError(errorText(err));
+      else toasts.show({ text: errorText(err), problem: true });
     } finally {
       setSavingDate(false);
     }
+  }
+
+  /**
+   * Open the Set date dialog, without a failure left from the last time.
+   * @param chosen - the photos to date
+   */
+  function openDating(chosen: Tile[]): void {
+    setDateError(null);
+    setDating(chosen);
+  }
+
+  /** Close the Set date dialog without changing anything. */
+  function closeDating(): void {
+    setDateError(null);
+    setDating(null);
   }
 
   /**
@@ -654,6 +673,8 @@ export function LibraryPage({
    */
   function changeFilter(next: LibraryFilter): void {
     setMenu(null);
+    // Picking the filter already shown keeps the place in the grid and the selection.
+    if (sameFilter(next, filter)) return;
     setFilter(next);
   }
 
@@ -716,11 +737,11 @@ export function LibraryPage({
               <span className="mr-2 text-[14px] text-muted" aria-live="polite">
                 {selected.size.toLocaleString()} selected
               </span>
-              <Button onClick={() => copyFiles(picked)} disabled={picked.length === 0}>
+              <Button onClick={() => copyAll(showError, picked)} disabled={picked.length === 0}>
                 <Icon name="copy" size={18} />
                 Copy
               </Button>
-              <Button onClick={() => setDating(picked)} disabled={picked.length === 0}>
+              <Button onClick={() => openDating(picked)} disabled={picked.length === 0}>
                 <Icon name="calendar" size={18} />
                 Set date
               </Button>
@@ -910,7 +931,7 @@ export function LibraryPage({
               <ViewerDate
                 tile={tiles[open]}
                 busy={savingDate}
-                onChange={() => setDating([tiles[open]])}
+                onChange={() => openDating([tiles[open]])}
                 onFileDate={() => void saveDates([tiles[open]], null)}
               />
             </>
@@ -932,8 +953,9 @@ export function LibraryPage({
           items={dating.length}
           initial={dating[0].takenAt}
           busy={savingDate}
+          error={dateError}
           onSave={(date) => void saveDates(dating, date)}
-          onCancel={() => setDating(null)}
+          onCancel={closeDating}
         />
       )}
     </div>

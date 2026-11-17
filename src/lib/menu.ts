@@ -134,6 +134,15 @@ export function modalOnScreen(): boolean {
 }
 
 /**
+ * Whether the open page holds work that leaving it would lose (a changed trip form, an import
+ * being checked, photos unticked on Sort). Its PageHeader marks itself `data-holds-work`.
+ * @returns true while such a page is open
+ */
+export function holdsWork(): boolean {
+  return document.querySelector("[data-holds-work]") !== null;
+}
+
+/**
  * Runs menu shortcuts typed in the page, and hands the page the menu requests only it can
  * carry out.
  * @param onRequest - called with each request from the menu (or a shortcut for one)
@@ -149,12 +158,14 @@ export function useMenuBar(onRequest: (request: MenuRequest) => void): void {
     /**
      * Run the menu item bound to a key press, if any. Ctrl+Z asks the page to undo the last
      * change, unless it's for a box being typed in (which undoes its own typing), a modal on
-     * screen, or a handler that already used it.
+     * screen, a handler that already used it, or a page holding work that opening History would
+     * lose.
      * @param event - the key press
      */
     function onKeyDown(event: KeyboardEvent): void {
       if (isUndoKey(event)) {
         if (event.defaultPrevented || isTextEntry(event.target) || modalOnScreen()) return;
+        if (holdsWork()) return;
         event.preventDefault();
         if (!event.repeat) handler.current("undo");
         return;

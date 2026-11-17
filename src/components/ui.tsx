@@ -99,7 +99,10 @@ export function Button({
  *
  * A step holding work that stepping back would lose (a changed form, an import being checked)
  * passes `backKeys={false}`: only the arrow steps back, and Alt+Left and the mouse's back button
- * are marked used without moving, so the app's own back doesn't leave the page either.
+ * are marked used without moving, so the app's own back doesn't leave the page either. Such a
+ * step marks its header `data-holds-work`, which Ctrl+Z and a dropped folder check before
+ * opening another page. A page with work but no step back (Sort with photos unticked) passes
+ * `holdsWork` for the same mark.
  *
  * After a back, focus that was in the header or went with the old step moves to the new step's
  * title, so the keyboard carries on from the top of the page rather than from nowhere.
@@ -110,6 +113,8 @@ export function Button({
  * @param props.onBack - leave the sub-step for the screen it came from; omit on a top-level page
  * @param props.backKeys - whether Escape, Alt+Left and the mouse's back button step back too
  *   (default true); false keeps them from leaving a step with unsaved work
+ * @param props.holdsWork - the page holds work without a step back, so Ctrl+Z and a dropped
+ *   folder leave it alone
  * @returns the header element
  */
 export function PageHeader({
@@ -118,12 +123,14 @@ export function PageHeader({
   actions,
   onBack,
   backKeys = true,
+  holdsWork = false,
 }: {
   title: string;
   detail?: ReactNode;
   actions?: ReactNode;
   onBack?: () => void;
   backKeys?: boolean;
+  holdsWork?: boolean;
 }): ReactElement {
   // The listener reads the latest handler from the ref, so it's only added and removed when the
   // back arrow comes and goes, not on every render that passes a new function.
@@ -186,10 +193,12 @@ export function PageHeader({
       document.removeEventListener("mouseup", onMouse);
     };
   }, [hasBack, backKeys, goBack]);
+  const holds = holdsWork || (hasBack && !backKeys);
 
   return (
     <header
       ref={header}
+      data-holds-work={holds ? "" : undefined}
       className="sticky top-0 z-20 flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-5 py-2"
     >
       <div className="flex min-w-0 flex-1 basis-60 flex-wrap items-baseline gap-x-3">
