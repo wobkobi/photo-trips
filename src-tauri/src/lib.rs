@@ -43,9 +43,15 @@ use std::sync::Mutex;
 
 use rusqlite::Connection;
 use tauri::Manager;
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 /// Command-line flag the autostart entry passes, so a login launch stays in the tray.
 const HIDDEN_FLAG: &str = "--hidden";
+
+/// What the window remembers between runs: its size, place and whether it was maximised.
+const WINDOW_STATE: StateFlags = StateFlags::SIZE
+    .union(StateFlags::POSITION)
+    .union(StateFlags::MAXIMIZED);
 
 /// Shared state available to every command.
 pub struct AppState {
@@ -80,6 +86,13 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // The window opens where it was left. Visibility isn't restored, so a start from the
+        // tray stays hidden, and neither is fullscreen.
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(WINDOW_STATE)
+                .build(),
+        )
         .register_asynchronous_uri_scheme_protocol("thumb", thumbs::protocol)
         // On the builder, because the window (and its page) exists before setup runs.
         .manage(watchdog::PageReady::default())
@@ -148,6 +161,11 @@ pub fn run() {
                     .unwrap_or(true);
                 if to_tray {
                     api.prevent_close();
+                    // The plugin writes its file only when the app exits, and an app living in
+                    // the tray may never exit cleanly, so save the window's place as it hides.
+                    if let Err(err) = window.app_handle().save_window_state(WINDOW_STATE) {
+                        log::warn!("Couldn't save the window's size and place: {err}");
+                    }
                     let _ = window.hide();
                 }
             }
