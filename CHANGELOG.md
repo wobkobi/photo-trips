@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.48.0] - 2026-11-18
+
+### Added
+
+- A photo size control on the Library's toolbar, and Ctrl+wheel over the grid, make the tiles bigger
+  or smaller and remember the size
+
 ## [0.47.0] - 2026-11-18
 
 ### Added

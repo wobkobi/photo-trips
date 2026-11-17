@@ -5,6 +5,7 @@ import { CodecHint } from "../components/CodecHint";
 import { DateEditor } from "../components/DateEditor";
 import { Icon } from "../components/Icon";
 import { LibraryFilterBar } from "../components/LibraryFilterBar";
+import { PhotoSizeControl } from "../components/PhotoSizeControl";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
 import { TileMenu, type MenuItem } from "../components/TileMenu";
 import { TimelineGrid, type TileEvent, type TileJump } from "../components/TimelineGrid";
@@ -19,8 +20,7 @@ import {
   type Tile,
   type TripInfo,
 } from "../lib/api";
-
-import { tileSizeOf } from "../lib/display";
+import { photoTile, stepPhotoSize } from "../lib/display";
 import { count as countOf } from "../lib/format";
 import { layers } from "../lib/layers";
 import {
@@ -53,6 +53,7 @@ import {
 import { EMPTY_FORM, rangeOfTiles, rangeText, type TripStart } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { useLibrary } from "../lib/useLibrary";
+import { usePhotoSize } from "../lib/usePhotoSize";
 import { useSettings } from "../lib/useSettings";
 import { useTripReview } from "../lib/useTripReview";
 
@@ -139,6 +140,7 @@ export function LibraryPage({
     [allTiles, trip],
   );
   const [error, setError] = useState<string | null>(null);
+  const photoSize = usePhotoSize();
   const [failedThumbs, setFailedThumbs] = useState<Tile[]>([]);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   /** Photos waiting for the user to confirm sending them to the Recycle Bin. */
@@ -670,6 +672,9 @@ export function LibraryPage({
           ) : (
             <>
               {count > 0 && (
+                <PhotoSizeControl value={photoSize.size} onChange={photoSize.setSize} />
+              )}
+              {count > 0 && (
                 <Button onClick={() => setPicking(true)}>
                   <Icon name="check" size={18} />
                   Make a trip
@@ -694,7 +699,9 @@ export function LibraryPage({
           )
         }
       />
-      {(error ?? loadError) && <p className="mx-5 mt-3 text-danger">{error ?? loadError}</p>}
+      {(error ?? loadError ?? photoSize.error) && (
+        <p className="mx-5 mt-3 text-danger">{error ?? loadError ?? photoSize.error}</p>
+      )}
       {tripReview.error && (
         <p role="alert" className="mx-5 mt-3 text-danger">
           {tripReview.error}
@@ -794,7 +801,7 @@ export function LibraryPage({
         <TimelineGrid
           ownsHeight
           tiles={tiles}
-          tileSize={tileSizeOf(settings)}
+          tileSize={photoTile(photoSize.size)}
           selecting={selecting}
           selected={selected}
           onTileClick={onTileClick}
@@ -807,6 +814,7 @@ export function LibraryPage({
           jump={jump}
           onJumpDone={jumpDone}
           place={place}
+          onSizeStep={(step) => photoSize.setSize(stepPhotoSize(photoSize.size, step))}
         />
       )}
       {menu && <TileMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)} items={menu.items} />}

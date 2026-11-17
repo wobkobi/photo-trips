@@ -37,6 +37,11 @@ const HEADER_HEIGHT = 48;
 const JUMP_FRAMES = 6;
 /** Space left under the last row, so it doesn't sit hard against the bottom edge. */
 const END_SPACE = 32;
+/**
+ * Ctrl+wheel travel per photo size step. A mouse wheel notch is 100, so each notch is a step,
+ * while a touchpad pinch's stream of small deltas adds up instead of racing to an end.
+ */
+const WHEEL_STEP = 60;
 
 /** Click or right-click on a tile, with the modifier keys that decide what it does. */
 export type TileEvent = ReactMouseEvent<HTMLButtonElement>;
@@ -92,6 +97,8 @@ function libraryThumb(tile: Tile): string {
  * @param props.place - where the grid is scrolled to ({@link GridPlace}), kept up to date as it
  *   scrolls and gone back to when the grid mounts again; without it the grid keeps its own,
  *   which still holds its place when the column count changes
+ * @param props.onSizeStep - called with 1 (bigger) or -1 (smaller) for each Ctrl+wheel notch over
+ *   the grid; without it Ctrl+wheel is left alone
  * @returns the scrolling grid
  */
 export function TimelineGrid({
@@ -112,6 +119,7 @@ export function TimelineGrid({
   onJumpDone,
   ownsHeight = false,
   place,
+  onSizeStep,
 }: {
   tiles: Tile[];
   tileSize: number;
@@ -130,7 +138,9 @@ export function TimelineGrid({
   onJumpDone?: () => void;
   ownsHeight?: boolean;
   place?: RefObject<GridPlace | null>;
+  onSizeStep?: (step: 1 | -1) => void;
 }): ReactElement {
+  const outerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const ownPlace = useRef<GridPlace | null>(null);
   const placeRef = place ?? ownPlace;
@@ -199,6 +209,10 @@ export function TimelineGrid({
   // where the same pixel offset would land months away. Before paint, so there's no jump.
   const laidOut = width > 0;
   const placedAt = useRef(0);
+  // The row a kept place was put back at. While it stays at the top the place isn't rewritten
+  // from it, since that would swap the kept tile for the first in its new row and creep back a
+  // few photos on every size change.
+  const placedRow = useRef(-1);
   useLayoutEffect(() => {
     if (!laidOut || placedAt.current === columns) return;
     placedAt.current = columns;
@@ -208,6 +222,7 @@ export function TimelineGrid({
     // Sizes may still be the estimates from before the width was known.
     virtualizer.measure();
     virtualizer.scrollToIndex(row, { align: "start" });
+    placedRow.current = row;
     // Only the layout decides when to go back; new tiles or a moved place mustn't pull the view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [laidOut, columns]);
@@ -219,7 +234,9 @@ export function TimelineGrid({
     /** Note the row now at the top of the view. */
     const onScroll = (): void => {
       const top = virtualizer.getVirtualItemForOffset(el.scrollTop);
-      if (top) placeRef.current = gridPlace(rows, tiles, top.index);
+      if (!top || top.index === placedRow.current) return;
+      placedRow.current = -1;
+      placeRef.current = gridPlace(rows, tiles, top.index);
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
@@ -268,6 +285,29 @@ export function TimelineGrid({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jump, laidOut]);
 
+  // Ctrl+wheel resizes the photos instead of zooming the whole window. React's onWheel is
+  // passive, so it can't stop the zoom; this listener isn't. A plain wheel still scrolls.
+  const wheel = useRef(0);
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el || !onSizeStep) return;
+    /**
+     * Step the photo size once per notch of Ctrl+wheel.
+     * @param event - a wheel turn over the grid or its date rail
+     */
+    const onWheel = (event: WheelEvent): void => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      wheel.current += event.deltaY;
+      if (Math.abs(wheel.current) < WHEEL_STEP) return;
+      const step = wheel.current < 0 ? 1 : -1;
+      wheel.current = 0;
+      onSizeStep(step);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [onSizeStep]);
+
   /**
    * Arrow keys, Home and End move focus between tiles. The tile may not be drawn yet, so its row
    * is scrolled into view first and the tile focused once it's there, as for a jump.
@@ -292,7 +332,7 @@ export function TimelineGrid({
   }
 
   return (
-    <div className={`flex ${ownsHeight ? LIST_FILL : "min-h-0 flex-1"}`}>
+    <div ref={outerRef} className={`flex ${ownsHeight ? LIST_FILL : "min-h-0 flex-1"}`}>
       {/* Key presses bubble up from the focused tile button. */}
       <div ref={scrollRef} onKeyDown={onGridKey} className="min-w-0 flex-1 overflow-y-auto">
         {width > 0 && (
