@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shortcutFor } from "./menu";
+import { historyStepForButton, historyStepForKey, shortcutFor } from "./menu";
 
 /**
  * A fake key press for {@link shortcutFor}.
@@ -53,5 +53,29 @@ describe("shortcutFor", () => {
     expect(shortcutFor(press("w", { ctrl: true, shift: true }))).toBeNull();
     expect(shortcutFor(press("1", { ctrl: true, alt: true }))).toBeNull();
     expect(shortcutFor(press("8", { ctrl: true }))).toBeNull();
+  });
+});
+
+describe("historyStepForKey", () => {
+  it("goes back on Alt+Left and forward on Alt+Right", () => {
+    expect(historyStepForKey(press("ArrowLeft", { alt: true }))).toBe("back");
+    expect(historyStepForKey(press("ArrowRight", { alt: true }))).toBe("forward");
+  });
+
+  it("ignores the arrows without Alt or with other modifiers", () => {
+    expect(historyStepForKey(press("ArrowLeft"))).toBeNull();
+    expect(historyStepForKey(press("ArrowLeft", { alt: true, ctrl: true }))).toBeNull();
+    expect(historyStepForKey(press("ArrowRight", { alt: true, shift: true }))).toBeNull();
+    expect(historyStepForKey(press("ArrowUp", { alt: true }))).toBeNull();
+  });
+});
+
+describe("historyStepForButton", () => {
+  it("maps the side buttons and nothing else", () => {
+    expect(historyStepForButton(3)).toBe("back");
+    expect(historyStepForButton(4)).toBe("forward");
+    expect(historyStepForButton(0)).toBeNull();
+    expect(historyStepForButton(1)).toBeNull();
+    expect(historyStepForButton(2)).toBeNull();
   });
 });

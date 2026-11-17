@@ -212,6 +212,8 @@ export function Choices({
    * @param event - the key press on the radio group
    */
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    // Alt+arrows are the app's Back and Forward.
+    if (event.altKey) return;
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
     if (!step) return;
     event.preventDefault();

@@ -124,3 +124,20 @@ export function filterChoices(
   if (filter.year !== "any") years.add(filter.year);
   return { years: [...years].sort().reverse(), onTrip, videos, uncertain };
 }
+
+/**
+ * Whether two filters show the same photos. Trips match by id, so a trip renamed since one of
+ * them was taken still counts as the same place.
+ * @param a - one filter
+ * @param b - the other
+ * @returns true when every part matches
+ */
+export function sameFilter(a: LibraryFilter, b: LibraryFilter): boolean {
+  return (
+    (tripOf(a)?.id ?? a.trip) === (tripOf(b)?.id ?? b.trip) &&
+    a.year === b.year &&
+    a.kind === b.kind &&
+    a.uncertain === b.uncertain &&
+    a.name === b.name
+  );
+}

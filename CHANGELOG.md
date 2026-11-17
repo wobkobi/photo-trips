@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.36.0] - 2026-11-18
+
+### Added
+
+- Back and Forward move between the pages you've visited, keeping each page's filter: Alt+Left and
+  Alt+Right, or the mouse's side buttons. Inside a step such as a trip review, Back steps out of
+  that first.
+
 ## [0.35.0] - 2026-11-18
 
 ### Added
