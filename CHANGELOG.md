@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.20] - 2026-11-18
+
+### Fixed
+
+- The window opens in the theme's own colour, with no white flash before the page draws.
+
 ## [0.25.19] - 2026-11-18
 
 ### Fixed
