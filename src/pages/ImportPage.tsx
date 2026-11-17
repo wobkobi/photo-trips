@@ -127,19 +127,17 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
   const working =
     running?.kind === "import-scan" || running?.kind === "import" || running?.kind === "undo";
   const ready = preview !== null && preview.files > 0 && !working;
+  const checked = preview !== null && !working;
 
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Import"
+        title={checked ? `Import from ${preview.source}` : "Import"}
+        onBack={checked ? otherSources : undefined}
         detail={ready ? undefined : "From a memory card, a phone or a folder"}
         actions={
           ready && (
             <>
-              <Button variant="ghost" onClick={otherSources}>
-                <Icon name="back" size={16} />
-                Other sources
-              </Button>
               <Button onClick={() => check(preview.spec)} busy={busy}>
                 <Icon name="refresh" size={16} />
                 Check again

@@ -15,7 +15,6 @@ import type { PageId } from "../App";
 import { AppIcon } from "../components/AppIcon";
 import { BrandMark } from "../components/BrandMark";
 import { FolderNames } from "../components/FolderNames";
-import { Icon } from "../components/Icon";
 import { InboxSettings } from "../components/InboxSettings";
 import { LegalLinks } from "../components/LegalLinks";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
@@ -162,24 +161,19 @@ export function SettingsPage({
         <PageHeader
           title="Folder names"
           detail="Every sorted folder gets its new name. Files outside them stay where they are."
+          onBack={applying ? undefined : () => setReview(null)}
           actions={
             !moving && (
-              <>
-                <Button variant="ghost" onClick={() => setReview(null)} disabled={applying}>
-                  <Icon name="back" size={16} />
-                  Back to Settings
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => rename(review)}
-                  disabled={applying}
-                  busy={running !== null}
-                >
-                  {review.files > 0
-                    ? `Rename folders and move ${count(review.files, "file", "files")}`
-                    : "Save folder names"}
-                </Button>
-              </>
+              <Button
+                variant="primary"
+                onClick={() => rename(review)}
+                disabled={applying}
+                busy={running !== null}
+              >
+                {review.files > 0
+                  ? `Rename folders and move ${count(review.files, "file", "files")}`
+                  : "Save folder names"}
+              </Button>
             )
           }
         />

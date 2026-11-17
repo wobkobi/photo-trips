@@ -239,15 +239,18 @@ export function LibraryPage({
   );
 
   // Ctrl+A only while the grid is what's on screen, not over the viewer or a trip review.
-  const gridShown = open === null && tripReview.review === null;
+  const reviewOpen = tripReview.review !== null;
+  const gridShown = open === null && !reviewOpen;
   useEffect(() => {
     /**
      * Escape stops picking; Ctrl+A picks every photo shown and Delete asks to bin the picked
-     * ones, unless the key is for a text box.
+     * ones, unless the key is for a text box. Over a trip review, Escape belongs to the header's
+     * back arrow, which marks it handled, so it steps back once and leaves the selection be.
      * @param event - the key pressed
      */
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape" && selecting) clearSelection();
+      const escape = event.key === "Escape" && !event.defaultPrevented;
+      if (escape && selecting && !reviewOpen) clearSelection();
       if (!gridShown || isTyping(event.target)) return;
       if (event.key === "Delete" && picked.length > 0) setBinning(picked);
       const pickAll = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a";
@@ -258,7 +261,7 @@ export function LibraryPage({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selecting, clearSelection, gridShown, ids, picked, setSelected, setAnchorId]);
+  }, [selecting, clearSelection, reviewOpen, gridShown, ids, picked, setSelected, setAnchorId]);
 
   /**
    * Explorer-style selection: Ctrl toggles, Shift extends from the last clicked tile, and a
@@ -486,32 +489,30 @@ export function LibraryPage({
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Library"
+        title={review !== null && !moving ? "Preview" : "Library"}
         detail={
-          <Detail
-            count={count}
-            total={total}
-            summary={summary}
-            indexing={indexing && total === 0}
-          />
+          // The Library's counts don't describe a trip change under review.
+          review !== null && !moving ? undefined : (
+            <Detail
+              count={count}
+              total={total}
+              summary={summary}
+              indexing={indexing && total === 0}
+            />
+          )
         }
+        onBack={review !== null && !tripReview.applying ? tripReview.back : undefined}
         actions={
           reviewing ? (
             review !== null &&
             !moving && (
-              <>
-                <Button variant="ghost" onClick={tripReview.back} busy={running !== null}>
-                  <Icon name="back" size={16} />
-                  Back
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => void tripReview.apply()}
-                  busy={running !== null}
-                >
-                  {review.action}
-                </Button>
-              </>
+              <Button
+                variant="primary"
+                onClick={() => void tripReview.apply()}
+                busy={running !== null}
+              >
+                {review.action}
+              </Button>
             )
           ) : selecting ? (
             <>
