@@ -37,6 +37,8 @@ import { useTripReview } from "../lib/useTripReview";
 
 /** How many nearby trips the menus offer to add photos to. */
 const ADD_CHOICES = 4;
+/** How long after a try tiles without a thumbnail wait before asking again, in ms. */
+const THUMB_RETRY_MS = 60_000;
 
 /**
  * The whole library as a month-by-month timeline, with a viewer for single photos.
@@ -156,10 +158,29 @@ export function LibraryPage({
     setRevision((r) => r + 1);
   });
 
+  // Each tile once: a retry that fails again mustn't add it twice.
   const onThumbError = useCallback(
-    (tile: Tile) => setFailedThumbs((prev) => (prev.length >= 50 ? prev : [...prev, tile])),
+    (tile: Tile) =>
+      setFailedThumbs((prev) =>
+        prev.length >= 50 || prev.some((t) => t.id === tile.id) ? prev : [...prev, tile],
+      ),
     [],
   );
+  // Tiles without a thumbnail ask again when a Store extension arrives (the codec hint notices),
+  // and when the window comes back into focus a minute or more after the last try, as after
+  // fixing a file elsewhere. Windows' own memory of the failure lasts that minute too.
+  const [thumbRetry, setThumbRetry] = useState(0);
+  const anyThumbFailed = failedThumbs.length > 0;
+  useEffect(() => {
+    if (!anyThumbFailed) return;
+    const since = Date.now();
+    /** Ask again if the last try is old enough for Windows to draw the files afresh. */
+    const onFocus = (): void => {
+      if (Date.now() - since >= THUMB_RETRY_MS) setThumbRetry((n) => n + 1);
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [anyThumbFailed, thumbRetry]);
   // Closing the viewer brings the last photo it showed into view in the grid and focuses it,
   // since stepping through photos may have gone well past the one it opened on.
   const [jump, setJump] = useState<TileJump | null>(null);
@@ -635,7 +656,11 @@ export function LibraryPage({
         />
       )}
       {!reviewing && settings?.codec_hint_dismissed !== "true" && (
-        <CodecHint failed={failedThumbs} onDismiss={() => save("codec_hint_dismissed", "true")} />
+        <CodecHint
+          failed={failedThumbs}
+          onDismiss={() => save("codec_hint_dismissed", "true")}
+          onChange={() => setThumbRetry((n) => n + 1)}
+        />
       )}
 
       {!reviewing && allTiles !== null && total > 0 && (
@@ -685,6 +710,7 @@ export function LibraryPage({
           // While picking, a click picks, so the magnifier is the way to look at a photo.
           onTileZoom={selecting ? setOpen : undefined}
           onThumbError={onThumbError}
+          thumbRetry={thumbRetry}
           showUncertain={filter.uncertain}
           jump={jump}
         />

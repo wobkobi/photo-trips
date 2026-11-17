@@ -2,9 +2,10 @@
 // any format with an installed handler (HEIC, RAW, most video) gets a picture, already turned
 // upright. Rendered on a small pool of COM threads, cached as JPEGs and served on thumb://.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::time::{Duration, Instant};
 
 use tauri::http::{Request, Response, StatusCode, header};
 use tauri::{Manager, Runtime, UriSchemeContext, UriSchemeResponder};
@@ -19,6 +20,11 @@ pub const PREVIEW_SIZE: i32 = 2048;
 
 /// Requests beyond this are for tiles scrolled far out of view; the oldest are dropped.
 const MAX_QUEUE: usize = 1000;
+
+/// How long a file Windows couldn't draw is answered "no picture" without trying again. Long
+/// enough that scrolling past it doesn't redraw it each time, short enough that a file still
+/// being written (a sync, a copy) gets its picture once it's done.
+const RETRY_AFTER: Duration = Duration::from_secs(60);
 
 /// Painted behind transparent images, matching where each rendering is shown (both are colours
 /// in index.css): thumbnails sit on `raised` tiles, and the viewer's stage is `.on-dark` `ground`.
@@ -56,8 +62,8 @@ struct Queue {
 struct Shared {
     queue: Mutex<Queue>,
     ready: Condvar,
-    /// Cache paths the shell couldn't render this session, so they aren't retried on every scroll.
-    failed: Mutex<HashSet<PathBuf>>,
+    /// Cache paths the shell couldn't render, and when, so they aren't retried on every scroll.
+    failed: Mutex<HashMap<PathBuf, Instant>>,
 }
 
 /// Managed state: the render threads and cache folders.
@@ -110,14 +116,20 @@ impl Pool {
         dir.join(format!("{}.jpg", &key[..32]))
     }
 
+    /// Let every file Windows couldn't draw be tried again at once, for when a codec extension
+    /// has just been added or removed.
+    pub fn forget_failures(&self) {
+        lock(&self.shared.failed).clear();
+    }
+
     /// Cached JPEG bytes, or a render queued on the pool. `done` gets `None` when the shell has
-    /// no image for the file (missing codec, corrupt file).
-    /// Serve a rendering from the cache, or queue it. `full` is the viewer's size and background.
+    /// no image for the file (missing codec, corrupt file) or couldn't draw it in the last
+    /// minute. `full` is the viewer's size and background.
     fn get(&self, source: PathBuf, cache: PathBuf, full: bool, done: Callback) {
         if let Ok(bytes) = std::fs::read(&cache) {
             return done(Some(bytes));
         }
-        if lock(&self.shared.failed).contains(&cache) {
+        if failed_lately(&mut lock(&self.shared.failed), &cache, Instant::now()) {
             return done(None);
         }
         let dropped = {
@@ -151,6 +163,19 @@ impl Pool {
                 done(None);
             }
         }
+    }
+}
+
+/// Whether the shell failed to draw `cache` within [`RETRY_AFTER`] of `now`. An older failure is
+/// forgotten, so the caller tries the file again.
+fn failed_lately(failed: &mut HashMap<PathBuf, Instant>, cache: &Path, now: Instant) -> bool {
+    match failed.get(cache) {
+        Some(at) if now.saturating_duration_since(*at) < RETRY_AFTER => true,
+        Some(_) => {
+            failed.remove(cache);
+            false
+        }
+        None => false,
     }
 }
 
@@ -188,7 +213,7 @@ fn worker(shared: &Shared) {
         match &jpeg {
             Some(bytes) => write_atomic(&job.cache, bytes),
             None => {
-                lock(&shared.failed).insert(job.cache.clone());
+                lock(&shared.failed).insert(job.cache.clone(), Instant::now());
             }
         }
         let waiting = lock(&shared.queue)
@@ -437,6 +462,19 @@ fn not_found() -> Response<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_failed_file_is_tried_again_after_a_minute() {
+        let cache = PathBuf::from("abc.jpg");
+        let at = Instant::now();
+        let mut failed = HashMap::from([(cache.clone(), at)]);
+        assert!(failed_lately(&mut failed, &cache, at + Duration::from_secs(30)));
+        assert!(failed_lately(&mut failed, &cache, at));
+        assert!(!failed_lately(&mut failed, &cache, at + RETRY_AFTER));
+        // Forgotten, so the retry's own outcome decides from here.
+        assert!(failed.is_empty());
+        assert!(!failed_lately(&mut failed, Path::new("other.jpg"), at));
+    }
 
     #[test]
     fn zero_alpha_is_opaque_and_transparent_pixels_show_the_background() {
