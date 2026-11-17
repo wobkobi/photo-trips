@@ -4,12 +4,14 @@ import { Sidebar } from "./components/Sidebar";
 import { Tour } from "./components/Tour";
 import { themeOf } from "./lib/display";
 import { JobsProvider } from "./lib/jobs";
-import { NO_FILTER, type FilterTrip, type LibraryFilter } from "./lib/libraryFilter";
+import { LibraryProvider } from "./lib/library";
+import { NO_FILTER, type FilterTrip } from "./lib/libraryFilter";
 import { useMenuBar, type MenuRequest } from "./lib/menu";
 import { SettingsProvider } from "./lib/settings";
 import type { TripStart } from "./lib/trips";
 import { UpdatesProvider } from "./lib/updates";
 import { useJobDone } from "./lib/useJobs";
+import { useLibrary } from "./lib/useLibrary";
 import { useSettings } from "./lib/useSettings";
 import { useUpdates } from "./lib/useUpdates";
 import { keepsWebviewMenu } from "./lib/webviewMenu";
@@ -36,7 +38,7 @@ export type PageId =
   | "help";
 
 /**
- * Root component: settings and job providers around the shell. Right-clicks get no browser menu
+ * Root component: settings, job and library providers around the shell. Right-clicks get no browser menu
  * except on text, so the app never offers Back, Reload or Print.
  * @returns the app
  */
@@ -59,7 +61,9 @@ export default function App(): ReactElement {
     <SettingsProvider>
       <JobsProvider>
         <UpdatesProvider>
-          <Shell />
+          <LibraryProvider>
+            <Shell />
+          </LibraryProvider>
         </UpdatesProvider>
       </JobsProvider>
     </SettingsProvider>
@@ -86,12 +90,14 @@ function Shell(): ReactElement | null {
   // A trip started in the Library or Suggestions, until the Trips page opens it.
   const [tripDraft, setTripDraft] = useState<TripStart | null>(null);
   const clearTripDraft = useCallback(() => setTripDraft(null), []);
-  // Kept here, not in the Library, so it survives a trip to another page and back.
-  const [filter, setFilter] = useState<LibraryFilter>(NO_FILTER);
-  const showTrip = useCallback((trip: FilterTrip) => {
-    setFilter({ ...NO_FILTER, trip });
-    setPage("library");
-  }, []);
+  const { setFilter } = useLibrary();
+  const showTrip = useCallback(
+    (trip: FilterTrip) => {
+      setFilter({ ...NO_FILTER, trip });
+      setPage("library");
+    },
+    [setFilter],
+  );
   const createTrip = useCallback((start: TripStart) => {
     setTripDraft(start);
     setPage("trips");
@@ -158,8 +164,6 @@ function Shell(): ReactElement | null {
           <CurrentPage
             page={page}
             onNavigate={setPage}
-            filter={filter}
-            onFilter={setFilter}
             onShowTrip={showTrip}
             tripDraft={tripDraft}
             onTripDraftUsed={clearTripDraft}
@@ -193,8 +197,6 @@ function Shell(): ReactElement | null {
  * @param props - Component props.
  * @param props.page - which page to show
  * @param props.onNavigate - open another page
- * @param props.filter - the Library filter
- * @param props.onFilter - change the Library filter
  * @param props.onShowTrip - show one trip in the Library
  * @param props.tripDraft - a trip started elsewhere, for the Trips page to open
  * @param props.onTripDraftUsed - called once the Trips page has opened the draft
@@ -211,8 +213,6 @@ function Shell(): ReactElement | null {
 function CurrentPage({
   page,
   onNavigate,
-  filter,
-  onFilter,
   onShowTrip,
   tripDraft,
   onTripDraftUsed,
@@ -227,8 +227,6 @@ function CurrentPage({
 }: {
   page: PageId;
   onNavigate: (page: PageId) => void;
-  filter: LibraryFilter;
-  onFilter: (filter: LibraryFilter) => void;
   onShowTrip: (trip: FilterTrip) => void;
   tripDraft: TripStart | null;
   onTripDraftUsed: () => void;
@@ -245,8 +243,6 @@ function CurrentPage({
     case "library":
       return (
         <LibraryPage
-          filter={filter}
-          onFilter={onFilter}
           onCreateTrip={onCreateTrip}
           onImport={() => onNavigate("import")}
           onNavigate={onNavigate}

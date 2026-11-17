@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.31.0] - 2026-11-18
+
+### Added
+
+- Coming back to the Library finds it as you left it: same filter, same selection, same open photo,
+  with no wait for the photos to load again.
+
 ## [0.30.8] - 2026-11-18
 
 ### Fixed
