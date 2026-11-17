@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.47.0] - 2026-11-18
+
+### Added
+
+- Right-click on the open photo in the viewer shows the same menu as its tile; while a menu is open,
+  Delete and the arrow keys no longer act behind it
+
 ## [0.46.0] - 2026-11-18
 
 ### Added

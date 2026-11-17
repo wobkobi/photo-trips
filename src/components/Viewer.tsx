@@ -29,6 +29,7 @@ import {
 } from "../lib/zoom";
 import { MissingExtensions } from "./CodecHint";
 import { Icon, type IconName } from "./Icon";
+import { TileMenu, type MenuItem } from "./TileMenu";
 import { Button } from "./ui";
 import { VideoPlayer } from "./VideoPlayer";
 
@@ -160,6 +161,8 @@ export interface ViewSource {
  *   viewer is the top layer, and a `bin` command puts Bin in the bar
  * @param props.removed - raise it when the file on show leaves the source from under the viewer,
  *   as to the Recycle Bin, so the file that takes its place slides in
+ * @param props.menu - the right-click menu for the file on show, worked out each time it opens;
+ *   without it a right-click on the photo does nothing
  * @returns the viewer, drawn over the whole window
  */
 export function Viewer({
@@ -171,6 +174,7 @@ export function Viewer({
   controls,
   commands,
   removed = 0,
+  menu,
 }: {
   source: ViewSource;
   index: number;
@@ -180,6 +184,7 @@ export function Viewer({
   controls?: ReactNode;
   commands?: PhotoCommand[];
   removed?: number;
+  menu?: () => MenuItem[];
 }): ReactElement {
   const key = source.key(index);
   // Loaded files by key: the one on show and up to AHEAD each side, fetched ahead so the
@@ -440,6 +445,28 @@ export function Viewer({
   if (liveKey !== null && liveKey !== key) setLiveKey(null);
   const live = item?.live !== undefined && liveKey === key ? item.live : null;
 
+  const [menuAt, setMenuAt] = useState<{
+    key: string;
+    x: number;
+    y: number;
+    items: MenuItem[];
+  } | null>(null);
+  // Its items act on the file it was opened for, so it goes if another comes on show.
+  if (menuAt !== null && menuAt.key !== key) setMenuAt(null);
+  const closeMenu = useCallback(() => setMenuAt(null), []);
+
+  /**
+   * Open the caller's menu for the file on show at the pointer. The bar, the side arrows and the
+   * video's own controls keep the plain right-click, which shows nothing.
+   * @param event - the right-click anywhere on the stage
+   */
+  function onStageMenu(event: MouseEvent<HTMLDivElement>): void {
+    if (!menu || inChrome(event.target)) return;
+    if (event.target instanceof Element && event.target.closest("button, input")) return;
+    event.preventDefault();
+    setMenuAt({ key, x: event.clientX, y: event.clientY, items: menu() });
+  }
+
   const bin = commands?.find((c) => c.id === "bin");
   const usable = item !== null && !item.missing;
   return createPortal(
@@ -457,6 +484,7 @@ export function Viewer({
     >
       <div
         ref={stage}
+        onContextMenu={onStageMenu}
         className="on-dark relative flex min-w-0 flex-1 items-center justify-center overflow-hidden bg-ground"
       >
         {item && live && (
@@ -596,6 +624,8 @@ export function Viewer({
           </div>
         </aside>
       )}
+
+      {menuAt && <TileMenu x={menuAt.x} y={menuAt.y} items={menuAt.items} onClose={closeMenu} />}
     </div>,
     document.body,
   );

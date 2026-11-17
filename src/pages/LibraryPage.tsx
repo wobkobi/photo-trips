@@ -22,6 +22,7 @@ import {
 
 import { tileSizeOf } from "../lib/display";
 import { count as countOf } from "../lib/format";
+import { layers } from "../lib/layers";
 import {
   clearFilters,
   filterTiles,
@@ -306,11 +307,13 @@ export function LibraryPage({
   useEffect(() => {
     /**
      * Ctrl+A selects every photo shown, and the photo commands' shortcuts (Delete, Ctrl+C) run,
-     * unless the key is for a text box or a dialog.
+     * unless the key is for a text box, a dialog or an open menu.
      * @param event - the key pressed
      */
     const onKey = (event: KeyboardEvent): void => {
       if (!gridShown || isTyping(event.target) || modalOnScreen()) return;
+      // With the grid on show, any layer open is a menu or dialog over it, which owns the keys.
+      if (layers.size() > 0) return;
       if (runKeyCommand.current(event)) return;
       const pickAll = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a";
       if (!pickAll || ids.length === 0) return;
@@ -342,6 +345,18 @@ export function LibraryPage({
       deselect: clearSelection,
       bin: setBinning,
     });
+  }
+
+  /**
+   * The viewer's right-click menu: the photo on show's tile menu, less View, since it's already
+   * in view.
+   * @returns the menu entries, or none when no photo is open
+   */
+  function viewerMenu(): MenuItem[] {
+    if (!tiles || open === null) return [];
+    const tile = tiles[open];
+    const commands = commandsFor({ photo: tile, photos: [tile], selection: false }, true);
+    return menuItems(commands.filter((c) => c.id !== "view"));
   }
 
   /**
@@ -805,6 +820,7 @@ export function LibraryPage({
           steps={["Newer", "Older"]}
           commands={viewerCommands}
           removed={binnedOpen}
+          menu={viewerMenu}
           controls={
             <>
               <ViewerTrip

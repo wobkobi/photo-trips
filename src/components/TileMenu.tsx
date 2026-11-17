@@ -6,6 +6,8 @@ import {
   type KeyboardEvent,
   type ReactElement,
 } from "react";
+import { createPortal } from "react-dom";
+import { useLayer } from "../lib/layers";
 
 /** One entry in a {@link TileMenu}. */
 export interface MenuItem {
@@ -28,7 +30,12 @@ const ITEMS = "button:not(:disabled)";
 const EDGE = 8;
 
 /**
- * Right-click menu at the pointer. Closes on Escape, a click elsewhere, scrolling or resizing.
+ * Right-click menu at the pointer. Closes on Escape, a click elsewhere, scrolling or resizing,
+ * and hands focus back to what had it.
+ *
+ * It's drawn on the body, above the photo viewer, so it stays usable while the viewer makes the
+ * app's root inert, and it takes the top of the layer stack so the viewer's keys (Escape, the
+ * arrows, Delete) stand aside while it's open.
  * @param props - Component props.
  * @param props.x - pointer x in viewport pixels
  * @param props.y - pointer y in viewport pixels
@@ -49,6 +56,15 @@ export function TileMenu({
 }): ReactElement {
   const ref = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: x, top: y });
+  useLayer();
+
+  // Declared before the effect that focuses the first item, so it notes what had focus first.
+  useLayoutEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
+    };
+  }, []);
 
   // Flip the menu back inside the window when it would spill past an edge.
   useLayoutEffect(() => {
@@ -104,7 +120,7 @@ export function TileMenu({
     buttons[(at + step + buttons.length) % buttons.length]?.focus();
   }
 
-  return (
+  return createPortal(
     <div
       ref={ref}
       role="menu"
@@ -130,6 +146,7 @@ export function TileMenu({
           {item.shortcut && <span className="text-[13px] text-muted">{item.shortcut}</span>}
         </button>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }
