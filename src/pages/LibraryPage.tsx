@@ -85,12 +85,14 @@ export function LibraryPage({
   const tiles = useMemo(() => allTiles && filterTiles(allTiles, filter), [allTiles, filter]);
   const [summary, setSummary] = useState<IndexSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState<number | null>(null);
+  // The open photo and the Shift-click anchor are kept as ids, so a reload that adds or drops
+  // photos can't change which one is open or where a range starts.
+  const [openId, setOpenId] = useState<number | null>(null);
   const [failedThumbs, setFailedThumbs] = useState<Tile[]>([]);
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
   // Picking was turned on with the button, so plain clicks pick even before anything is picked.
   const [picking, setPicking] = useState(false);
-  const [anchor, setAnchor] = useState<number | null>(null);
+  const [anchorId, setAnchorId] = useState<number | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [trips, setTrips] = useState<TripInfo[]>([]);
   /** Photos waiting for the user to confirm sending them to the Recycle Bin. */
@@ -192,16 +194,21 @@ export function LibraryPage({
     setShownFilter(filter);
     setJump({ index: 0, focus: false });
   }
+  const ids = useMemo(() => tiles?.map((t) => t.id) ?? [], [tiles]);
+  const indexOf = useMemo(() => new Map(ids.map((id, index) => [id, index])), [ids]);
+  // A photo that left the list (binned, or filtered out by a new date) closes the viewer for
+  // good, rather than reopening if it comes back.
+  if (openId !== null && tiles !== null && !indexOf.has(openId)) setOpenId(null);
+  const open = openId === null ? null : (indexOf.get(openId) ?? null);
   const closeViewer = useCallback(() => {
     if (open !== null) setJump({ index: open, align: "auto" });
-    setOpen(null);
+    setOpenId(null);
   }, [open]);
-  const ids = useMemo(() => tiles?.map((t) => t.id) ?? [], [tiles]);
   const source = useLibrarySource(ids, revision);
   const clearSelection = useCallback(() => {
     setPicking(false);
     setSelected(new Set());
-    setAnchor(null);
+    setAnchorId(null);
     setMenu(null);
   }, []);
 
@@ -219,14 +226,14 @@ export function LibraryPage({
   // Find closes the viewer, which covers the file name box. Closed here during render, so the
   // focus below runs in the commit that unmounts the viewer, after its cleanup hands focus back
   // to the tile.
-  if (findRequested && open !== null) setOpen(null);
+  if (findRequested && openId !== null) setOpenId(null);
   // The box only shows once the list has loaded, so Find waits for that.
   const loaded = allTiles !== null;
   useEffect(() => {
-    if (!findRequested || open !== null || !loaded) return;
+    if (!findRequested || openId !== null || !loaded) return;
     onFindStarted();
     searchBox.current?.focus();
-  }, [findRequested, onFindStarted, open, loaded]);
+  }, [findRequested, onFindStarted, openId, loaded]);
 
   const selecting = picking || selected.size > 0;
   const picked = useMemo(
@@ -243,7 +250,7 @@ export function LibraryPage({
   );
 
   // Ctrl+A only while the grid is what's on screen, not over the viewer or a trip review.
-  const gridShown = open === null && tripReview.review === null;
+  const gridShown = openId === null && tripReview.review === null;
   useEffect(() => {
     /**
      * Escape stops picking; Ctrl+A picks every photo shown and Delete asks to bin the picked
@@ -258,7 +265,7 @@ export function LibraryPage({
       if (!pickAll || ids.length === 0) return;
       event.preventDefault();
       setSelected(new Set(ids));
-      setAnchor(null);
+      setAnchorId(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -274,7 +281,8 @@ export function LibraryPage({
   function onTileClick(index: number, event: TileEvent): void {
     if (!tiles) return;
     const id = tiles[index].id;
-    if (event.shiftKey && anchor !== null) {
+    const anchor = anchorId === null ? undefined : indexOf.get(anchorId);
+    if (event.shiftKey && anchor !== undefined) {
       const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
       const next = new Set(event.ctrlKey ? selected : []);
       for (let i = from; i <= to; i += 1) next.add(tiles[i].id);
@@ -286,10 +294,10 @@ export function LibraryPage({
       if (next.has(id)) next.delete(id);
       else next.add(id);
       setSelected(next);
-      setAnchor(index);
+      setAnchorId(id);
       return;
     }
-    setOpen(index);
+    setOpenId(id);
   }
 
   /**
@@ -307,7 +315,7 @@ export function LibraryPage({
     const pick = selected.has(tile.id) ? picked : [tile];
     if (selecting && !selected.has(tile.id)) {
       setSelected(new Set([tile.id]));
-      setAnchor(index);
+      setAnchorId(tile.id);
     }
     const items: MenuItem[] = [
       { label: "Open", onSelect: fileAction.bind(null, api.openMedia, tile.id) },
@@ -356,7 +364,7 @@ export function LibraryPage({
     setBinning(null);
     setBinResult(null);
     clearSelection();
-    setOpen(null);
+    setOpenId(null);
     setBinStarted(true);
     api.recycleMedia(binIds).catch((err) => {
       setBinStarted(false);
@@ -366,12 +374,12 @@ export function LibraryPage({
 
   /**
    * Set the date of some photos in Pic Cabinet, or go back to their files' own dates, then show
-   * the change with its Undo. A photo open in the viewer stays open as it moves in the timeline.
+   * the change with its Undo. A photo open in the viewer stays open as it moves in the timeline,
+   * since the viewer follows its id.
    * @param chosen - the photos
    * @param date - local time, `YYYY-MM-DDTHH:MM:SS`, or null for the files' own dates
    */
   async function saveDates(chosen: Tile[], date: string | null): Promise<void> {
-    const openId = open !== null ? tiles?.[open]?.id : undefined;
     setSavingDate(true);
     try {
       const batch = await api.setDates(
@@ -384,13 +392,8 @@ export function LibraryPage({
         text: date ? `Date set for ${photos}.` : `Back to the file's own date for ${photos}.`,
       });
       setDating(null);
-      const fresh = await api.libraryTiles();
-      setTiles(fresh);
+      setTiles(await api.libraryTiles());
       setRevision((r) => r + 1);
-      if (openId !== undefined) {
-        const at = filterTiles(fresh, filter).findIndex((t) => t.id === openId);
-        setOpen(at >= 0 ? at : null);
-      }
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -446,7 +449,7 @@ export function LibraryPage({
    */
   function startEdit(edit: TripEdit): void {
     clearSelection();
-    setOpen(null);
+    setOpenId(null);
     void tripReview.check(
       { action: "update", id: edit.trip.id, draft: edit.draft },
       editDone(edit),
@@ -478,7 +481,7 @@ export function LibraryPage({
    */
   function changeFilter(next: LibraryFilter): void {
     clearSelection();
-    setOpen(null);
+    setOpenId(null);
     onFilter(next);
   }
 
@@ -709,7 +712,7 @@ export function LibraryPage({
           onTileClick={onTileClick}
           onTileMenu={onTileMenu}
           // While picking, a click picks, so the magnifier is the way to look at a photo.
-          onTileZoom={selecting ? setOpen : undefined}
+          onTileZoom={selecting ? (index) => setOpenId(tiles[index].id) : undefined}
           onThumbError={onThumbError}
           thumbRetry={thumbRetry}
           showUncertain={filter.uncertain}
@@ -722,7 +725,7 @@ export function LibraryPage({
         <Viewer
           source={source}
           index={open}
-          onIndex={setOpen}
+          onIndex={(index) => setOpenId(tiles[index]?.id ?? null)}
           onClose={closeViewer}
           steps={["Newer", "Older"]}
           controls={
