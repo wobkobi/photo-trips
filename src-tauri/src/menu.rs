@@ -94,7 +94,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         true,
         &[
             &import,
-            &item(REFRESH, "&Look for new photos", Some("F5"))?,
+            &item(REFRESH, "&Refresh", Some("F5"))?,
             &item(OPEN_LIBRARY, "&Open library folder", None)?,
             &PredefinedMenuItem::separator(app)?,
             &item(CLOSE, "&Close window", Some("Ctrl+W"))?,

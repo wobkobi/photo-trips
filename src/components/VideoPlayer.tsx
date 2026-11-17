@@ -134,7 +134,7 @@ export function VideoPlayer({
           {clockTime(duration)}
         </span>
         <BarButton
-          label={quiet ? "Turn sound on" : "Mute"}
+          label={quiet ? "Unmute" : "Mute"}
           onClick={() =>
             quiet ? setVolume(sound.volume || DEFAULT_VOLUME, false) : setVolume(sound.volume, true)
           }

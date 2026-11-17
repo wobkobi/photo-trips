@@ -57,8 +57,8 @@ export function useLibrarySource(ids: number[], revision = 0): ViewSource {
        * @returns resolves once it's on the clipboard
        */
       copy: (index) => api.copyMedia(ids[index]),
-      gone: "Look for new photos to bring the library up to date.",
-      refresh: { label: "Look for new photos", run: api.indexLibrary },
+      gone: "Refresh to bring the library up to date.",
+      refresh: { label: "Refresh", run: api.indexLibrary },
     }),
     [ids, revision],
   );

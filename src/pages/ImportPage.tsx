@@ -48,9 +48,7 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
   const [moveFiles, setMoveFiles] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApplySummary | null>(null);
-  // Whether the import that ran last moved files in rather than copying them.
-  const [movedIn, setMovedIn] = useState(false);
-  // Items unticked on the review screen, for the preview they were unticked on.
+  // Items deselected on the review screen, for the preview they were unticked on.
   const [leftOut, setLeftOut] = useState<{ preview: number; items: ReadonlySet<number> } | null>(
     null,
   );
@@ -115,7 +113,6 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
    * @param ready - the checked import to bring in
    */
   function bringIn(ready: ImportPreview): void {
-    setMovedIn(ready.moving);
     void run(() => api.applyImport(ready.id, [...left]));
   }
 
@@ -157,7 +154,7 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
                     : undefined
                 }
               >
-                {preview.moving ? "Move" : "Copy"} {count(totals?.items ?? 0, "photo", "photos")} in
+                Import {count(totals?.items ?? 0, "item", "items")}
               </Button>
             </>
           )
@@ -171,8 +168,7 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
       {result && !working && (
         <ResultBanner
           result={result}
-          verb={movedIn ? "moved" : "copied"}
-          destination="your library"
+          verb="imported"
           busy={busy}
           onUndo={() => run(() => api.undoBatch(result.batchId))}
           onHistory={() => onNavigate("history")}
@@ -489,7 +485,7 @@ function IncomingView({
         ticked={totals.items}
         total={preview.items.length}
         extra={<span className="text-muted">({formatBytes(totals.bytes)})</span>}
-        hint={<>Untick any you don&apos;t want. They stay {where} and show up again next time.</>}
+        hint={<>Deselect any you don&apos;t want. They stay {where} and show up again next time.</>}
         onAll={(pick) => onLeftChange(pick ? new Set() : new Set(tiles.map((t) => t.id)))}
       />
       <FolderJumpList folders={folders} onOpen={openFolder} />
@@ -502,7 +498,7 @@ function IncomingView({
           tileSize={tileSizeOf(settings)}
           thumbOf={thumbOf}
           source={source}
-          tickLabel="Bring this one in"
+          tickLabel="Import this one"
           jump={jump}
           onThumbError={onThumbError}
         />

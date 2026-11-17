@@ -311,7 +311,7 @@ function SuggestionCard({
             Not a trip
           </Button>
           <Button variant="ghost" onClick={onChange} disabled={busy}>
-            Change or pick photos
+            Change or select photos
           </Button>
           <Button variant="primary" onClick={onCreate} disabled={busy}>
             Create trip

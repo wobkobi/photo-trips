@@ -27,7 +27,7 @@ export const JOB_NAMES: Record<string, string> = {
   duplicates: "Checking for duplicates",
   remove: "Moving files to the Recycle Bin",
   "import-scan": "Checking for new photos",
-  import: "Bringing photos in",
+  import: "Importing photos",
   inbox: "Moving new photos in from the inbox",
 };
 

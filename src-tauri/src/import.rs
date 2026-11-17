@@ -945,7 +945,7 @@ pub fn apply_import(
     let pending = previews.get(id)?;
     let groups = chosen_groups(&pending.groups, &skip);
     if groups.is_empty() {
-        return Err(Error::msg("Pick at least one photo to bring in"));
+        return Err(Error::msg("Select at least one item to import"));
     }
     let files = groups.iter().map(|g| g.files.len()).sum();
     let label = import_label(pending.transfer, files, &pending.from);

@@ -47,7 +47,7 @@ export function SampleStrip({ sample }: { sample: SampleTile[] }): ReactElement 
             key={tile.id}
             tile={tile}
             size={size}
-            label={`Look at photo ${index + 1} of ${shown.length}`}
+            label={`Open photo ${index + 1} of ${shown.length}`}
             onOpen={() => setViewing(index)}
           />
         ))}
@@ -84,7 +84,7 @@ function SampleThumb({
       type="button"
       onClick={onOpen}
       aria-label={label}
-      title="Look at this one bigger"
+      title="Open"
       className={`relative shrink-0 overflow-hidden rounded-xs bg-raised ${HOVER_RING}`}
       style={{ width: size, height: size }}
     >

@@ -29,6 +29,7 @@ export interface MoveRowData {
 const VERBS = {
   moved: ["Moved", "moving", "moved"],
   copied: ["Copied", "copying", "copied"],
+  imported: ["Imported", "importing", "imported"],
 } as const;
 
 /**
@@ -114,9 +115,8 @@ export function PlanView({
 export function LeftAlone({ files }: { files: number }): ReactElement {
   return (
     <p className="mt-2">
-      {count(files, "sidecar file stays", "sidecar files stay")} where{" "}
-      {files === 1 ? "it is" : "they are"} because the photo{" "}
-      {files === 1 ? "it belongs to is" : "they belong to is"} missing.
+      {count(files, "sidecar file", "sidecar files")} with no matching photo or video here{" "}
+      {files === 1 ? "stays" : "stay"} where {files === 1 ? "it is" : "they are"}.
     </p>
   );
 }

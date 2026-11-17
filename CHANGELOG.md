@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.30.6] - 2026-11-18
+
+### Changed
+
+- Standard words throughout: Select all / Select none, Deselect, Rotate, Open, Refresh, Import 12
+  items, and Undo / Cancel in History. Selections count items, and stray sidecars read as having no
+  matching photo or video.
+
 ## [0.30.5] - 2026-11-18
 
 ### Fixed

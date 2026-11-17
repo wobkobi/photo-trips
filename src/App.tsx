@@ -96,7 +96,7 @@ function Shell(): ReactElement | null {
     setTripDraft(start);
     setPage("trips");
   }, []);
-  // Menu requests waiting for their page to open: File > Look for new photos, View > Find, and
+  // Menu requests waiting for their page to open: File > Refresh, View > Find, and
   // Help > About or Check for updates (from Help or the tray), which both open Settings at About.
   const [refresh, setRefresh] = useState(false);
   const [find, setFind] = useState(false);
@@ -199,7 +199,7 @@ function Shell(): ReactElement | null {
  * @param props.tripDraft - a trip started elsewhere, for the Trips page to open
  * @param props.onTripDraftUsed - called once the Trips page has opened the draft
  * @param props.onCreateTrip - start a trip and open the Trips page
- * @param props.refresh - File > Look for new photos is waiting for the Library
+ * @param props.refresh - File > Refresh is waiting for the Library
  * @param props.onRefreshStarted - called once the Library has started looking
  * @param props.find - View > Find is waiting for the Library's file name box
  * @param props.onFindStarted - called once the Library has taken the find request
