@@ -503,23 +503,31 @@ struct CopiedOff<T> {
 }
 
 /// Fetch every file of each set (indexes into the phone's file list), asking twice for a file
-/// that fails. A set with a file that still fails is left out whole, so a photo never arrives
-/// without its Live Photo video. `fetch` gets the file's index and how many came before it.
-/// Errors with the last failure once [`GIVE_UP_AFTER`] files fail in a row.
+/// the phone fails to hand over. A set with a file that still fails is left out whole, so a
+/// photo never arrives without its Live Photo video. `fetch` gets the file's index and how many
+/// came before it, and gives `Ok(Err(_))` when the phone failed and `Err(_)` when this PC did
+/// (a full disk, the database), which stops the check at once.
+///
+/// Errors with the last failure once [`GIVE_UP_AFTER`] files fail in a row, or when the last
+/// two or more all failed: a phone unplugged or locked near the end, not files it refused.
 fn copy_off<T>(
     sets: &[Vec<usize>],
     cancel: &AtomicBool,
-    mut fetch: impl FnMut(usize, usize) -> Result<T>,
+    mut fetch: impl FnMut(usize, usize) -> Result<Result<T>>,
 ) -> Result<CopiedOff<T>> {
     let mut out = CopiedOff { files: Vec::new(), unreadable: 0 };
     let (mut done, mut in_a_row) = (0, 0);
+    let mut last_failure = None;
     for set in sets {
         let mut got = Vec::with_capacity(set.len());
         for &i in set {
             if cancel.load(Ordering::Relaxed) {
                 return Err(Error::msg("Cancelled"));
             }
-            let fetched = fetch(i, done).or_else(|_| fetch(i, done));
+            let fetched = match fetch(i, done)? {
+                Err(_) => fetch(i, done)?,
+                got => got,
+            };
             done += 1;
             match fetched {
                 Ok(file) => {
@@ -533,6 +541,7 @@ fn copy_off<T>(
                     }
                     log::warn!("Left on the phone: {err}");
                     out.unreadable += 1;
+                    last_failure = Some(err);
                     got.clear();
                     break;
                 }
@@ -540,7 +549,10 @@ fn copy_off<T>(
         }
         out.files.extend(got);
     }
-    Ok(out)
+    match last_failure {
+        Some(err) if in_a_row >= 2 => Err(err),
+        _ => Ok(out),
+    }
 }
 
 /// Copy a phone's new photos into `staging` and list them. A file seen on this phone before
@@ -593,12 +605,15 @@ pub fn fetch_phone(ctx: &Ctx, id: &str, name: &str, staging: &Path) -> Result<Ph
             fs::create_dir_all(dir)?;
         }
         let _ = fs::remove_file(&to);
-        let hash = phone.download(file, &to)?;
+        let hash = match phone.download(file, &to) {
+            Ok(hash) => hash,
+            Err(err) => return Ok(Err(err)),
+        };
         let modified = secs(file.modified);
         save_memo(ctx.db, id, &file.path, file.size, modified, &hash)?;
         let kind = ctx.table.kind_of(&file.path).unwrap_or(Kind::Companion);
         let size = fs::metadata(&to).map_or(file.size, |m| m.len());
-        Ok(Found {
+        Ok(Ok(Found {
             file: ScannedFile {
                 path: to,
                 kind,
@@ -607,7 +622,7 @@ pub fn fetch_phone(ctx: &Ctx, id: &str, name: &str, staging: &Path) -> Result<Ph
             },
             origin: Path::new(name).join(&file.path),
             hash: Some(hash),
-        })
+        }))
     })?;
     (ctx.report)(&stage, total, total);
     Ok(PhoneCheck {
@@ -1431,10 +1446,10 @@ mod tests {
         let copied = copy_off(&sets, &AtomicBool::new(false), |i, _| {
             let n = asked.entry(i).or_default();
             *n += 1;
-            match (i, *n) {
+            Ok(match (i, *n) {
                 (1, _) | (2, 1) => Err(Error::msg("The device stopped responding")),
                 _ => Ok(i),
-            }
+            })
         })
         .unwrap();
         assert_eq!(copied.files, [2, 3]);
@@ -1445,10 +1460,31 @@ mod tests {
     #[test]
     fn a_phone_that_stops_answering_ends_the_check() {
         let sets: Vec<Vec<usize>> = (0..10).map(|i| vec![i]).collect();
-        let copied = copy_off(&sets, &AtomicBool::new(false), |i, _| -> Result<usize> {
-            if i == 0 { Ok(i) } else { Err(Error::msg("The device is no longer connected")) }
+        let copied = copy_off(&sets, &AtomicBool::new(false), |i, _| {
+            Ok(if i == 0 { Ok(i) } else { Err(Error::msg("The device is no longer connected")) })
         });
         let err = copied.err().expect("the check should give up");
         assert!(err.to_string().contains("no longer connected"));
+    }
+
+    #[test]
+    fn a_phone_that_goes_away_near_the_end_ends_the_check() {
+        let sets: Vec<Vec<usize>> = (0..4).map(|i| vec![i]).collect();
+        let copied = copy_off(&sets, &AtomicBool::new(false), |i, _| {
+            Ok(if i < 2 { Ok(i) } else { Err(Error::msg("The device is no longer connected")) })
+        });
+        assert!(copied.is_err(), "two failures at the end are a phone gone, not two bad files");
+    }
+
+    #[test]
+    fn a_problem_on_this_pc_stops_the_check_at_once() {
+        let sets: Vec<Vec<usize>> = (0..3).map(|i| vec![i]).collect();
+        let mut asked = 0;
+        let copied = copy_off(&sets, &AtomicBool::new(false), |_, _| -> Result<Result<usize>> {
+            asked += 1;
+            Err(Error::msg("There is not enough space on the disk"))
+        });
+        assert!(copied.err().unwrap().to_string().contains("not enough space"));
+        assert_eq!(asked, 1);
     }
 }

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.17] - 2026-11-18
+
+### Fixed
+
+- A phone unplugged or locked near the end of a check now ends it with an error instead of reporting
+  the last files as unreadable, and a problem on this PC (a full disk) stops the check at once
+  instead of being blamed on the phone.
+
 ## [0.25.16] - 2026-11-18
 
 ### Fixed
