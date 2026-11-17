@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.10] - 2026-11-18
+
+### Fixed
+
+- Empty (0 byte) files, usually left by a copy that didn't finish, are no longer brought in on every
+  check under a new number. The import preview counts them, and an empty file already in the library
+  says so in the viewer, with Show in folder, instead of offering to open it in another app.
+
 ## [0.25.9] - 2026-11-18
 
 ### Fixed

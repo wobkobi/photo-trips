@@ -79,6 +79,7 @@ function libraryItem(detail: MediaDetail): ViewItem {
     kind: detail.kind,
     original: shown ? fileUrl(detail.path) : null,
     missing: detail.missing,
+    empty: detail.empty,
     preview: thumbUrl(detail.id, detail.version, true),
     thumb: thumbUrl(detail.id, detail.version),
     facts: <LibraryFacts detail={detail} />,
@@ -151,6 +152,8 @@ function importItem(
     kind: item.kind,
     original: shown ? fileUrl(file.path) : null,
     missing: file.missing,
+    // Empty files are left out of an import, so none is ever previewed.
+    empty: false,
     preview: thumbUrl(item.thumb, item.version, true),
     thumb: thumbUrl(item.thumb, item.version),
     facts: <ImportFacts previewId={previewId} index={index} item={item} />,

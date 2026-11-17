@@ -72,6 +72,8 @@ pub struct ImportPreview {
     pub other_files: u64,
     /// Phone files that couldn't be read, left on the phone with the files that go with them.
     pub unreadable: usize,
+    /// Empty (0 byte) files, left out.
+    pub empty: usize,
     /// Groups that get a ` (n)` added to their names.
     pub renamed: usize,
     /// Destination folders, relative to the library, with how many files each receives.
@@ -156,6 +158,8 @@ pub struct ImportPlan {
     pub already: usize,
     pub already_bytes: u64,
     pub left_alone: usize,
+    /// Empty (0 byte) files, usually left by a copy that didn't finish. Never brought in.
+    pub empty: usize,
 }
 
 impl ImportPlan {
@@ -175,8 +179,13 @@ struct LibraryHashes {
 /// file are hashed, and library files hashed here keep their hash for the duplicate check.
 pub fn plan(ctx: &Ctx, mut found: Vec<Found>, exists: &dyn Fn(&Path) -> bool) -> Result<ImportPlan> {
     let mut out = ImportPlan::default();
+    // An empty file has nothing to bring in, and no hash to be found by next time, so it would
+    // come in again on every check under a new "(n)" name.
+    let before = found.len();
+    found.retain(|f| f.file.size > 0);
+    out.empty = before - found.len();
     found.sort_by(|a, b| a.file.path.cmp(&b.file.path));
-    let comparable = |f: &Found| f.file.kind != Kind::Companion && f.file.size > 0;
+    let comparable = |f: &Found| f.file.kind != Kind::Companion;
 
     // Step 1, sizes: a file can only be a copy of something the same size.
     let mut incoming_sizes: HashMap<u64, usize> = HashMap::new();
@@ -792,6 +801,7 @@ fn describe(id: u64, looked: &Looked, root: &Path) -> (ImportPreview, Vec<(PathB
         left_alone: plan.left_alone,
         other_files: looked.other_files,
         unreadable: looked.unreadable,
+        empty: plan.empty,
         renamed: plan.groups.iter().filter(|g| g.renamed).count(),
         folders: folders
             .into_iter()
@@ -1331,6 +1341,19 @@ mod tests {
         let db = Mutex::new(db::open_in_memory().unwrap());
         let (plan, _) = plan_folder(&db, &root, outer.path(), &[]);
         assert_eq!(destinations(&plan, &root), ["2025\\2025-03\\IMG_20250312_101500.jpg"]);
+    }
+
+    #[test]
+    fn empty_files_are_left_out_and_counted() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let card = tempfile::tempdir().unwrap();
+        write(&card.path().join("DCIM\\IMG_20250312_101500.jpg"), "march photo");
+        // What a copy that didn't finish leaves behind.
+        write(&card.path().join("DCIM\\IMG_20250313_101500.jpg"), "");
+        let (plan, _) = plan_folder(&db, root, card.path(), &[]);
+        assert_eq!(destinations(&plan, root), ["2025\\2025-03\\IMG_20250312_101500.jpg"]);
+        assert_eq!(plan.empty, 1);
     }
 
     #[test]

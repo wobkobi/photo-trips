@@ -446,6 +446,7 @@ function IncomingView({
               </p>
             )}
             {preview.unreadable > 0 && <Unreadable files={preview.unreadable} />}
+            {preview.empty > 0 && <EmptyFiles files={preview.empty} />}
             {preview.leftAlone > 0 && <LeftAlone files={preview.leftAlone} />}
             {preview.otherFiles > 0 && (
               <p>
@@ -512,6 +513,21 @@ function Unreadable({ files }: { files: number }): ReactElement {
 }
 
 /**
+ * Empty files at the source, which are never brought in.
+ * @param props - Component props.
+ * @param props.files - how many files are 0 bytes
+ * @returns the note
+ */
+function EmptyFiles({ files }: { files: number }): ReactElement {
+  return (
+    <p>
+      {count(files, "file is", "files are")} empty (0 bytes), probably from a copy that didn&apos;t
+      finish, and {files === 1 ? "is" : "are"} left out.
+    </p>
+  );
+}
+
+/**
  * Shown when a check finds nothing that isn't in the library already.
  * @param props - Component props.
  * @param props.preview - the checked import
@@ -534,7 +550,7 @@ function NothingNew({
   const where = preview.spec.kind === "folder" ? "in" : "on";
   return (
     <EmptyState title={`Nothing new ${where} ${preview.source}`}>
-      {preview.already > 0 || preview.unreadable === 0 ? (
+      {preview.already > 0 || preview.unreadable + preview.empty === 0 ? (
         <p>
           {preview.already === 0
             ? "There are no photos or videos there."
@@ -544,6 +560,7 @@ function NothingNew({
         </p>
       ) : null}
       {preview.unreadable > 0 && <Unreadable files={preview.unreadable} />}
+      {preview.empty > 0 && <EmptyFiles files={preview.empty} />}
       {preview.leftAlone > 0 && <LeftAlone files={preview.leftAlone} />}
       <div className="flex justify-center gap-2">
         <Button onClick={onBack}>

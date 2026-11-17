@@ -59,6 +59,8 @@ export interface MediaDetail {
   playable: boolean;
   /** Gone from disk since the library was last looked through (deleted or moved in Explorer). */
   missing: boolean;
+  /** The file on disk is 0 bytes, usually from a copy that didn't finish. */
+  empty: boolean;
   version: number;
   members: MediaMember[];
 }
@@ -290,6 +292,8 @@ export interface ImportPreview {
   otherFiles: number;
   /** Phone files that couldn't be read, left on the phone with the files that go with them. */
   unreadable: number;
+  /** Empty (0 byte) files, usually from a copy that didn't finish. Left out. */
+  empty: number;
   /** Groups that get a number added to their names because the name is taken. */
   renamed: number;
   folders: { folder: string; files: number }[];

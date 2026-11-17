@@ -79,6 +79,8 @@ pub struct Detail {
     /// The file has gone from disk since the library was last looked through, as when it was
     /// deleted or moved in Explorer.
     pub missing: bool,
+    /// The file on disk is 0 bytes, usually from a copy that didn't finish.
+    pub empty: bool,
     pub version: i64,
     pub members: Vec<Member>,
 }
@@ -154,6 +156,7 @@ pub fn media_detail(state: State<'_, AppState>, id: i64) -> Result<Detail> {
         viewable: matches!(leader.kind, Kind::Photo) && formats::web_viewable(path),
         playable: leader.kind == Kind::Video && formats::web_playable(path),
         missing: !path.exists(),
+        empty: std::fs::metadata(path).is_ok_and(|m| m.len() == 0),
         version: leader.mtime,
         members: group
             .members

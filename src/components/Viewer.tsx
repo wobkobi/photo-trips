@@ -21,6 +21,8 @@ export interface ViewItem {
   original: string | null;
   /** The file has gone from disk, deleted or moved outside Pic Cabinet. */
   missing: boolean;
+  /** The file is 0 bytes, so there is nothing to show or open. */
+  empty: boolean;
   /**
    * A large image Windows drew: shown instead of a photo without an original, and as a video's
    * poster or a failed file's stand-in.
@@ -287,6 +289,7 @@ export function Viewer({
             onShown={() => setShown(key)}
             openLabel={openLabel}
             onOpen={() => run(() => source.open(index))}
+            onReveal={reveal && (() => run(() => reveal(index)))}
           />
         )}
         <NavButton
@@ -364,6 +367,7 @@ export function Viewer({
  * @param props.onShown - the file is on screen as fully as it will be, so neighbours can load
  * @param props.openLabel - text for the open-in-app button
  * @param props.onOpen - open the file in its default app
+ * @param props.onReveal - show the file in Explorer, where the source has a folder to show
  * @returns the media, or the fallback with its open button
  */
 function Media({
@@ -374,6 +378,7 @@ function Media({
   onShown,
   openLabel,
   onOpen,
+  onReveal,
 }: {
   item: ViewItem;
   gone: string;
@@ -382,14 +387,15 @@ function Media({
   onShown: () => void;
   openLabel: string;
   onOpen: () => void;
+  onReveal?: () => void;
 }): ReactElement {
   const [failed, setFailed] = useState(false);
   const video = item.kind === "video";
 
   // Only a picture waits for its full image; anything else is as shown as it gets at once.
   useEffect(() => {
-    if (item.missing || failed || video) onShown();
-  }, [item.missing, failed, video, onShown]);
+    if (item.missing || item.empty || failed || video) onShown();
+  }, [item.missing, item.empty, failed, video, onShown]);
 
   /** A load failed: a gone file shows its notice, anything else the can't-show fallback. */
   function broken(): void {
@@ -409,6 +415,26 @@ function Media({
           <Button variant="primary" className="mt-5" onClick={() => void refresh.run()}>
             <Icon name="refresh" size={16} />
             {refresh.label}
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  // Opening it in another app would only give that app's own "can't open" error.
+  if (item.empty) {
+    return (
+      <div className="max-w-sm text-center">
+        <Icon name="warn" size={32} className="mx-auto mb-4 text-faint" />
+        <p className="text-[17px] font-semibold">This file is empty</p>
+        <p className="mt-2 text-muted">
+          It is 0 bytes, probably from a copy that didn&apos;t finish. The original may still be
+          where it was copied from.
+        </p>
+        {onReveal && (
+          <Button variant="primary" className="mt-5" onClick={onReveal}>
+            <Icon name="folder" size={16} />
+            Show in folder
           </Button>
         )}
       </div>
