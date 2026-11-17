@@ -22,9 +22,10 @@ import {
   type DupReport,
   type DupSet,
 } from "../lib/api";
-import { keeperOf, pickWithPartners, removalPlan, type Picks } from "../lib/duplicates";
+import { keeperOf, pickWithPartners, prunePicks, removalPlan, type Picks } from "../lib/duplicates";
 import { count, formatBytes, splitPath } from "../lib/format";
 import { useJobDone, useJobs } from "../lib/useJobs";
+import { usePageMemory } from "../lib/usePageMemory";
 
 /**
  * Height of one set in the list (header, a row of copy cards and spacing) when nothing wraps. A
@@ -53,7 +54,8 @@ export function DuplicatesPage({
 }): ReactElement {
   const { running } = useJobs();
   const [report, setReport] = useState<DupReport | null>(null);
-  const [picks, setPicks] = useState<Picks>({});
+  // Kept for the next visit. Each read of the sets drops picks for sets or copies that went.
+  const [picks, setPicks] = usePageMemory<Picks>("duplicates.picks", {});
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApplySummary | null>(null);
@@ -62,11 +64,12 @@ export function DuplicatesPage({
     api.listDuplicates().then(
       (loaded) => {
         setReport(loaded);
+        setPicks((prev) => prunePicks(loaded.sets, prev));
         setError(null);
       },
       (err) => setError(errorText(err)),
     );
-  }, []);
+  }, [setPicks]);
 
   useEffect(load, [load]);
   // An import check hashes library files, which can turn up sets nobody compared yet.

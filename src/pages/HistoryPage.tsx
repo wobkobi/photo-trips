@@ -5,6 +5,7 @@ import { Button, EmptyState, PageHeader } from "../components/ui";
 import { api, errorText, type BatchEntry, type BatchInfo, type EntryStatus } from "../lib/api";
 import { count, formatWhen } from "../lib/format";
 import { useJobDone, useJobs } from "../lib/useJobs";
+import { usePageMemory } from "../lib/usePageMemory";
 
 /** Files listed per batch by the backend (history.rs ENTRY_LIMIT). */
 const ENTRY_LIMIT = 2000;
@@ -24,6 +25,22 @@ const RETRY: Record<string, { page: PageId; label: string }> = {
   duplicates: { page: "duplicates", label: "Find duplicates" },
 };
 
+/** The batch whose file list is open, as it stood when it was opened. */
+interface OpenBatch {
+  id: number;
+  undoneAt: number | null;
+}
+
+/**
+ * Whether a batch's file list shows: it's the one opened, and it hasn't been undone since.
+ * @param batch - the batch as listed now
+ * @param open - the batch opened, or null
+ * @returns true when its files show
+ */
+function isOpen(batch: BatchInfo, open: OpenBatch | null): boolean {
+  return open !== null && open.id === batch.id && open.undoneAt === batch.undoneAt;
+}
+
 /**
  * Every change Pic Cabinet made to the library, newest first, each with undo.
  * @param props - Component props.
@@ -34,7 +51,9 @@ export function HistoryPage({ onNavigate }: { onNavigate: (page: PageId) => void
   const { running } = useJobs();
   const [batches, setBatches] = useState<BatchInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<number | null>(null);
+  // The batch whose files are open, kept for the next visit. It's held with when that batch was
+  // undone, so undoing it since closes it, and one pruned from the list matches no row.
+  const [expanded, setExpanded] = usePageMemory<OpenBatch | null>("history.expanded", null);
   const [confirming, setConfirming] = useState<number | null>(null);
   const [limit, setLimit] = useState(BATCH_PAGE);
 
@@ -86,9 +105,13 @@ export function HistoryPage({ onNavigate }: { onNavigate: (page: PageId) => void
               key={batch.id}
               batch={batch}
               busy={running !== null}
-              expanded={expanded === batch.id}
+              expanded={isOpen(batch, expanded)}
               confirming={confirming === batch.id}
-              onToggle={() => setExpanded(expanded === batch.id ? null : batch.id)}
+              onToggle={() =>
+                setExpanded(
+                  isOpen(batch, expanded) ? null : { id: batch.id, undoneAt: batch.undoneAt },
+                )
+              }
               onAskUndo={() => setConfirming(batch.id)}
               onCancelUndo={() => setConfirming(null)}
               onUndo={() => undo(batch.id)}

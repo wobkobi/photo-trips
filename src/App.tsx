@@ -1,5 +1,12 @@
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
 import { Sidebar } from "./components/Sidebar";
 import { Tour } from "./components/Tour";
 import type { TripInfo } from "./lib/api";
@@ -23,6 +30,7 @@ import {
   type MenuRequest,
 } from "./lib/menu";
 import { pushEntry, startHistory, stepBack, stepForward, type NavEntry } from "./lib/navHistory";
+import { PageMemoryProvider } from "./lib/pageMemory";
 import { SettingsProvider } from "./lib/settings";
 import type { TripStart } from "./lib/trips";
 import { UpdatesProvider } from "./lib/updates";
@@ -54,8 +62,8 @@ export type PageId =
   | "help";
 
 /**
- * Root component: settings, job and library providers around the shell. Right-clicks get no browser menu
- * except on text, so the app never offers Back, Reload or Print.
+ * Root component: settings, job, library and page memory providers around the shell.
+ * Right-clicks get no browser menu except on text, so the app never offers Back, Reload or Print.
  * @returns the app
  */
 export default function App(): ReactElement {
@@ -78,7 +86,9 @@ export default function App(): ReactElement {
       <JobsProvider>
         <UpdatesProvider>
           <LibraryProvider>
-            <Shell />
+            <PageMemoryProvider>
+              <Shell />
+            </PageMemoryProvider>
           </LibraryProvider>
         </UpdatesProvider>
       </JobsProvider>
@@ -284,6 +294,13 @@ function Shell(): ReactElement | null {
     };
   }, []);
 
+  // Another page starts at its top rather than at the last one's scroll. Only the page change
+  // moves it; the Library's grid scrolls inside its own box and keeps its own place.
+  const mainRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = 0;
+  }, [page]);
+
   if (settings === null) return null;
   if (!settings.library_root) return <SetupPage />;
   const touring = tourAsked || (!tourClosed && settings.tour_done !== "true");
@@ -302,7 +319,7 @@ function Shell(): ReactElement | null {
       />
       {/* The tour covers only the page, so the menu items it points at stay in view. */}
       <div className="relative flex min-w-0 flex-1">
-        <main className="min-w-0 flex-1 overflow-y-auto" inert={touring}>
+        <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto" inert={touring}>
           <CurrentPage
             page={page}
             onNavigate={openPage}
