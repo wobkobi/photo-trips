@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.4] - 2026-11-18
+
+### Fixed
+
+- Photos deleted on an Android phone (kept as .trashed files for 30 days), half-saved .pending files
+  and other hidden dot-files are no longer imported. NAS recycle and thumbnail folders (#recycle,
+  @eaDir, @Recycle, #snapshot) and Sony cards' thumbnail and proxy folders are skipped. Phones now
+  get the same checks as folders and cards.
+
 ## [0.25.3] - 2026-11-18
 
 ### Fixed

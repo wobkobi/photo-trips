@@ -31,6 +31,7 @@ use crate::error::{Error, Result};
 use crate::formats::FormatTable;
 use crate::hash;
 use crate::index::Report;
+use crate::scan;
 
 /// A phone or camera Windows can see.
 #[derive(Debug, Clone, PartialEq)]
@@ -279,10 +280,12 @@ impl Phone {
             }
             let child_path = path.join(&child.name);
             if child.is_folder() {
-                self.walk(&child.id, &child_path, table, cancel, report, files)?;
+                if !scan::skip_folder(&child_path) {
+                    self.walk(&child.id, &child_path, table, cancel, report, files)?;
+                }
                 continue;
             }
-            if !child.is_file() || table.kind_of(&child_path).is_none() {
+            if !child.is_file() || scan::file_kind(&child_path, table).is_none() {
                 continue;
             }
             files.push(PhoneFile {

@@ -24,12 +24,34 @@ pub struct ScanResult {
 }
 
 /// Folder names never descended into: app data, version control, code dependencies, Windows
-/// system folders.
+/// system folders, and the recycle and thumbnail folders NAS boxes keep beside photos.
 pub fn skip_dir(name: &str) -> bool {
-    name.starts_with('.')
-        || name.eq_ignore_ascii_case("node_modules")
-        || name.eq_ignore_ascii_case("$RECYCLE.BIN")
-        || name.eq_ignore_ascii_case("System Volume Information")
+    const SKIPPED: [&str; 8] = [
+        "node_modules",
+        "$RECYCLE.BIN",
+        "System Volume Information",
+        "RECYCLER",
+        "@eaDir",
+        "@Recycle",
+        "#recycle",
+        "#snapshot",
+    ];
+    name.starts_with('.') || SKIPPED.iter().any(|s| name.eq_ignore_ascii_case(s))
+}
+
+/// [`skip_dir`], plus folders a camera fills with its own working files: Sony's `M4ROOT/THMBNL`
+/// (a small JPEG per clip) and `M4ROOT/SUB` (low-resolution proxy clips). Those two names are
+/// only skipped inside `M4ROOT`, so a folder of the user's own called `SUB` is still read.
+pub fn skip_folder(path: &Path) -> bool {
+    let name = path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default();
+    if skip_dir(&name) {
+        return true;
+    }
+    let in_m4root = path
+        .parent()
+        .and_then(Path::file_name)
+        .is_some_and(|p| p.eq_ignore_ascii_case("M4ROOT"));
+    in_m4root && (name.eq_ignore_ascii_case("THMBNL") || name.eq_ignore_ascii_case("SUB"))
 }
 
 /// List every recognised file under `root`. Unreadable entries are skipped rather than failing
@@ -50,7 +72,7 @@ pub fn scan_excluding(
     let walker = walker.filter_entry(|entry| {
         entry.depth() == 0
             || !entry.file_type().is_dir()
-            || !(skip_dir(&entry.file_name().to_string_lossy())
+            || !(skip_folder(entry.path())
                 || exclude.is_some_and(|ex| same_path(entry.path(), ex)))
     });
     for entry in walker {
@@ -79,8 +101,9 @@ pub fn scan_excluding(
 /// The kind of file at `path`, or `None` when it isn't a photo, video or companion.
 pub fn file_kind(path: &Path, table: &FormatTable) -> Option<Kind> {
     let name = path.file_name()?.to_string_lossy();
-    // macOS resource-fork junk ("._IMG_0001.JPG") looks like a photo but isn't one.
-    if name.starts_with("._") {
+    // Dot-files are never the user's photos: macOS resource forks ("._IMG_0001.JPG") and
+    // Android's binned and half-written files (".trashed-1712345678-IMG_1.jpg", ".pending-...").
+    if name.starts_with('.') {
         return None;
     }
     let kind = table.kind_of(path)?;
@@ -194,6 +217,30 @@ mod tests {
         names.sort();
         assert_eq!(names, ["IMG_1.AAE", "IMG_1.JPG", "clip.MP4"]);
         assert_eq!(result.other_files, 2);
+    }
+
+    #[test]
+    fn binned_hidden_and_camera_working_files_are_skipped() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        touch(&root.join("DCIM/Camera/IMG_1.jpg"));
+        touch(&root.join("DCIM/Camera/.trashed-1712345678-IMG_2.jpg"));
+        touch(&root.join("DCIM/Camera/.pending-1712345678-IMG_3.jpg"));
+        touch(&root.join("Photos/#recycle/IMG_4.jpg"));
+        touch(&root.join("Photos/@eaDir/IMG_5.jpg/SYNOPHOTO_THUMB_M.jpg"));
+        touch(&root.join("PRIVATE/M4ROOT/CLIP/C0001.MP4"));
+        touch(&root.join("PRIVATE/M4ROOT/THMBNL/C0001T01.JPG"));
+        touch(&root.join("PRIVATE/M4ROOT/SUB/C0001S03.MP4"));
+        touch(&root.join("Holiday/SUB/IMG_6.jpg"));
+
+        let result = scan(root, &FormatTable::default(), &AtomicBool::new(false)).unwrap();
+        let mut names: Vec<_> = result
+            .files
+            .iter()
+            .map(|f| f.path.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["C0001.MP4", "IMG_1.jpg", "IMG_6.jpg"]);
     }
 
     #[test]
