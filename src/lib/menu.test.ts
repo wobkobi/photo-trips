@@ -39,7 +39,8 @@ describe("shortcutFor", () => {
   });
 
   it("goes by the physical key for digits", () => {
-    expect(shortcutFor(press("2", { ctrl: true }))).toBe("menu-page-sort");
+    expect(shortcutFor(press("2", { ctrl: true }))).toBe("menu-page-trips");
+    expect(shortcutFor(press("4", { ctrl: true }))).toBe("menu-page-sort");
     // AZERTY: the 7 key types "è" without Shift.
     expect(shortcutFor({ ...press("è", { ctrl: true }), code: "Digit7" })).toBe(
       "menu-page-history",

@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { Tour } from "./components/Tour";
 import type { TripInfo } from "./lib/api";
@@ -113,6 +113,20 @@ function Shell(): ReactElement | null {
     setFilter({ ...filter, trip: "any" });
     setPage(tripFrom);
   }, [filter, setFilter, tripFrom]);
+  // Opening the Library by name (sidebar, Ctrl+1, the tray, Import's link) means the whole
+  // library, so any trip the filter still holds is left. Only showTrip opens a trip.
+  const openPage = useCallback(
+    (next: PageId) => {
+      if (next === "library" && tripOf(filter)) setFilter({ ...filter, trip: "any" });
+      setPage(next);
+    },
+    [filter, setFilter],
+  );
+  // The navigate listener is added once, so it calls the latest openPage through a ref.
+  const openPageRef = useRef(openPage);
+  useEffect(() => {
+    openPageRef.current = openPage;
+  });
   const editTrip = useCallback((trip: TripInfo) => {
     setTripEdit(trip);
     setPage("trips");
@@ -156,7 +170,7 @@ function Shell(): ReactElement | null {
 
   // The tray menu and the menu bar can ask for a page (e.g. "Import photos...").
   useEffect(() => {
-    const unlisten = listen<PageId>("navigate", (event) => setPage(event.payload));
+    const unlisten = listen<PageId>("navigate", (event) => openPageRef.current(event.payload));
     return () => {
       void unlisten.then((off) => off());
     };
@@ -170,7 +184,8 @@ function Shell(): ReactElement | null {
     <div className="flex h-full">
       <Sidebar
         page={page}
-        onPage={setPage}
+        onPage={openPage}
+        onShowTrip={showTrip}
         libraryRoot={settings.library_root}
         narrow={settings.menu_narrow === "true"}
         // A failed save leaves the menu as it was; there's nothing more useful to say about it.
@@ -182,7 +197,7 @@ function Shell(): ReactElement | null {
         <main className="min-w-0 flex-1 overflow-y-auto" inert={touring}>
           <CurrentPage
             page={page}
-            onNavigate={setPage}
+            onNavigate={openPage}
             onShowTrip={showTrip}
             onLeaveTrip={leaveTrip}
             onEditTrip={editTrip}

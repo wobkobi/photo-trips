@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.35.0] - 2026-11-18
+
+### Added
+
+- The menu is in groups: Library, then Trips with your newest trips listed under it, then Import,
+  Sort, Suggestions and Duplicates. History, Settings and Help are small buttons at the bottom.
+  Ctrl+1 to Ctrl+7 follow the new order (Ctrl+2 is Trips), and opening the Library always shows the
+  whole library.
+
 ## [0.34.0] - 2026-11-18
 
 ### Added

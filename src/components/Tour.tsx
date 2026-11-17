@@ -21,19 +21,19 @@ const STEPS: Step[] = [
     page: "library",
   },
   {
-    title: "Sort",
-    text: "Files photos into year and month folders. You see every move before it happens.",
-    page: "sort",
-  },
-  {
     title: "Trips",
-    text: "Give a trip a name and dates, and its photos get their own folder. Suggestions spots ones you haven't added.",
+    text: "Give a trip a name and dates, and its photos get their own folder. Your newest trips are listed under it. Suggestions spots ones you haven't added.",
     page: "trips",
   },
   {
     title: "Import",
     text: "Import photos from a memory card, a phone or a folder. Ones you already have are skipped.",
     page: "import",
+  },
+  {
+    title: "Sort",
+    text: "Files photos into year and month folders. You see every move before it happens.",
+    page: "sort",
   },
   {
     title: "History",
