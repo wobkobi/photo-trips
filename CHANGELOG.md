@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.59.7] - 2026-11-18
+
+### Fixed
+
+- A video in the viewer starts playing only after it has been on screen for a moment, so clicking
+  quickly past videos no longer flashes and plays each one
+
 ## [0.59.6] - 2026-11-18
 
 ### Fixed

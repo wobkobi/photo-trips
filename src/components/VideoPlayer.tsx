@@ -4,6 +4,12 @@ import { DEFAULT_VOLUME, savedVolume, saveVolume } from "../lib/videoVolume";
 import { Icon } from "./Icon";
 
 /**
+ * How long a video has to stay on screen before it starts by itself, so stepping quickly past
+ * videos doesn't set each one playing (and making noise) for a split second.
+ */
+const SETTLE_MS = 450;
+
+/**
  * Play when paused or finished, pause when playing.
  * @param el - the video, or null before it mounts
  */
@@ -16,7 +22,8 @@ function togglePlay(el: HTMLVideoElement | null): void {
 /**
  * A video with its controls in a bar underneath rather than over the picture: play and pause,
  * the time, a seek bar, mute and volume. Clicking the picture or pressing Space plays and
- * pauses. It starts playing at the volume the last video was left at.
+ * pauses. It starts by itself once it has been on screen for {@link SETTLE_MS}, at the volume the
+ * last video was left at; until then the still is shown.
  * @param props - Component props.
  * @param props.src - the video's URL
  * @param props.poster - a still shown until it plays
@@ -58,6 +65,26 @@ export function VideoPlayer({
     el.muted = start.muted;
   }, []);
 
+  // Start once the viewer settles here. Playing sooner by hand (click, Space) cancels the timer,
+  // so it can't restart a video that was paused in that time.
+  useEffect(() => {
+    const el = video.current;
+    if (!el) return;
+    const timer = window.setTimeout(() => el.play().catch(() => undefined), SETTLE_MS);
+    /**
+     *
+     */
+    /** Drop the pending start. */
+    function cancel(): void {
+      window.clearTimeout(timer);
+    }
+    el.addEventListener("play", cancel);
+    return () => {
+      cancel();
+      el.removeEventListener("play", cancel);
+    };
+  }, [src]);
+
   // Space plays and pauses, unless a control has focus and handles Space itself.
   useEffect(() => {
     /**
@@ -97,7 +124,7 @@ export function VideoPlayer({
         src={src}
         poster={poster}
         aria-label={label}
-        autoPlay
+        preload="metadata"
         onClick={toggle}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
