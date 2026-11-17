@@ -41,28 +41,33 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 /**
- * Standard button. Disabled while a background job runs, it says which job in its tooltip
- * unless it has a title of its own, since most buttons wait for the job to finish.
+ * Standard button. One held back by `busy` while a background job runs says which job in its
+ * tooltip, unless it has a title of its own; one disabled for any other reason says nothing.
  * @param props - Component props.
  * @param props.variant - visual weight (default secondary)
  * @param props.className - extra classes
+ * @param props.busy - disabled because work is under way; the tooltip names a running job
+ * @param props.disabled - disabled for a reason other than work under way; no tooltip
  * @returns the button element
  */
 export function Button({
   variant = "secondary",
   className = "",
+  busy = false,
+  disabled,
   ...rest
-}: ComponentProps<"button"> & { variant?: Variant }): ReactElement {
+}: ComponentProps<"button"> & { variant?: Variant; busy?: boolean }): ReactElement {
   // Read without useJobs, which throws, so a button outside the jobs provider still works.
   const running = useContext(JobsContext)?.running;
   const waiting =
-    rest.disabled && running
+    busy && !disabled && running
       ? `Busy: ${(JOB_NAMES[running.kind] ?? "working").toLowerCase()}`
       : undefined;
   return (
     <button
       type="button"
       title={waiting}
+      disabled={busy || disabled}
       className={`inline-flex min-h-8.5 items-center justify-center gap-2 rounded-md px-3.5 py-1.5 text-[15px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
       {...rest}
     />

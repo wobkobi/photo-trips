@@ -140,14 +140,15 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
                 <Icon name="back" size={16} />
                 Other sources
               </Button>
-              <Button onClick={() => check(preview.spec)} disabled={busy}>
+              <Button onClick={() => check(preview.spec)} busy={busy}>
                 <Icon name="refresh" size={16} />
                 Check again
               </Button>
               <Button
                 variant="primary"
                 onClick={() => bringIn(preview)}
-                disabled={busy || totals === null || totals.items === 0}
+                disabled={totals === null || totals.items === 0}
+                busy={busy}
                 title={
                   totals && totals.files > totals.items
                     ? `${count(totals.files, "file", "files")}, with the videos and edits that go with them`
@@ -269,7 +270,7 @@ function Sources({
                     {device.kind === "phone" ? "Phone or camera" : "Memory card"}
                   </span>
                 </span>
-                <Button variant="primary" onClick={() => onCheck(sourceOf(device))} disabled={busy}>
+                <Button variant="primary" onClick={() => onCheck(sourceOf(device))} busy={busy}>
                   Check for new photos
                 </Button>
               </li>
@@ -304,7 +305,7 @@ function Sources({
             onSelect={() => onMoveFiles(true)}
           />
         </fieldset>
-        <Button className="mt-4" onClick={onChooseFolder} disabled={busy}>
+        <Button className="mt-4" onClick={onChooseFolder} busy={busy}>
           <Icon name="folder" size={16} />
           Choose folder
         </Button>
@@ -376,6 +377,8 @@ function IncomingView({
   const tiles = useMemo(() => importTiles(preview.items), [preview.items]);
   // HEIC is usually first met here, coming off a phone, so the extension hint shows here too.
   const [failedThumbs, setFailedThumbs] = useState<Tile[]>([]);
+  // Raised when the installed extensions change, so blank tiles ask for their thumbnails again.
+  const [thumbRetry, setThumbRetry] = useState(0);
   const onThumbError = useCallback(
     (tile: Tile) =>
       setFailedThumbs((prev) =>
@@ -479,6 +482,7 @@ function IncomingView({
           failed={failedThumbs}
           shown={tiles}
           onDismiss={() => save("codec_hint_dismissed", "true")}
+          onChange={() => setThumbRetry((n) => n + 1)}
         />
       )}
       <PickBar
@@ -501,6 +505,7 @@ function IncomingView({
           tickLabel="Import this one"
           jump={jump}
           onThumbError={onThumbError}
+          thumbRetry={thumbRetry}
         />
       </div>
     </div>
@@ -581,7 +586,7 @@ function NothingNew({
           <Icon name="back" size={16} />
           Other sources
         </Button>
-        <Button onClick={onCheck} disabled={busy}>
+        <Button onClick={onCheck} busy={busy}>
           <Icon name="refresh" size={16} />
           Check again
         </Button>

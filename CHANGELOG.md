@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.30.7] - 2026-11-18
+
+### Fixed
+
+- Retrying thumbnails reloads only the blank tiles, and the Import preview retries once an extension
+  is installed. The Busy tooltip shows only on buttons waiting for a job, and the window colour
+  follows Windows when it switches between light and dark.
+
 ## [0.30.6] - 2026-11-18
 
 ### Changed

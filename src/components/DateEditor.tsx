@@ -42,7 +42,7 @@ export function DateEditor({
         onChange={(event) => setValue(event.target.value)}
         className={INPUT}
       />
-      <Button variant="primary" type="submit" disabled={!filled || busy}>
+      <Button variant="primary" type="submit" disabled={!filled} busy={busy}>
         Set date
       </Button>
       <Button variant="ghost" onClick={onCancel}>

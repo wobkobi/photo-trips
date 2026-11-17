@@ -257,14 +257,14 @@ export function TripsPage({
             review !== null &&
             !moving && (
               <>
-                <Button variant="ghost" onClick={() => setReview(null)} disabled={busy}>
+                <Button variant="ghost" onClick={() => setReview(null)} busy={busy}>
                   <Icon name="back" size={16} />
                   {editor ? "Back to the trip" : "Back"}
                 </Button>
                 <Button
                   variant={review.danger ? "danger" : "primary"}
                   onClick={() => apply(review)}
-                  disabled={busy}
+                  busy={busy}
                 >
                   {review.action}
                 </Button>
@@ -394,10 +394,10 @@ function TripRow({
           Trips\{trip.folder}
         </p>
         <div className="mt-1 -ml-2 flex flex-wrap gap-1">
-          <Button variant="ghost" onClick={onEdit} disabled={busy}>
+          <Button variant="ghost" onClick={onEdit} busy={busy}>
             Edit
           </Button>
-          <Button variant="ghost" onClick={onDelete} disabled={busy}>
+          <Button variant="ghost" onClick={onDelete} busy={busy}>
             Delete
           </Button>
         </div>
@@ -568,7 +568,7 @@ function TripEditor({
         <MatchSummary form={form} matches={matches} />
 
         <div className="flex items-center gap-2">
-          <Button type="submit" variant="primary" disabled={!ready || busy}>
+          <Button type="submit" variant="primary" disabled={!ready} busy={busy}>
             Check the moves
           </Button>
           <Button variant="ghost" onClick={onCancel}>

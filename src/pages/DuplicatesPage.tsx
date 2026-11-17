@@ -121,7 +121,7 @@ export function DuplicatesPage({
               <Button
                 variant="primary"
                 onClick={() => run(() => api.removeDuplicates(plan.choices))}
-                disabled={busy}
+                busy={busy}
               >
                 Move to Recycle Bin
               </Button>
@@ -132,7 +132,7 @@ export function DuplicatesPage({
           ) : (
             <>
               {report !== null && report.unchecked > 0 && (
-                <Button onClick={check} disabled={busy}>
+                <Button onClick={check} busy={busy}>
                   <Icon name="refresh" size={16} />
                   Check new files
                 </Button>
@@ -140,7 +140,8 @@ export function DuplicatesPage({
               <Button
                 variant="primary"
                 onClick={() => setConfirming(true)}
-                disabled={busy || plan.copies === 0}
+                disabled={plan.copies === 0}
+                busy={busy}
               >
                 Move {count(plan.copies, "copy", "copies")} to the Recycle Bin
               </Button>
@@ -217,7 +218,7 @@ function NoSets({
         {count(report.unchecked, "photo or video is", "photos and videos are")} the same size as
         another file. Checking compares their contents, and only those files are read.
       </p>
-      <Button variant="primary" onClick={onCheck} disabled={busy}>
+      <Button variant="primary" onClick={onCheck} busy={busy}>
         Check for duplicates
       </Button>
     </EmptyState>

@@ -169,6 +169,9 @@ pub fn run() {
                     let _ = window.hide();
                 }
             }
+            if let tauri::WindowEvent::ThemeChanged(theme) = event {
+                commands::apply_ground(window.app_handle(), *theme);
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_settings,

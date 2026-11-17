@@ -87,8 +87,18 @@ pub fn apply_theme(app: &AppHandle, value: Option<&str>) {
         log::warn!("Couldn't change the theme: {err}");
     }
     // With no theme chosen the window follows Windows, so ask which one that came to.
-    let dark = window.theme().is_ok_and(|theme| theme == Theme::Dark);
-    let ground = if dark { GROUND_DARK } else { GROUND_LIGHT };
+    if let Ok(theme) = window.theme() {
+        apply_ground(app, theme);
+    }
+}
+
+/// Fill the main window with the page's ground colour for `theme`. Also run when Windows
+/// switches between light and dark, which a window following Windows follows too.
+pub fn apply_ground(app: &AppHandle, theme: Theme) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let ground = if theme == Theme::Dark { GROUND_DARK } else { GROUND_LIGHT };
     if let Err(err) = window.set_background_color(Some(ground)) {
         log::warn!("Couldn't set the window colour: {err}");
     }
