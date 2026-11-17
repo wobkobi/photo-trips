@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.2] - 2026-11-18
+
+### Fixed
+
+- Before sending a photo to the Recycle Bin, Pic Cabinet now names the files that go with it
+  ("IMG_1.MOV and IMG_1.AAE go with it") and says videos or items rather than photos when that is
+  what is selected.
+
 ## [0.25.1] - 2026-11-18
 
 ### Fixed
