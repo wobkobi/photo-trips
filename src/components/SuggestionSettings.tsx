@@ -51,7 +51,7 @@ export function SuggestionSettings(): ReactElement {
     <Section title="Trip suggestions" error={error}>
       <Row
         title="Busy day"
-        detail="A day with at least this many photos and videos counts as busy, and two or more busy days in a row, or one away from home, are suggested as a trip. Lower it if trips are missed, raise it if ordinary weekends turn up."
+        detail="Photos and videos that make a day busy. Lower it if trips are missed, raise it if weekends turn up."
       >
         <select
           aria-label="Photos and videos for a busy day"
@@ -93,12 +93,9 @@ export function SuggestionSettings(): ReactElement {
  * @returns the text
  */
 function homeDetail(home: string, place: string | null | undefined): string {
-  const away =
-    "Days more than 50 km from home are suggested as trips however few photos they have.";
   if (!home) {
-    return `${away} Home is worked out from where photos were taken on the most days. To set it, press Use my location while at home, or paste the latitude and longitude from an online map.`;
+    return "Worked out from your photos. Use my location at home, or paste a latitude and longitude.";
   }
-  const where =
-    place === undefined ? "" : place ? `Near ${place}. ` : "No town within 100 km of there. ";
-  return `${where}${away} Empty the box to work home out from your photos instead.`;
+  const where = place === undefined ? "" : place ? `Near ${place}. ` : "No town within 100 km. ";
+  return `${where}Empty the box to work it out from your photos.`;
 }

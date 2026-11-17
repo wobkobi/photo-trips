@@ -6,6 +6,7 @@ import { tripOf, type FilterTrip } from "../lib/libraryFilter";
 import { rangeText, sidebarTrips, tripBg } from "../lib/trips";
 import { useLibrary } from "../lib/useLibrary";
 import { useMediaQuery } from "../lib/useMediaQuery";
+import { useUpdates } from "../lib/useUpdates";
 import { Icon, type IconName } from "./Icon";
 import { JobStatus } from "./JobStatus";
 
@@ -199,6 +200,7 @@ export function Sidebar({
         ))}
       </ul>
       <div className="flex shrink-0 flex-col gap-1 border-t border-line pt-2">
+        <UpdateRow iconsOnly={iconsOnly} />
         <JobStatus narrow={iconsOnly} onWiden={widen} />
         <ul className={`flex gap-0.5 ${iconsOnly ? "flex-col" : ""}`}>
           {FOOTER.map((item) => (
@@ -236,6 +238,33 @@ export function Sidebar({
         </button>
       </div>
     </nav>
+  );
+}
+
+/**
+ * "Update ready" while a newer version waits to install. It opens Settings at About through the
+ * Help > About menu item, where the notes and the install button are.
+ * @param props - Component props.
+ * @param props.iconsOnly - the menu is narrow, so the label goes to a tooltip
+ * @returns the row, or nothing when there's no update
+ */
+function UpdateRow({ iconsOnly }: { iconsOnly: boolean }): ReactElement | null {
+  const { update } = useUpdates();
+  if (!update) return null;
+  const label = `Version ${update.version} is ready to install`;
+  return (
+    <button
+      type="button"
+      onClick={() => api.menuAction("menu-about").catch(() => undefined)}
+      title={label}
+      aria-label={label}
+      className={`flex min-h-8.5 items-center gap-2 rounded-md text-[14px] font-semibold text-accent hover:bg-raised/60 ${
+        iconsOnly ? "justify-center" : "px-2.5 text-left"
+      }`}
+    >
+      <Icon name="import" size={iconsOnly ? 20 : 16} className="shrink-0" />
+      {!iconsOnly && <span className="truncate">Update ready</span>}
+    </button>
   );
 }
 

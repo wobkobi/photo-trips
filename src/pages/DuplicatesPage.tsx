@@ -219,7 +219,7 @@ function NoSets({
     <EmptyState title="Check for duplicates">
       <p>
         {count(report.unchecked, "photo or video is", "photos and videos are")} the same size as
-        another file. Checking compares their contents, and only those files are read.
+        another file. Checking reads only those.
       </p>
       <Button variant="primary" onClick={onCheck} busy={busy}>
         Check for duplicates

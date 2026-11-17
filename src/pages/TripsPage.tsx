@@ -346,9 +346,8 @@ export function TripsPage({
       {listing && trips !== null && trips.length === 0 && (
         <EmptyState title="No trips yet">
           <p>
-            Add the dates you were away, and the photos from those days get their own folder, like{" "}
-            {tripFolder(namingOf(settings).trips, "2025-03-12", "Japan")}. Or select photos in the
-            Library with Make a trip.
+            Add the dates you were away to give those photos their own folder, like{" "}
+            {tripFolder(namingOf(settings).trips, "2025-03-12", "Japan")}.
           </p>
           <Button variant="primary" onClick={() => setEditor(newEditor(null))}>
             New trip

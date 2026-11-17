@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.50.0] - 2026-11-18
+
+### Added
+
+- Shorter text on Setup, Inbox and Suggestions settings, Busy days and empty pages, with the fuller
+  text under Details; an "Update ready" row in the sidebar; the first time closing hides to the
+  tray, a notice says so
+
 ## [0.49.0] - 2026-11-18
 
 ### Added

@@ -216,9 +216,8 @@ export function SuggestionsPage({
         <EmptyState title="No trips to suggest">
           <p>
             {data.dismissed > 0
-              ? "Every stretch of busy days is already a trip or has been dismissed."
-              : "Every stretch of busy days is already a trip, or there aren't any yet."}{" "}
-            New suggestions show up here as photos come in.
+              ? "Every stretch of busy days is already a trip or dismissed."
+              : "Every stretch of busy days is already a trip, or there aren't any yet."}
           </p>
           <p className="mt-3 text-[15px]">{howFound(data)}</p>
           {data.dismissed > 0 && (
