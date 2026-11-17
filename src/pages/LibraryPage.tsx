@@ -1025,7 +1025,7 @@ function Detail({
  * @param props.busy - a job or check is running, so the buttons wait
  * @param props.onEdit - preview a change to a trip
  * @param props.onShow - show only a trip's photos in the Library
- * @returns the block
+ * @returns the block, or nothing when the photo isn't in a trip and none is near enough to offer
  */
 function ViewerTrip({
   tile,
@@ -1041,11 +1041,13 @@ function ViewerTrip({
   busy: boolean;
   onEdit: (edit: TripEdit) => void;
   onShow: (trip: { id: number; name: string }) => void;
-}): ReactElement {
+}): ReactElement | null {
   const { remove, putBack, free } = pickedEdits([tile], trips, tiles);
   const [edit] = [...remove, ...putBack];
   const adds = nearestTrips(free, trips, 2).map((trip) => addEdit(trip, free, tiles));
   const trip = edit?.trip;
+  // Not in a trip and none near enough to offer: nothing to say, so the section is left out.
+  if (!trip && adds.length === 0) return null;
   return (
     <section className="flex flex-col items-start gap-2">
       <h3 className="text-[14px] text-faint">Trip</h3>
@@ -1062,7 +1064,7 @@ function ViewerTrip({
           </button>
         </p>
       )}
-      {!trip && <p className="text-[15px] text-muted">None</p>}
+
       <div className="flex flex-wrap gap-2">
         {[...(edit ? [edit] : []), ...adds].map((change) => (
           <Button
