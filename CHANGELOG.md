@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.30.1] - 2026-11-18
+
+### Fixed
+
+- The warning mark for a guessed date no longer sits on every such photo: it shows when the photo is
+  hovered or focused, and on all of them while the Uncertain dates filter is on. The tooltip says
+  Date uncertain too.
+
 ## [0.30.0] - 2026-11-18
 
 ### Added

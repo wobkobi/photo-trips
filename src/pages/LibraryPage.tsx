@@ -685,6 +685,7 @@ export function LibraryPage({
           // While picking, a click picks, so the magnifier is the way to look at a photo.
           onTileZoom={selecting ? setOpen : undefined}
           onThumbError={onThumbError}
+          showUncertain={filter.uncertain}
           jump={jump}
         />
       )}
