@@ -12,6 +12,7 @@ import { UpdatesProvider } from "./lib/updates";
 import { useJobDone } from "./lib/useJobs";
 import { useSettings } from "./lib/useSettings";
 import { useUpdates } from "./lib/useUpdates";
+import { keepsWebviewMenu } from "./lib/webviewMenu";
 import { DuplicatesPage } from "./pages/DuplicatesPage";
 import { HelpPage } from "./pages/HelpPage";
 import { HistoryPage } from "./pages/HistoryPage";
@@ -35,10 +36,25 @@ export type PageId =
   | "help";
 
 /**
- * Root component: settings and job providers around the shell.
+ * Root component: settings and job providers around the shell. Right-clicks get no browser menu
+ * except on text, so the app never offers Back, Reload or Print.
  * @returns the app
  */
 export default function App(): ReactElement {
+  useEffect(() => {
+    /**
+     * Stop the webview's own menu unless the click was on text.
+     * @param event - the right-click
+     */
+    const onMenu = (event: MouseEvent): void => {
+      if (!keepsWebviewMenu(event.target, event.shiftKey, import.meta.env.DEV)) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("contextmenu", onMenu);
+    return () => window.removeEventListener("contextmenu", onMenu);
+  }, []);
+
   return (
     <SettingsProvider>
       <JobsProvider>

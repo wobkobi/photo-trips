@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.19] - 2026-11-18
+
+### Fixed
+
+- Right-clicking anywhere but on text no longer shows the browser's own menu with Back, Reload and
+  Print.
+
 ## [0.25.18] - 2026-11-18
 
 ### Fixed
