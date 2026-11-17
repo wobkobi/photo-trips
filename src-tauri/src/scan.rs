@@ -85,7 +85,9 @@ pub fn scan_excluding(
         let entry = match entry {
             Ok(entry) => entry,
             Err(err) => {
-                result.unreadable.extend(err.path().map(Path::to_path_buf));
+                // A folder whose listing fails partway reports no path, so nothing says which
+                // files went unlisted. Count the whole root as unread so none look deleted.
+                result.unreadable.push(err.path().unwrap_or(root).to_path_buf());
                 continue;
             }
         };
@@ -132,22 +134,32 @@ fn shares_ext_with_code(path: &Path) -> bool {
         .is_some_and(|e| ["ts", "mts", "m2ts"].iter().any(|x| e.eq_ignore_ascii_case(x)))
 }
 
-/// True when the file starts like an MPEG transport stream: the sync byte 0x47 every 188 bytes
-/// (broadcast and HDV `.ts`), or every 192 bytes after a 4-byte timecode (AVCHD `.mts`/`.m2ts`).
-/// A file that can't be read (a phone path, a locked file) gets the benefit of the doubt.
+/// Packet sizes of MPEG transport streams: broadcast and HDV `.ts`, AVCHD `.mts`/`.m2ts` (a
+/// 4-byte timecode before each packet), and DVB with 16 error-correction bytes after each.
+const TS_PACKETS: [usize; 3] = [188, 192, 204];
+
+/// Sync bytes in a row that make a stream. Four 0x47 ("G") bytes at an exact spacing, from any
+/// start within the first packet, is about a one-in-a-million chance in source code.
+const TS_SYNCS: usize = 4;
+
+/// True when the file starts like an MPEG transport stream: the sync byte 0x47 at the start of
+/// every packet. A recording cut mid-packet starts partway in, so any start within the first
+/// packet counts. A file that can't be read (a phone path, a locked file) gets the benefit of
+/// the doubt.
 fn is_transport_stream(path: &Path) -> bool {
     use std::io::Read;
     let Ok(file) = std::fs::File::open(path) else {
         return true;
     };
-    let mut head = Vec::with_capacity(3 * 192 + 4);
-    if file.take(3 * 192 + 4).read_to_end(&mut head).is_err() {
+    let longest = TS_PACKETS[TS_PACKETS.len() - 1];
+    let want = (longest * (TS_SYNCS + 1)) as u64;
+    let mut head = Vec::new();
+    if file.take(want).read_to_end(&mut head).is_err() {
         return true;
     }
-    let synced = |start: usize, step: usize| {
-        (0..3).all(|i| head.get(start + i * step) == Some(&0x47))
-    };
-    synced(0, 188) || synced(4, 192)
+    TS_PACKETS.iter().any(|&step| {
+        (0..step).any(|start| (0..TS_SYNCS).all(|i| head.get(start + i * step) == Some(&0x47)))
+    })
 }
 
 
@@ -261,16 +273,24 @@ mod tests {
         let root = dir.path();
         fs::write(root.join("index.ts"), b"export const a = 1;\n").unwrap();
         fs::write(root.join("config.mts"), b"export default {};\n").unwrap();
-        let mut ts = vec![0u8; 188 * 3];
-        for i in 0..3 {
-            ts[i * 188] = 0x47;
-        }
-        fs::write(root.join("broadcast.ts"), &ts).unwrap();
-        let mut m2ts = vec![0u8; 192 * 3];
-        for i in 0..3 {
-            m2ts[4 + i * 192] = 0x47;
-        }
-        fs::write(root.join("00001.MTS"), &m2ts).unwrap();
+        let stream = |start: usize, step: usize| {
+            let mut bytes = vec![0u8; start + step * 5];
+            for i in 0..5 {
+                bytes[start + i * step] = 0x47;
+            }
+            bytes
+        };
+        fs::write(root.join("broadcast.ts"), stream(0, 188)).unwrap();
+        fs::write(root.join("00001.MTS"), stream(4, 192)).unwrap();
+        // Packets with error-correction bytes, and a recording cut mid-packet.
+        fs::write(root.join("dvb.ts"), stream(0, 204)).unwrap();
+        fs::write(root.join("cut.ts"), stream(100, 188)).unwrap();
+        // Three G's 188 bytes apart in source code are not a stream.
+        let mut code = b"// ab".repeat(200);
+        code[0] = b'G';
+        code[188] = b'G';
+        code[376] = b'G';
+        fs::write(root.join("strings.ts"), &code).unwrap();
         touch(&root.join("node_modules/pkg/clip.mp4"));
 
         let t = FormatTable::default();
@@ -281,8 +301,8 @@ mod tests {
             .map(|f| f.path.file_name().unwrap().to_string_lossy().to_string())
             .collect();
         names.sort();
-        assert_eq!(names, ["00001.MTS", "broadcast.ts"]);
-        assert_eq!(result.other_files, 2);
+        assert_eq!(names, ["00001.MTS", "broadcast.ts", "cut.ts", "dvb.ts"]);
+        assert_eq!(result.other_files, 3);
         // A phone path can't be read here, so it keeps its extension's kind.
         assert_eq!(file_kind(Path::new("Z:\\phone\\00001.MTS"), &t), Some(Kind::Video));
     }
