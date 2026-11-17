@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
+use tauri::window::Color;
 use tauri::{AppHandle, Manager, State, Theme};
 
 use crate::AppState;
@@ -71,12 +72,25 @@ pub fn window_theme(value: Option<&str>) -> Option<Theme> {
     }
 }
 
-/// Theme the main window's title bar and menus to match the page.
+/// The page's ground colour in each theme, as `--color-ground` in `src/index.css` and the
+/// first-paint style in `index.html`. The three must match, or the window flashes as it opens.
+const GROUND_LIGHT: Color = Color(0xf6, 0xf7, 0xf8, 0xff);
+const GROUND_DARK: Color = Color(0x12, 0x14, 0x17, 0xff);
+
+/// Theme the main window's title bar and menus to match the page, and fill the window with the
+/// page's ground colour, so it never shows white before the page draws.
 pub fn apply_theme(app: &AppHandle, value: Option<&str>) {
-    if let Some(window) = app.get_webview_window("main")
-        && let Err(err) = window.set_theme(window_theme(value))
-    {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    if let Err(err) = window.set_theme(window_theme(value)) {
         log::warn!("Couldn't change the theme: {err}");
+    }
+    // With no theme chosen the window follows Windows, so ask which one that came to.
+    let dark = window.theme().is_ok_and(|theme| theme == Theme::Dark);
+    let ground = if dark { GROUND_DARK } else { GROUND_LIGHT };
+    if let Err(err) = window.set_background_color(Some(ground)) {
+        log::warn!("Couldn't set the window colour: {err}");
     }
 }
 
