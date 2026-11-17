@@ -203,7 +203,7 @@ export function ResultBanner({
           }. History says why.`}
       </p>
       {(result.moved > 0 || undoable) && (
-        <Button onClick={onUndo} disabled={busy}>
+        <Button onClick={onUndo} busy={busy}>
           <Icon name="undo" size={16} />
           Undo
         </Button>

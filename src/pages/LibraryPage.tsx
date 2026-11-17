@@ -508,14 +508,14 @@ export function LibraryPage({
             review !== null &&
             !moving && (
               <>
-                <Button variant="ghost" onClick={tripReview.back} disabled={running !== null}>
+                <Button variant="ghost" onClick={tripReview.back} busy={running !== null}>
                   <Icon name="back" size={16} />
                   Back
                 </Button>
                 <Button
                   variant="primary"
                   onClick={() => void tripReview.apply()}
-                  disabled={running !== null}
+                  busy={running !== null}
                 >
                   {review.action}
                 </Button>
@@ -574,7 +574,7 @@ export function LibraryPage({
               <Button
                 variant="ghost"
                 onClick={refresh}
-                disabled={running !== null}
+                busy={running !== null}
                 title="Refresh (F5)"
                 aria-label="Refresh"
                 className="px-2.5"
@@ -609,7 +609,7 @@ export function LibraryPage({
             {binQuestion(binning, binPartners?.id === binOne ? binPartners.names : null)} You can
             undo this from History.
           </p>
-          <Button variant="primary" onClick={confirmBin} disabled={running !== null}>
+          <Button variant="primary" onClick={confirmBin} busy={running !== null}>
             Send to the Recycle Bin
           </Button>
           <Button variant="ghost" onClick={() => setBinning(null)}>
@@ -636,7 +636,7 @@ export function LibraryPage({
           <p className="min-w-0 flex-1 basis-60">{dateDone.text}</p>
           <Button
             onClick={() => api.undoBatch(dateDone.batch).catch((err) => setError(errorText(err)))}
-            disabled={running !== null}
+            busy={running !== null}
           >
             <Icon name="undo" size={16} />
             Undo
@@ -848,7 +848,7 @@ function ViewerTrip({
           <Button
             key={`${change.kind}-${change.trip.id}`}
             onClick={() => onEdit(change)}
-            disabled={busy}
+            busy={busy}
           >
             {change.kind === "remove"
               ? "Remove from trip"
@@ -900,7 +900,7 @@ function ViewerDate({
         Change date
       </Button>
       {tile.dateSet && (
-        <Button variant="ghost" onClick={() => onSave(null)} disabled={busy}>
+        <Button variant="ghost" onClick={() => onSave(null)} busy={busy}>
           Use the file&apos;s date
         </Button>
       )}

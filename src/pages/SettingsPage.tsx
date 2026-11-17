@@ -172,7 +172,8 @@ export function SettingsPage({
                 <Button
                   variant="primary"
                   onClick={() => rename(review)}
-                  disabled={applying || running !== null}
+                  disabled={applying}
+                  busy={running !== null}
                 >
                   {review.files > 0
                     ? `Rename folders and move ${count(review.files, "file", "files")}`
@@ -276,7 +277,7 @@ export function SettingsPage({
                     Library will show the photos in it instead. Nothing is moved.
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button variant="primary" onClick={confirmRoot} disabled={running !== null}>
+                    <Button variant="primary" onClick={confirmRoot} busy={running !== null}>
                       Use this folder
                     </Button>
                     <Button variant="ghost" onClick={() => setNewRoot(null)}>

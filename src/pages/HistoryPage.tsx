@@ -160,7 +160,7 @@ function BatchRow({
         {confirming ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[15px]">{confirmText(batch)}</span>
-            <Button variant="primary" onClick={onUndo} disabled={busy}>
+            <Button variant="primary" onClick={onUndo} busy={busy}>
               Undo
             </Button>
             <Button variant="ghost" onClick={onCancelUndo}>
@@ -180,7 +180,7 @@ function BatchRow({
               </Button>
             )}
             {batch.canUndo && (
-              <Button onClick={onAskUndo} disabled={busy}>
+              <Button onClick={onAskUndo} busy={busy}>
                 <Icon name="undo" size={16} />
                 Undo
               </Button>

@@ -356,12 +356,18 @@ function TileButton({
 }): ReactElement {
   const [failed, setFailed] = useState(false);
   // A retry asks under a new URL, since the webview remembers an image that failed to load.
+  // Only a tile that failed changes URL, so tiles that loaded keep their cached image. askAt is
+  // the retry count this tile's URL carries (0 for the plain URL).
+  const [askAt, setAskAt] = useState(0);
   const [triedAt, setTriedAt] = useState(retry);
   if (triedAt !== retry) {
     setTriedAt(retry);
-    setFailed(false);
+    if (failed) {
+      setFailed(false);
+      setAskAt(retry);
+    }
   }
-  const src = retry ? `${thumb}${thumb.includes("?") ? "&" : "?"}retry=${retry}` : thumb;
+  const src = askAt ? `${thumb}${thumb.includes("?") ? "&" : "?"}retry=${askAt}` : thumb;
   const kind = tile.kind === "video" ? "Video" : "Photo";
   const taken = formatTaken(tile.takenAt);
   const trip = tile.trip ? `, ${tile.trip.name} trip` : "";
@@ -400,6 +406,12 @@ function TileButton({
             decoding="async"
             draggable={false}
             onError={() => {
+              // A tile scrolled in after a retry may hit the plain URL's remembered failure;
+              // it gets one fresh ask under the current count before it counts as failed.
+              if (askAt !== retry) {
+                setAskAt(retry);
+                return;
+              }
               setFailed(true);
               onThumbError(tile);
             }}
