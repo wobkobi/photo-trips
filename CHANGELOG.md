@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.13] - 2026-11-18
+
+### Fixed
+
+- Photos copied off a phone that carry no date of their own are dated at the time they were taken,
+  not hours later; the phone's file times are its local time, which were being read as UTC. Files
+  already seen on the phone are still recognised and aren't copied again.
+
 ## [0.25.12] - 2026-11-18
 
 ### Fixed
