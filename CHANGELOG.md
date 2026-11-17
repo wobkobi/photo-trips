@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.15] - 2026-11-18
+
+### Fixed
+
+- Choosing which copy of a duplicated Live Photo or RAW pair to keep carries over to the pair's
+  other set even when one set has an extra copy, such as a third copy of the photo without its clip.
+
 ## [0.25.14] - 2026-11-18
 
 ### Fixed

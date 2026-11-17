@@ -262,7 +262,8 @@ function Summary({
           <p>
             Each set keeps the copy marked Keep: the one already in its folder, otherwise the
             oldest. Click another copy to keep that one instead, or Keep all to leave a set alone. A
-            copied Live Photo or RAW pair shows as two sets that always keep the same pair.
+            copied Live Photo or RAW pair shows as two sets, and choosing a copy in one chooses the
+            same pair in the other.
           </p>
           <p>
             Sidecar files like .aae and .xmp that only belonged to a removed copy go with it. The

@@ -20,7 +20,7 @@ function copy(id: number, group = id): DupCopy {
  * @returns the set
  */
 function set(hash: string, size: number, ids: number[]): DupSet {
-  return { hash, size, kind: "photo", copies: ids.map(copy) };
+  return { hash, size, kind: "photo", copies: ids.map((id) => copy(id)) };
 }
 
 describe("keeperOf", () => {
@@ -74,8 +74,16 @@ describe("pickWithPartners", () => {
     expect(pickWithPartners(sets, "p", null)).toEqual({ p: null, v: null });
   });
 
-  it("only links sets whose copies are the same tiles", () => {
-    const third: DupSet = { ...clips, hash: "w", copies: [copy(21, 1), copy(23)] };
-    expect(pickWithPartners([photos, third], "p", 1)).toEqual({ p: 1 });
+  it("follows a pair into a set that has a copy more or less", () => {
+    // A third copy of the photo with no clip: tile 3.
+    const three: DupSet = { ...photos, copies: [copy(1), copy(2), copy(3)] };
+    expect(pickWithPartners([three, clips], "p", 2)).toEqual({ p: 2, v: 12 });
+    expect(pickWithPartners([three, clips], "p", null)).toEqual({ p: null, v: null });
+    // Keeping the copy with no clip leaves the clips' own choice alone.
+    expect(pickWithPartners([three, clips], "p", 3)).toEqual({ p: 3 });
+  });
+
+  it("leaves sets of other tiles alone", () => {
+    expect(pickWithPartners(sets, "o", 6)).toEqual({ o: 6 });
   });
 });
