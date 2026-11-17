@@ -6,7 +6,7 @@
 // they mention is kept in `Arrivals` and looked at once a second until its size and modified
 // time have held still for `QUIET` and no other program is writing to it.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -644,34 +644,60 @@ fn sort_in(ctx: &Ctx, inboxes: &[PathBuf], paths: &[PathBuf]) -> Result<Option<A
     executor::import(&env, &batch, &groups, Transfer::Move).map(Some)
 }
 
-/// Split arrivals into files whose name was already filed from the same folder by an earlier
-/// move-in (a Live Photo video saved after its photo), with the library files those became,
-/// and the rest.
+/// How long after its partners were filed a file can still join them. The halves of a Live
+/// Photo or a RAW+JPEG pair arrive seconds or minutes apart; the same name much later is
+/// usually a camera's counter come round again.
+const LATE_WINDOW_SECS: i64 = 60 * 60;
+
+/// Split arrivals into sets of same-name files whose name was filed from the same folder by a
+/// move-in within the last hour (a Live Photo video saved after its photo), with the library
+/// files those became, and the rest.
+///
+/// A set is late only when it holds nothing the filed files already have: an arriving photo
+/// beside a filed photo is a new picture, and any clip or sidecar that came with it belongs to
+/// it, not to the old one.
 fn split_late(conn: &Connection, found: Vec<Found>, table: &FormatTable) -> Result<(Vec<Late>, Vec<Found>)> {
-    let key_of = |f: &Found| scan::group_key(&f.file.path, f.file.kind, table);
-    let wanted: HashSet<String> = found.iter().map(key_of).collect();
+    let mut sets: BTreeMap<String, Vec<Found>> = BTreeMap::new();
+    for f in found {
+        sets.entry(scan::group_key(&f.file.path, f.file.kind, table)).or_default().push(f);
+    }
     let mut filed: HashMap<String, Vec<MediaRow>> = HashMap::new();
     let mut stmt = conn.prepare(
-        "SELECT src, media_id FROM journal
-         WHERE op = 'import' AND status = 'done' AND media_id IS NOT NULL",
+        "SELECT j.src, j.dst, j.media_id FROM journal j JOIN batches b ON b.id = j.batch_id
+         WHERE j.op = 'import' AND j.status = 'done' AND j.media_id IS NOT NULL
+           AND b.created_at >= ?1",
     )?;
-    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
-    for (src, id) in rows.filter_map(|r| r.ok()) {
+    let rows = stmt.query_map([db::now() - LATE_WINDOW_SECS], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?))
+    })?;
+    for (src, dst, id) in rows.filter_map(|r| r.ok()) {
         let src = Path::new(&src);
         // The file has left the inbox, so its kind comes from its name alone.
         let kind = table.kind_of(src).unwrap_or(Kind::Companion);
         let key = scan::group_key(src, kind, table);
-        if wanted.contains(&key)
+        // Ids are reused once a row is deleted, so the row must still be the file filed.
+        if sets.contains_key(&key)
             && let Some(row) = index::load_row(conn, id)?
+            && path_key(&row.path) == path_key(Path::new(&dst))
         {
             filed.entry(key).or_default().push(row);
         }
     }
     let (mut late, mut rest) = (Vec::new(), Vec::new());
-    for found in found {
-        match filed.get(&key_of(&found)) {
-            Some(rows) => late.push(Late { found, filed: rows.clone() }),
-            None => rest.push(found),
+    for (key, files) in sets {
+        let Some(rows) = filed.remove(&key) else {
+            rest.extend(files);
+            continue;
+        };
+        let mut kinds = HashSet::new();
+        let fits = files
+            .iter()
+            .filter(|f| f.file.kind != Kind::Companion)
+            .all(|f| kinds.insert(f.file.kind) && rows.iter().all(|r| r.kind != f.file.kind));
+        if fits {
+            late.push(Late { found: files, filed: rows });
+        } else {
+            rest.extend(files);
         }
     }
     Ok((late, rest))
@@ -1015,5 +1041,73 @@ mod tests {
         let rows = index::load_rows(&db.lock().unwrap()).unwrap();
         let (groups, _) = crate::groups::build(rows);
         assert!(groups.iter().all(|g| g.members.len() == 1));
+    }
+
+    #[test]
+    fn an_edited_photo_keeps_the_sidecar_it_arrived_with() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let inbox = tempfile::tempdir().unwrap();
+        write(&inbox.path().join("IMG_20250412_101500.jpg"), "april");
+        sort_all(&db, root, inbox.path()).unwrap();
+
+        write(&inbox.path().join("IMG_20250412_101500.jpg"), "april, edited");
+        write(&inbox.path().join("IMG_20250412_101500.aae"), "the edits");
+        assert_eq!(sort_all(&db, root, inbox.path()).unwrap().moved, 2);
+        let month = root.join("2025\\2025-04");
+        assert!(month.join("IMG_20250412_101500 (1).aae").is_file());
+        assert!(!month.join("IMG_20250412_101500.aae").exists());
+    }
+
+    #[test]
+    fn a_name_filed_long_ago_is_not_a_partner() {
+        let taken = "2025\\2025-04\\IMG_20250412_101500.jpg";
+        let (lib, db) = library(&[LIBRARY_PHOTO, taken]);
+        let root = lib.path();
+        let inbox = tempfile::tempdir().unwrap();
+        write(&inbox.path().join("IMG_20250412_101500.jpg"), "april");
+        sort_all(&db, root, inbox.path()).unwrap();
+        db.lock()
+            .unwrap()
+            .execute("UPDATE batches SET created_at = created_at - 2 * 3600", [])
+            .unwrap();
+
+        write(&inbox.path().join("IMG_20250412_101500.mov"), "a clip from another day");
+        sort_all(&db, root, inbox.path()).unwrap();
+        assert!(!root.join("2025\\2025-04\\IMG_20250412_101500 (1).mov").exists());
+    }
+
+    #[test]
+    fn a_reused_library_id_is_not_a_partner() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let inbox = tempfile::tempdir().unwrap();
+        write(&inbox.path().join("IMG_20250412_101500.jpg"), "april");
+        sort_all(&db, root, inbox.path()).unwrap();
+        // The photo leaves the library, and the next file filed takes over its id.
+        let first = root.join("2025\\2025-04\\IMG_20250412_101500.jpg");
+        let id: i64 = {
+            let conn = db.lock().unwrap();
+            let id = conn
+                .query_row("SELECT id FROM media WHERE path = ?1", [first.to_string_lossy()], |r| {
+                    r.get(0)
+                })
+                .unwrap();
+            conn.execute("DELETE FROM media WHERE id = ?1", [id]).unwrap();
+            id
+        };
+        fs::remove_file(&first).unwrap();
+        write(&inbox.path().join("IMG_20250412_111500.jpg"), "an hour later");
+        sort_all(&db, root, inbox.path()).unwrap();
+        let reused: String = db
+            .lock()
+            .unwrap()
+            .query_row("SELECT path FROM media WHERE id = ?1", [id], |r| r.get(0))
+            .unwrap();
+        assert!(reused.ends_with("IMG_20250412_111500.jpg"), "{reused}");
+
+        write(&inbox.path().join("IMG_20250412_101500.aae"), "edits of the first");
+        sort_all(&db, root, inbox.path());
+        assert!(!root.join("2025\\2025-04\\IMG_20250412_111500.aae").exists());
     }
 }

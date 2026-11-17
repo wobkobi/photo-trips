@@ -322,52 +322,58 @@ pub fn plan(ctx: &Ctx, mut found: Vec<Found>, exists: &dyn Fn(&Path) -> bool) ->
     Ok(out)
 }
 
-/// A file that arrived after files of its name were filed from the same folder, with the
-/// library files those became.
+/// Same-name files that arrived after files of their name were filed from the same folder,
+/// with the library files those became.
 pub struct Late {
-    pub found: Found,
+    pub found: Vec<Found>,
     pub filed: Vec<MediaRow>,
 }
 
-/// Place files that arrived after their partners were filed, each beside its partner under the
-/// partner's name (`IMG_1 (1).MOV` beside `IMG_1 (1).HEIC`), so the two are one tile again. A
-/// late sidecar comes in this way too, where on its own it would have no photo to go with.
-/// Returns those groups, and the files that turn out to be pictures of their own (a second
-/// photo, or taken more than a few minutes apart) for [`plan`].
+/// Place files that arrived after their partners were filed, beside the partner under its name
+/// (`IMG_1 (1).MOV` beside `IMG_1 (1).HEIC`), so they are one tile again. A late sidecar comes
+/// in this way too, where on its own it would have no photo to go with. Each set of same-name
+/// arrivals joins whole or not at all. Returns those groups, and the files that turn out to be
+/// pictures of their own (taken more than a few minutes apart, or with no free name beside the
+/// partner) for [`plan`].
 pub fn plan_beside(
     ctx: &Ctx,
     late: Vec<Late>,
     exists: &dyn Fn(&Path) -> bool,
 ) -> Result<(Vec<IncomingGroup>, Vec<Found>)> {
-    let files: Vec<&ScannedFile> = late.iter().map(|l| &l.found.file).collect();
+    let files: Vec<&ScannedFile> = late.iter().flat_map(|l| l.found.iter().map(|f| &f.file)).collect();
     let rows = index::read_files(&files, ctx.exiftool, ctx.cancel, ctx.report)?;
+    let mut rows = rows.iter();
     let now = db::now();
     let (mut groups, mut rest) = (Vec::new(), Vec::new());
-    for (late, row) in late.into_iter().zip(&rows) {
+    for late in late {
+        let read: Vec<&NewRow> = rows.by_ref().take(late.found.len()).collect();
         let mut filed = late.filed;
         filed.sort_by_key(|m| m.kind.lead_rank());
-        let partner = filed.first().filter(|partner| {
-            let as_row = MediaRow {
-                taken_at: row.meta.taken_at,
-                date_source: row.meta.source,
-                kind: row.kind,
-                ..(*partner).clone()
-            };
-            row.kind == Kind::Companion
-                || (filed.iter().all(|m| m.kind != row.kind) && groups::belongs_with(partner, &as_row))
+        let placed: Option<Vec<Incoming>> = filed.first().and_then(|partner| {
+            late.found
+                .iter()
+                .zip(&read)
+                .map(|(found, row)| {
+                    let as_row = MediaRow {
+                        taken_at: row.meta.taken_at,
+                        date_source: row.meta.source,
+                        kind: row.kind,
+                        ..partner.clone()
+                    };
+                    let fits = row.kind == Kind::Companion || groups::belongs_with(partner, &as_row);
+                    let to = beside(partner, &found.file, ctx.table).filter(|to| fits && !exists(to))?;
+                    Some(Incoming {
+                        from: found.file.path.clone(),
+                        origin: found.origin.clone(),
+                        row: row_json(&to, row, found.hash.as_deref(), ctx.table, now),
+                        to,
+                    })
+                })
+                .collect()
         });
-        let to = partner.and_then(|partner| beside(partner, &late.found.file, ctx.table));
-        match to {
-            Some(to) if !exists(&to) => groups.push(IncomingGroup {
-                files: vec![Incoming {
-                    from: late.found.file.path.clone(),
-                    origin: late.found.origin.clone(),
-                    row: row_json(&to, row, late.found.hash.as_deref(), ctx.table, now),
-                    to,
-                }],
-                renamed: false,
-            }),
-            _ => rest.push(late.found),
+        match placed {
+            Some(files) => groups.push(IncomingGroup { files, renamed: false }),
+            None => rest.extend(late.found),
         }
     }
     Ok((groups, rest))

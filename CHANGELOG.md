@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.14] - 2026-11-18
+
+### Fixed
+
+- A file arriving in an inbox only joins a same-name photo filed in the last hour, and only when
+  nothing of its kind came with that photo, so an edited photo keeps the sidecar it arrived with and
+  a camera's reused file name never joins an old picture.
+
 ## [0.25.13] - 2026-11-18
 
 ### Fixed
