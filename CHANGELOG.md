@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.59.0] - 2026-11-18
+
+### Added
+
+- With several photos selected, the tile menu leaves out View, Open, Show in folder and Copy path
+  rather than greying them out
+
 ## [0.58.0] - 2026-11-18
 
 ### Added

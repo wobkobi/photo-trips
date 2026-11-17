@@ -124,14 +124,15 @@ describe("photoCommands", () => {
     expect(handlers.copy).toHaveBeenCalledWith(photos);
   });
 
-  it("disables one-photo commands when no one photo is meant", () => {
+  it("leaves out one-photo commands for several photos", () => {
     const handlers = allHandlers();
     const photos = [tile(1), tile(2)];
     const commands = photoCommands({ photo: null, photos, selection: true }, null, handlers);
-    const disabled = commands.filter((c) => c.disabled).map((c) => c.id);
-    expect(disabled).toEqual(["view", "open", "reveal", "copy-path"]);
-    commands.find((c) => c.id === "open")?.run();
-    expect(handlers.open).not.toHaveBeenCalled();
+    const ids = commands.map((c) => c.id);
+    for (const id of ["view", "open", "reveal", "copy-path"]) expect(ids).not.toContain(id);
+    expect(commands.some((c) => c.disabled)).toBe(false);
+    const clicked = photoCommands({ photo: photos[0], photos, selection: true }, null, handlers);
+    expect(clicked.map((c) => c.id)).toEqual(ids);
     commands.find((c) => c.id === "copy")?.run();
     expect(handlers.copy).toHaveBeenCalledWith(photos);
   });
