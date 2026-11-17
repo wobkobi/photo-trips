@@ -836,7 +836,7 @@ function Photo({
           disabled={zoom === ZOOMS[ZOOMS.length - 1]}
           onClick={zoomIn}
         />
-        <ToolButton icon="rotate" label="Turn (R)" onClick={turn} />
+        <ToolButton icon="rotate" label="Rotate (R)" onClick={turn} />
       </div>
     </div>
   );

@@ -40,7 +40,7 @@ export function SetupPage(): ReactElement {
         </p>
         <p className="mt-3 text-[17px] leading-relaxed text-muted">
           Photos kept somewhere else, like an old backup, a memory card or your phone, can be
-          brought in from Import once the library is set up.
+          imported once the library is set up.
         </p>
         <Button variant="primary" className="mt-8 px-5 py-2.5 text-[16px]" onClick={chooseFolder}>
           <Icon name="folder" />

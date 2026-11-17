@@ -457,8 +457,8 @@ function TileButton({
         <button
           type="button"
           onClick={onZoom}
-          aria-label={`Look at ${tile.name}`}
-          title="Look at this one bigger"
+          aria-label={`Open ${tile.name}`}
+          title="Open"
           className="on-dark absolute top-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-ground/70 text-ink opacity-0 group-hover:opacity-100 hover:bg-ground focus-visible:bg-ground focus-visible:opacity-100"
         >
           <Icon name="zoom" size={18} />

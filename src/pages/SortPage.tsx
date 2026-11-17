@@ -100,7 +100,7 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
             <>
               {skipped.size > 0 && (
                 <Button variant="ghost" onClick={() => setSkipped(new Set())}>
-                  Tick all
+                  Select all
                 </Button>
               )}
               <Button onClick={checkAgain} disabled={checking || running !== null}>

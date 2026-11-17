@@ -52,7 +52,7 @@ const THUMB_RETRY_MS = 60_000;
  *   photos ticked
  * @param props.onImport - open the Import page
  * @param props.onNavigate - switch to another page, for History from the result banner
- * @param props.refreshRequested - File > Look for new photos (F5) was picked; refresh on opening
+ * @param props.refreshRequested - File > Refresh (F5) was picked; refresh on opening
  * @param props.onRefreshStarted - called once that refresh has been asked for
  * @param props.findRequested - View > Find (Ctrl+F) was picked; focus the file name box
  * @param props.onFindStarted - called once that box has been focused, or can't be
@@ -316,7 +316,7 @@ export function LibraryPage({
       { label: "Copy path", onSelect: copyPath.bind(null, tile.id) },
       {
         label:
-          pick.length > 1 ? `Set date for ${countOf(pick.length, "photo", "photos")}` : "Set date",
+          pick.length > 1 ? `Set date for ${countOf(pick.length, "item", "items")}` : "Set date",
         onSelect: setDating.bind(null, pick),
         divided: true,
       },
@@ -336,12 +336,12 @@ export function LibraryPage({
         onSelect: createTrip.bind(null, found.free),
       });
     }
-    if (selecting) tripItems.push({ label: "Stop picking", onSelect: clearSelection });
+    if (selecting) tripItems.push({ label: "Deselect", onSelect: clearSelection });
     if (tripItems.length > 0) tripItems[0].divided = true;
     const bin: MenuItem = {
       label:
         pick.length > 1
-          ? `Send ${countOf(pick.length, "photo", "photos")} to the Recycle Bin`
+          ? `Send ${countOf(pick.length, "item", "items")} to the Recycle Bin`
           : "Send to the Recycle Bin",
       onSelect: setBinning.bind(null, pick),
       divided: true,
@@ -378,7 +378,7 @@ export function LibraryPage({
         chosen.map((t) => t.id),
         date,
       );
-      const photos = countOf(chosen.length, "photo", "photos");
+      const photos = countOf(chosen.length, "item", "items");
       setDateDone({
         batch,
         text: date ? `Date set for ${photos}.` : `Back to the file's own date for ${photos}.`,
@@ -525,7 +525,7 @@ export function LibraryPage({
             <>
               <span className="mr-2 text-[14px] text-muted" aria-live="polite">
                 {selected.size > 0
-                  ? `${countOf(selected.size, "photo", "photos")} picked`
+                  ? `${countOf(selected.size, "item", "items")} selected`
                   : "Click photos to add"}
               </span>
               <Button variant="ghost" onClick={clearSelection}>
@@ -575,8 +575,8 @@ export function LibraryPage({
                 variant="ghost"
                 onClick={refresh}
                 disabled={running !== null}
-                title="Look for new photos (F5)"
-                aria-label="Look for new photos"
+                title="Refresh (F5)"
+                aria-label="Refresh"
                 className="px-2.5"
               >
                 <Icon name="refresh" size={18} />
@@ -620,7 +620,7 @@ export function LibraryPage({
       {dating !== null && !reviewing && (
         <div className="mx-5 mt-3 flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface p-4">
           <p className="min-w-0 flex-1 basis-60">
-            New date for {countOf(dating.length, "photo", "photos")}. Only Pic Cabinet uses it; the
+            New date for {countOf(dating.length, "item", "items")}. Only Pic Cabinet uses it; the
             files aren&apos;t changed.
           </p>
           <DateEditor
@@ -684,7 +684,7 @@ export function LibraryPage({
       {allTiles !== null && total === 0 && !indexing && (
         <EmptyState title="No photos here yet">
           <p>
-            Pic Cabinet didn&apos;t find any photos or videos in your library folder. Bring some in
+            Pic Cabinet didn&apos;t find any photos or videos in your library folder. Import some
             from a memory card, a phone or another folder, or choose a different library folder in
             Settings.
           </p>

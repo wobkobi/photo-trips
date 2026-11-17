@@ -304,7 +304,7 @@ export function TripsPage({
         <EmptyState title="No trips yet">
           <p>
             Add the dates you were away, and the photos from those days get their own folder, like{" "}
-            {tripFolder(namingOf(settings).trips, "2025-03-12", "Japan")}. Or pick photos in the
+            {tripFolder(namingOf(settings).trips, "2025-03-12", "Japan")}. Or select photos in the
             Library with Make a trip.
           </p>
           <Button variant="primary" onClick={() => setEditor(newEditor(null))}>
@@ -581,7 +581,7 @@ function TripEditor({
           <PickBar
             ticked={ticked}
             total={tiles.length}
-            hint="Unticked ones stay in their month folders."
+            hint="Deselected ones stay in their month folders."
             onAll={(pick) => setLeft(pick ? NONE_LEFT : new Set(tiles.map((t) => t.id)))}
           />
           <div className={`flex border-t border-line ${LIST_FILL}`}>
