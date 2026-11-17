@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
 import { CodecHint } from "../components/CodecHint";
 import { Icon } from "../components/Icon";
@@ -39,10 +39,21 @@ const NONE_LEFT: ReadonlySet<number> = new Set();
  * nothing comes in until the user says so, and the whole import can be undone.
  * @param props - Component props.
  * @param props.onNavigate - switch to another page
+ * @param props.dropped - a folder dropped on the window, to check straight away
+ * @param props.onDroppedUsed - called once the dropped folder has been taken
  * @returns the page
  */
-export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void }): ReactElement {
+export function ImportPage({
+  onNavigate,
+  dropped,
+  onDroppedUsed,
+}: {
+  onNavigate: (page: PageId) => void;
+  dropped: string | null;
+  onDroppedUsed: () => void;
+}): ReactElement {
   const { running } = useJobs();
+  const busy = running !== null;
   const [devices, setDevices] = useState<ImportDevice[] | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [moveFiles, setMoveFiles] = useState(false);
@@ -74,6 +85,32 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
     setPreview(null);
   });
   useJobDone("undo", () => setResult(null));
+
+  // A dropped folder is checked like a chosen one, with the copy or move choice in force. While
+  // a job runs the check buttons are disabled, so a drop then only says to wait. The ref stops
+  // StrictMode's second effect run (or a busy change) from checking the same drop twice.
+  const takenDrop = useRef<string | null>(null);
+  useEffect(() => {
+    if (dropped === null || takenDrop.current === dropped) {
+      takenDrop.current = dropped;
+      return;
+    }
+    takenDrop.current = dropped;
+    onDroppedUsed();
+    void (async () => {
+      setResult(null);
+      setError(null);
+      if (busy) {
+        setError("Wait for the current task to finish, then drop the folder again.");
+        return;
+      }
+      try {
+        await api.scanImport({ kind: "folder", path: dropped, moveFiles });
+      } catch (err) {
+        setError(errorText(err));
+      }
+    })();
+  }, [dropped, onDroppedUsed, busy, moveFiles]);
 
   /**
    * Run an action, showing any failure as the page error.
@@ -123,7 +160,6 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
     setError(null);
   }
 
-  const busy = running !== null;
   const working =
     running?.kind === "import-scan" || running?.kind === "import" || running?.kind === "undo";
   const ready = preview !== null && preview.files > 0 && !working;

@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.49.0] - 2026-11-18
+
+### Added
+
+- Dropping a folder on the window opens Import on that folder
+
 ## [0.48.0] - 2026-11-18
 
 ### Added

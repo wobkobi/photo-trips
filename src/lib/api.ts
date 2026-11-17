@@ -743,6 +743,12 @@ export const api = {
    */
   scanImport: (source: ImportSource) => invoke<void>("scan_import", { source }),
   /**
+   * The first folder among paths dropped on the window; files are passed over.
+   * @param paths - everything dropped, in the order given
+   * @returns the folder, or null when none was a folder
+   */
+  droppedFolder: (paths: string[]) => invoke<string | null>("dropped_folder", { paths }),
+  /**
    * The latest import preview, if it hasn't been used.
    * @returns the preview, or null
    */

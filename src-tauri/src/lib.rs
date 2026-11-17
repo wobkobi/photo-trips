@@ -214,6 +214,7 @@ pub fn run() {
             duplicates::list_duplicates,
             duplicates::remove_duplicates,
             import::scan_import,
+            import::dropped_folder,
             import::import_preview,
             import::apply_import,
             import::discard_import,

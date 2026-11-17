@@ -41,6 +41,7 @@ import { PageMemoryProvider } from "./lib/pageMemory";
 import { SettingsProvider } from "./lib/settings";
 import type { TripStart } from "./lib/trips";
 import { UpdatesProvider } from "./lib/updates";
+import { useFolderDrop } from "./lib/useFolderDrop";
 import { useJobDone } from "./lib/useJobs";
 import { useLibrary } from "./lib/useLibrary";
 import { useSettings } from "./lib/useSettings";
@@ -340,6 +341,14 @@ function Shell(): ReactElement | null {
     if (mainRef.current) mainRef.current.scrollTop = 0;
   }, [page]);
 
+  // A folder dropped on the window, until the Import page starts checking it.
+  const [importDrop, setImportDrop] = useState<string | null>(null);
+  const clearImportDrop = useCallback(() => setImportDrop(null), []);
+  const dropping = useFolderDrop(Boolean(settings?.library_root), (folder) => {
+    setImportDrop(folder);
+    openPageRef.current("import");
+  });
+
   if (settings === null) return null;
   if (!settings.library_root) return <SetupPage />;
   const touring = tourAsked || (!tourClosed && settings.tour_done !== "true");
@@ -370,6 +379,8 @@ function Shell(): ReactElement | null {
             tripDraft={tripDraft}
             onTripDraftUsed={clearTripDraft}
             onCreateTrip={createTrip}
+            importDrop={importDrop}
+            onImportDropUsed={clearImportDrop}
             refresh={refresh}
             onRefreshStarted={refreshStarted}
             find={find}
@@ -379,6 +390,11 @@ function Shell(): ReactElement | null {
             onTour={() => setTourAsked(true)}
           />
         </main>
+        {dropping && (
+          <div className="pointer-events-none absolute inset-3 z-30 flex items-center justify-center rounded-lg border-2 border-dashed border-accent bg-ground/80 text-[18px] font-semibold">
+            Drop a folder to import it
+          </div>
+        )}
         {touring && (
           <Tour
             onStep={setTourPage}
@@ -407,6 +423,8 @@ function Shell(): ReactElement | null {
  * @param props.tripDraft - a trip started elsewhere, for the Trips page to open
  * @param props.onTripDraftUsed - called once the Trips page has opened the draft
  * @param props.onCreateTrip - start a trip and open the Trips page
+ * @param props.importDrop - a folder dropped on the window, for the Import page to check
+ * @param props.onImportDropUsed - called once the Import page has taken the dropped folder
  * @param props.refresh - File > Refresh is waiting for the Library
  * @param props.onRefreshStarted - called once the Library has started looking
  * @param props.find - View > Find is waiting for the Library's file name box
@@ -427,6 +445,8 @@ function CurrentPage({
   tripDraft,
   onTripDraftUsed,
   onCreateTrip,
+  importDrop,
+  onImportDropUsed,
   refresh,
   onRefreshStarted,
   find,
@@ -445,6 +465,8 @@ function CurrentPage({
   tripDraft: TripStart | null;
   onTripDraftUsed: () => void;
   onCreateTrip: (start: TripStart) => void;
+  importDrop: string | null;
+  onImportDropUsed: () => void;
   refresh: boolean;
   onRefreshStarted: () => void;
   find: boolean;
@@ -485,7 +507,9 @@ function CurrentPage({
     case "suggestions":
       return <SuggestionsPage onNavigate={onNavigate} onCreateTrip={onCreateTrip} />;
     case "import":
-      return <ImportPage onNavigate={onNavigate} />;
+      return (
+        <ImportPage onNavigate={onNavigate} dropped={importDrop} onDroppedUsed={onImportDropUsed} />
+      );
     case "duplicates":
       return <DuplicatesPage onNavigate={onNavigate} />;
     case "history":
