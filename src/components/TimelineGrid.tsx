@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { thumbUrl, type Tile } from "../lib/api";
-import { count, jumpRow, stepTile, timelineRows, type TimelineRow } from "../lib/format";
+import { count, jumpRow, stepTile, tileRow, timelineRows, type TimelineRow } from "../lib/format";
 import { tripBg } from "../lib/trips";
 import { DateRail, type RailMonth } from "./DateRail";
 import { Icon } from "./Icon";
@@ -35,6 +35,14 @@ export type MonthRow = Extract<TimelineRow, { type: "month" }>;
 /** A request to bring one tile into view. A new object each time, so a repeat click scrolls again. */
 export interface TileJump {
   index: number;
+  /**
+   * "start" (the default) puts the tile's row, or its month heading when the tile is in the
+   * month's first row, at the top. "auto" scrolls only as far as needed to show the tile's row,
+   * so a tile already on screen doesn't move.
+   */
+  align?: "start" | "auto";
+  /** Move keyboard focus to the tile once it's drawn (default true). */
+  focus?: boolean;
 }
 
 /**
@@ -61,8 +69,8 @@ function libraryThumb(tile: Tile): string {
  * @param props.thumbOf - a tile's thumbnail URL (default: the library thumbnail for its id)
  * @param props.monthAction - something to show at the right of a month heading
  * @param props.fadeUnselected - fade tiles that aren't selected, for when most are
- * @param props.jump - scroll to this tile, with its month heading when it's in the month's first
- *   row, and move keyboard focus to it
+ * @param props.jump - scroll to this tile ({@link TileJump} says how far) and move keyboard focus
+ *   to it unless asked not to
  * @param props.ownsHeight - the grid sits straight in a page column, so it keeps its own minimum
  *   height ({@link LIST_FILL}); otherwise its parent row does
  * @returns the scrolling grid
@@ -163,9 +171,11 @@ export function TimelineGrid({
   useEffect(() => {
     if (!jump || !laidOut || handledJump.current === jump) return;
     handledJump.current = jump;
-    const row = jumpRow(rows, jump.index);
+    const align = jump.align ?? "start";
+    const row = align === "auto" ? tileRow(rows, jump.index) : jumpRow(rows, jump.index);
     if (row < 0) return;
-    virtualizer.scrollToIndex(row, { align: "start" });
+    virtualizer.scrollToIndex(row, { align });
+    if (jump.focus === false) return;
     let tries = 0;
     let done = false;
     /** Focus the jumped-to tile once it's drawn, retrying each frame up to JUMP_FRAMES. */
@@ -199,8 +209,7 @@ export function TimelineGrid({
     const to = stepTile(rows, Number(from), event.key, tiles.length);
     if (to === null) return;
     event.preventDefault();
-    const row = rows.findIndex((r) => r.type === "tiles" && to >= r.start && to < r.end);
-    virtualizer.scrollToIndex(row, { align: "auto" });
+    virtualizer.scrollToIndex(tileRow(rows, to), { align: "auto" });
     let tries = 0;
     /** Focus the tile once it's drawn, retrying each frame up to JUMP_FRAMES. */
     const focusTile = (): void => {

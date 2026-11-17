@@ -217,11 +217,13 @@ export function Viewer({
     return () => window.removeEventListener("keydown", onKey, true);
   }, [index, source.count, onIndex, onClose]);
 
-  // Focus moves into the viewer, and back to whatever opened it on closing.
+  // Focus moves into the viewer, and back to whatever opened it on closing. That return doesn't
+  // scroll: after stepping through photos the page may bring the last one shown into view
+  // instead, and the opener mustn't pull the view back to where the viewer started.
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     dialog.current?.focus();
-    return () => opener?.focus();
+    return () => opener?.focus({ preventScroll: true });
   }, []);
 
   /**

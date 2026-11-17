@@ -200,14 +200,24 @@ export function folderName(path: string): string {
 }
 
 /**
+ * The tile row that holds a tile.
+ * @param rows - rows from {@link timelineRows}
+ * @param tile - the tile's index
+ * @returns the row index, or -1 when no row holds the tile
+ */
+export function tileRow(rows: TimelineRow[], tile: number): number {
+  return rows.findIndex((row) => row.type === "tiles" && tile >= row.start && tile < row.end);
+}
+
+/**
  * The row to scroll to so a tile shows in context: its month heading when the tile is in the
- * month's first row, otherwise the tile's own row.
+ * month's first row, otherwise the tile's own row ({@link tileRow}).
  * @param rows - rows from {@link timelineRows}
  * @param tile - the tile's index
  * @returns the row index, or -1 when no row holds the tile
  */
 export function jumpRow(rows: TimelineRow[], tile: number): number {
-  const at = rows.findIndex((row) => row.type === "tiles" && tile >= row.start && tile < row.end);
+  const at = tileRow(rows, tile);
   if (at > 0 && rows[at - 1].type === "month" && rows[at - 1].start === rows[at].start) {
     return at - 1;
   }
