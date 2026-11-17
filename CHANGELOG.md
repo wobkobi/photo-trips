@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.59.3] - 2026-11-18
+
+### Fixed
+
+- Opening and closing the sidebar slides smoothly, with every icon staying in place, instead of
+  jumping
+
 ## [0.59.2] - 2026-11-18
 
 ### Fixed

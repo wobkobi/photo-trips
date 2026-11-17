@@ -118,24 +118,26 @@ export function Sidebar({
     // window.
     <nav
       aria-label="Pages"
-      className={`flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface pb-3 ${
-        iconsOnly ? "w-16 px-2" : "w-52 px-2"
+      className={`flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface px-2 pb-3 transition-[width] duration-200 ease-out motion-reduce:transition-none ${
+        iconsOnly ? "w-16" : "w-52"
       }`}
     >
-      <div className={`flex shrink-0 pt-2 pb-1 ${iconsOnly ? "justify-center" : ""}`}>
+      {/* Every icon keeps its size and place in both widths, so narrowing slides the menu shut
+          rather than jumping its icons to the middle. */}
+      <div className="flex shrink-0 pt-2 pb-1">
         <button
           type="button"
           onClick={iconsOnly ? widen : narrowIt}
           title={iconsOnly ? "Widen the menu" : "Narrow the menu"}
           aria-label={iconsOnly ? "Widen the menu" : "Narrow the menu"}
           aria-expanded={!iconsOnly}
-          className="flex min-h-8.5 items-center rounded-md px-2.5 text-faint hover:bg-raised/60 hover:text-ink"
+          className="flex min-h-8.5 items-center rounded-md px-3.75 text-faint hover:bg-raised/60 hover:text-ink"
         >
-          <Icon name="panel" size={iconsOnly ? 20 : 18} className="shrink-0" />
+          <Icon name="panel" size={18} className="shrink-0" />
         </button>
       </div>
       {/* The side padding moves inside the scroller, so focus rings aren't clipped by it. */}
-      <ul className="-mx-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-1">
+      <ul className="-mx-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto px-2 py-1">
         <li className="shrink-0">
           <PageRow
             item={LIBRARY}
@@ -217,7 +219,7 @@ export function Sidebar({
                     : "text-faint hover:bg-raised/60 hover:text-ink"
                 } ${highlight === item.id ? "ring-2 ring-accent" : ""}`}
               >
-                <Icon name={item.icon} size={iconsOnly ? 20 : 18} />
+                <Icon name={item.icon} size={18} />
                 <span className="sr-only">{item.label}</span>
               </button>
             </li>
@@ -298,12 +300,15 @@ function PageRow({
       aria-current={current ? "page" : undefined}
       data-nav={item.id}
       title={iconsOnly ? item.label : undefined}
-      className={`relative flex min-h-8.5 w-full shrink-0 items-center rounded-md py-1.5 text-[15px] transition-colors ${
-        iconsOnly ? "justify-center px-0" : "gap-3 px-2.5 text-left"
-      } ${current ? CURRENT_ROW : OTHER_ROW} ${highlight === item.id ? "ring-2 ring-accent" : ""}`}
+      className={`relative flex min-h-8.5 w-full shrink-0 items-center gap-3 overflow-hidden rounded-md py-1.5 pr-2.5 pl-3.75 text-left text-[15px] transition-colors ${current ? CURRENT_ROW : OTHER_ROW} ${highlight === item.id ? "ring-2 ring-accent" : ""}`}
     >
-      <Icon name={item.icon} size={iconsOnly ? 20 : 18} />
-      <span className={iconsOnly ? "sr-only" : undefined}>{item.label}</span>
+      <Icon name={item.icon} size={18} className="shrink-0" />
+      {/* Faded rather than removed while narrow, so it slides out with the menu and is still read. */}
+      <span
+        className={`whitespace-nowrap transition-opacity duration-200 motion-reduce:transition-none ${iconsOnly ? "opacity-0" : ""}`}
+      >
+        {item.label}
+      </span>
     </button>
   );
 }
