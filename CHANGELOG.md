@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.27.0] - 2026-11-18
+
+### Added
+
+- Moving files, sending them to the Recycle Bin or putting them back can be stopped from the page
+  showing its progress, and a button that waits for a running job says which job in its tooltip.
+
 ## [0.26.2] - 2026-11-18
 
 ### Fixed

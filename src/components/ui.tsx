@@ -1,6 +1,7 @@
 // Small shared building blocks: buttons, page header, empty state.
 
-import type { ComponentProps, ReactElement, ReactNode } from "react";
+import { useContext, type ComponentProps, type ReactElement, type ReactNode } from "react";
+import { JOB_NAMES, JobsContext } from "../lib/useJobs";
 import { Icon } from "./Icon";
 
 /**
@@ -29,7 +30,8 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 /**
- * Standard button.
+ * Standard button. Disabled while a background job runs, it says which job in its tooltip
+ * unless it has a title of its own, since most buttons wait for the job to finish.
  * @param props - Component props.
  * @param props.variant - visual weight (default secondary)
  * @param props.className - extra classes
@@ -40,9 +42,16 @@ export function Button({
   className = "",
   ...rest
 }: ComponentProps<"button"> & { variant?: Variant }): ReactElement {
+  // Read without useJobs, which throws, so a button outside the jobs provider still works.
+  const running = useContext(JobsContext)?.running;
+  const waiting =
+    rest.disabled && running
+      ? `Busy: ${(JOB_NAMES[running.kind] ?? "working").toLowerCase()}`
+      : undefined;
   return (
     <button
       type="button"
+      title={waiting}
       className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3.5 py-1.5 text-[15px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
       {...rest}
     />
