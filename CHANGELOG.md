@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.57.0] - 2026-11-18
+
+### Added
+
+- Results of a Recycle Bin, date or trip change in the Library, and the codec hint, show as a toast
+  at the bottom of the window with Undo where it can be undone; they show over the viewer too
+
 ## [0.56.0] - 2026-11-18
 
 ### Added

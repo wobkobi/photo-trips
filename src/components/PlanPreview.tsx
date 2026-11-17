@@ -7,6 +7,7 @@ import { useRef, useState, type ReactElement, type ReactNode } from "react";
 import { api, thumbUrl, type ApplySummary, type JobProgress, type Preview } from "../lib/api";
 import { count, monthLabel, splitPath } from "../lib/format";
 import type { FolderCount } from "../lib/picker";
+import { resultText, type Verb } from "../lib/toastQueue";
 import { JOB_NAMES } from "../lib/useJobs";
 import { Icon } from "./Icon";
 import { Button, LIST_FILL, Progress, ReviewHead } from "./ui";
@@ -24,13 +25,6 @@ export interface MoveRowData {
   extra: number;
   renamed: boolean;
 }
-
-/** Sentence-start, "-ing" and plain forms for the result banner. */
-const VERBS = {
-  moved: ["Moved", "moving", "moved"],
-  copied: ["Copied", "copying", "copied"],
-  imported: ["Imported", "importing", "imported"],
-} as const;
 
 /**
  * Everything a previewed change will do: a headline count, notes, the folders receiving files
@@ -172,21 +166,14 @@ export function ResultBanner({
   result: ApplySummary;
   intro?: string;
   destination?: string;
-  verb?: keyof typeof VERBS;
+  verb?: Verb;
   undoable?: boolean;
   busy: boolean;
   onUndo: () => void;
   onHistory: () => void;
   onLibrary?: () => void;
 }): ReactElement {
-  const [past, ing, plain] = VERBS[verb];
-  const moved = count(result.moved, "file", "files") + (destination ? ` to ${destination}` : "");
-  const movedText = result.cancelled
-    ? `Stopped after ${ing} ${moved}.`
-    : result.moved > 0 || !intro
-      ? `${past} ${moved}.`
-      : "";
-  const problem = result.failed > 0;
+  const { text, problem } = resultText(result, { intro, destination, verb });
   return (
     <div
       role="status"
@@ -195,13 +182,7 @@ export function ResultBanner({
       }`}
     >
       <Icon name={problem ? "warn" : "check"} className={problem ? "text-warn" : "text-accent"} />
-      <p className="min-w-0 flex-1">
-        {[intro, movedText].filter(Boolean).join(" ")}
-        {problem &&
-          ` ${count(result.failed, "file", "files")} couldn't be ${plain} and stayed where ${
-            result.failed === 1 ? "it was" : "they were"
-          }. History says why.`}
-      </p>
+      <p className="min-w-0 flex-1">{text}</p>
       {(result.moved > 0 || undoable) && (
         <Button onClick={onUndo} busy={busy}>
           <Icon name="undo" size={16} />

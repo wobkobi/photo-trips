@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import type { PageId } from "../App";
 import { BinDialog } from "../components/BinDialog";
 import { CodecHint } from "../components/CodecHint";
 import { DateEditor } from "../components/DateEditor";
 import { Icon } from "../components/Icon";
 import { LibraryFilterChips, LibraryFilterControls } from "../components/LibraryFilterBar";
 import { PhotoSizeControl } from "../components/PhotoSizeControl";
-import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
+import { MovingProgress, PlanView } from "../components/PlanPreview";
 import { TileMenu, type MenuItem } from "../components/TileMenu";
 import {
   MonthPickButton,
@@ -18,14 +17,7 @@ import {
 import { Viewer } from "../components/Viewer";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { useLibrarySource } from "../components/viewSources";
-import {
-  api,
-  errorText,
-  type ApplySummary,
-  type IndexSummary,
-  type Tile,
-  type TripInfo,
-} from "../lib/api";
+import { api, errorText, type IndexSummary, type Tile, type TripInfo } from "../lib/api";
 import { photoTile, stepPhotoSize } from "../lib/display";
 import { count as countOf } from "../lib/format";
 import { layers } from "../lib/layers";
@@ -62,6 +54,7 @@ import { useJobDone, useJobs } from "../lib/useJobs";
 import { useLibrary } from "../lib/useLibrary";
 import { usePhotoSize } from "../lib/usePhotoSize";
 import { useSettings } from "../lib/useSettings";
+import { useToasts } from "../lib/useToasts";
 import { useTripReview } from "../lib/useTripReview";
 
 /** How long after a try tiles without a thumbnail wait before asking again, in ms. */
@@ -81,7 +74,6 @@ const THUMB_RETRY_MS = 60_000;
  * @param props.onCreateTrip - start a new trip over the picked photos' days, with only those
  *   photos ticked
  * @param props.onImport - open the Import page
- * @param props.onNavigate - switch to another page, for History from the result banner
  * @param props.onShowTrip - show one trip, from the viewer's trip name
  * @param props.onLeaveTrip - leave the trip on show for the page it was opened from
  * @param props.onEditTrip - open the trip on show in the Trips page's editor
@@ -94,7 +86,6 @@ const THUMB_RETRY_MS = 60_000;
 export function LibraryPage({
   onCreateTrip,
   onImport,
-  onNavigate,
   onShowTrip,
   onLeaveTrip,
   onEditTrip,
@@ -105,7 +96,6 @@ export function LibraryPage({
 }: {
   onCreateTrip: (start: TripStart) => void;
   onImport: () => void;
-  onNavigate: (page: PageId) => void;
   onShowTrip: (trip: FilterTrip) => void;
   onLeaveTrip: () => void;
   onEditTrip: (trip: TripInfo) => void;
@@ -155,31 +145,16 @@ export function LibraryPage({
   const [binning, setBinning] = useState<Tile[] | null>(null);
   /** Raised each time the photo open in the viewer is binned, so the next one slides in. */
   const [binnedOpen, setBinnedOpen] = useState(0);
-
-  /** This page started the running Recycle Bin job, so its end shows here. */
-  const [binStarted, setBinStarted] = useState(false);
-  const [binResult, setBinResult] = useState<ApplySummary | null>(null);
   /** Photos waiting for a new date, picked from the menu. */
   const [dating, setDating] = useState<Tile[] | null>(null);
   const [savingDate, setSavingDate] = useState(false);
-  /** The last date change, for its Undo button. */
-  const [dateDone, setDateDone] = useState<{ batch: number; text: string } | null>(null);
   // Raised after a date change or an undo, so the viewer shows the new date.
   const [revision, setRevision] = useState(0);
   const tripReview = useTripReview();
+  const toasts = useToasts();
   const searchBox = useRef<HTMLInputElement>(null);
 
-  useJobDone("remove", (job) => {
-    if (!binStarted) return;
-    setBinStarted(false);
-    if (job.ok) setBinResult(job.result as ApplySummary);
-    else if (job.error) setError(job.error);
-  });
-  useJobDone("undo", () => {
-    setBinResult(null);
-    setDateDone(null);
-    setRevision((r) => r + 1);
-  });
+  useJobDone("undo", () => setRevision((r) => r + 1));
 
   // Each tile once: a retry that fails again mustn't add it twice.
   const onThumbError = useCallback(
@@ -510,7 +485,7 @@ export function LibraryPage({
   }
 
   /**
-   * Send the photos waiting for confirmation to the Recycle Bin; the job's end shows the result.
+   * Send the photos waiting for confirmation to the Recycle Bin; the job's end shows a toast.
    * They leave the grid at once, and an open viewer moves on to the next photo, closing only when
    * none is left. If the job can't start they come back. They leave the selection too, which
    * ends only when nothing is left in it, so binning one photo from the viewer keeps the rest.
@@ -519,7 +494,6 @@ export function LibraryPage({
     if (binning === null) return;
     const binIds = binning.map((t) => t.id);
     setBinning(null);
-    setBinResult(null);
     const gone = new Set(binIds);
     const kept = [...selected].filter((id) => !gone.has(id));
     if (selected.size > 0 && kept.length === 0) clearSelection();
@@ -530,18 +504,19 @@ export function LibraryPage({
       if (next !== null) setBinnedOpen((n) => n + 1);
     }
     hide(binIds);
-    setBinStarted(true);
+    const forget = toasts.expectJob("remove", { destination: "the Recycle Bin" });
     api.recycleMedia(binIds).catch((err) => {
-      setBinStarted(false);
+      forget();
       unhide(binIds);
-      setError(errorText(err));
+      // A toast, so the failure shows over the viewer too.
+      toasts.show({ text: errorText(err), problem: true });
     });
   }
 
   /**
    * Set the date of some photos in Pic Cabinet, or go back to their files' own dates, then show
-   * the change with its Undo. A photo open in the viewer stays open as it moves in the timeline,
-   * since the viewer follows its id.
+   * the change in a toast with its Undo. A photo open in the viewer stays open as it moves in the
+   * timeline, since the viewer follows its id.
    * @param chosen - the photos
    * @param date - local time, `YYYY-MM-DDTHH:MM:SS`, or null for the files' own dates
    */
@@ -553,8 +528,8 @@ export function LibraryPage({
         date,
       );
       const photos = countOf(chosen.length, "item", "items");
-      setDateDone({
-        batch,
+      toasts.show({
+        batchId: batch,
         text: date ? `Date set for ${photos}.` : `Back to the file's own date for ${photos}.`,
       });
       setDating(null);
@@ -838,41 +813,6 @@ export function LibraryPage({
       )}
       {moving && running && <MovingProgress job={running} />}
       {!moving && review !== null && <PlanView preview={review.preview} />}
-      {tripReview.result && !reviewing && (
-        <ResultBanner
-          result={tripReview.result.summary}
-          intro={tripReview.result.done}
-          undoable
-          busy={running !== null}
-          onUndo={() => void tripReview.undo()}
-          onHistory={() => onNavigate("history")}
-        />
-      )}
-
-      {dateDone && !reviewing && (
-        <div className="mx-5 mt-3 flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface p-4">
-          <p className="min-w-0 flex-1 basis-60">{dateDone.text}</p>
-          <Button
-            onClick={() => api.undoBatch(dateDone.batch).catch((err) => setError(errorText(err)))}
-            busy={running !== null}
-          >
-            <Icon name="undo" size={16} />
-            Undo
-          </Button>
-          <Button variant="ghost" onClick={() => setDateDone(null)}>
-            Close
-          </Button>
-        </div>
-      )}
-      {binResult && !reviewing && (
-        <ResultBanner
-          result={binResult}
-          destination="the Recycle Bin"
-          busy={running !== null}
-          onUndo={() => api.undoBatch(binResult.batchId).catch((err) => setError(errorText(err)))}
-          onHistory={() => onNavigate("history")}
-        />
-      )}
       {!reviewing && settings?.codec_hint_dismissed !== "true" && (
         <CodecHint
           failed={failedThumbs}

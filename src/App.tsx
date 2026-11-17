@@ -8,6 +8,7 @@ import {
   type ReactElement,
 } from "react";
 import { Sidebar } from "./components/Sidebar";
+import { ToastHost } from "./components/ToastHost";
 import { Tour } from "./components/Tour";
 import { api, type TripInfo } from "./lib/api";
 import { themeOf } from "./lib/display";
@@ -40,6 +41,7 @@ import {
 } from "./lib/navHistory";
 import { PageMemoryProvider } from "./lib/pageMemory";
 import { SettingsProvider } from "./lib/settings";
+import { ToastProvider } from "./lib/toasts";
 import type { TripStart } from "./lib/trips";
 import { UpdatesProvider } from "./lib/updates";
 import { useFolderDrop } from "./lib/useFolderDrop";
@@ -82,7 +84,7 @@ function placeOf(page: PageId, filter: LibraryFilter, from: PageId): NavEntry<Pa
 }
 
 /**
- * Root component: settings, job, library and page memory providers around the shell.
+ * Root component: settings, job, library, page memory and toast providers around the shell.
  * Right-clicks get no browser menu except on text, so the app never offers Back, Reload or Print.
  * @returns the app
  */
@@ -107,7 +109,9 @@ export default function App(): ReactElement {
         <UpdatesProvider>
           <LibraryProvider>
             <PageMemoryProvider>
-              <Shell />
+              <ToastProvider>
+                <Shell />
+              </ToastProvider>
             </PageMemoryProvider>
           </LibraryProvider>
         </UpdatesProvider>
@@ -371,6 +375,8 @@ function Shell(): ReactElement | null {
 
   return (
     <div className="flex h-full">
+      {/* First, so its Escape listener goes in ahead of the pages' own. */}
+      <ToastHost onShow={openPage} />
       <Sidebar
         page={page}
         onPage={openPage}
@@ -505,7 +511,6 @@ function CurrentPage({
         <LibraryPage
           onCreateTrip={onCreateTrip}
           onImport={() => onNavigate("import")}
-          onNavigate={onNavigate}
           onShowTrip={onShowTrip}
           onLeaveTrip={onLeaveTrip}
           onEditTrip={onEditTrip}
