@@ -2,6 +2,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type MouseEvent,
   type PointerEvent,
   type ReactElement,
   type ReactNode,
@@ -477,8 +478,6 @@ function Media({
   return (
     <Photo
       item={item}
-      openLabel={openLabel}
-      onOpen={onOpen}
       onShown={onShown}
       onBroken={() => {
         onShown();
@@ -502,6 +501,11 @@ const ZOOMS = [1, 1.5, 2, 3, 4, 6, 8];
  */
 const WHEEL_STEP = 60;
 
+/** Where a click on the photo at fit size zooms to. */
+const CLICK_ZOOM = 2;
+/** How far a press can move, in px, and still count as a click rather than a drag. */
+const CLICK_SLOP = 4;
+
 /**
  * The next zoom step in or out, stopping at either end of {@link ZOOMS}.
  * @param zoom - the zoom now, one of {@link ZOOMS}
@@ -514,27 +518,22 @@ function stepZoom(zoom: number, direction: 1 | -1): number {
 }
 
 /**
- * A photo to look at closely: zoom with the wheel, the + and - keys or the buttons beneath it,
- * drag to look around a zoomed photo, and turn it with R. Turning only changes how it's shown
- * here; the file is never changed. Clicking it at fit size opens it in its app.
+ * A photo to look at closely: click to zoom in about the pointer and click again to fit, zoom
+ * with the wheel, the + and - keys or the buttons beneath it, drag to look around a zoomed
+ * photo, and turn it with R. Turning only changes how it's shown here; the file is never
+ * changed.
  * @param props - Component props.
  * @param props.item - the photo on show
- * @param props.openLabel - tooltip for clicking the photo
- * @param props.onOpen - open the photo in its default app
  * @param props.onShown - the full picture is on screen
  * @param props.onBroken - the full picture failed to load
  * @returns the photo with its zoom and turn buttons
  */
 function Photo({
   item,
-  openLabel,
-  onOpen,
   onShown,
   onBroken,
 }: {
   item: ViewItem;
-  openLabel: string;
-  onOpen: () => void;
   onShown: () => void;
   onBroken: () => void;
 }): ReactElement {
@@ -548,7 +547,9 @@ function Photo({
   const photo = useRef<HTMLImageElement>(null);
   // Where a drag started, less the pan then, so moving the pointer moves the photo with it.
   const dragFrom = useRef<Offset | null>(null);
-  // Set once a press has moved the photo, so letting go doesn't count as a click that opens it.
+  // Where a press started, and whether it has since moved far enough to be a drag, so letting go
+  // of a drag doesn't count as a click that zooms.
+  const pressAt = useRef<Offset | null>(null);
   const dragged = useRef(false);
   const wheel = useRef(0);
   const sideways = turns % 2 === 1;
@@ -679,6 +680,7 @@ function Photo({
    */
   function onPointerDown(event: PointerEvent<HTMLImageElement>): void {
     dragged.current = false;
+    pressAt.current = { x: event.clientX, y: event.clientY };
     if (zoom === 1 || event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     dragFrom.current = { x: event.clientX - pan.x, y: event.clientY - pan.y };
@@ -690,19 +692,41 @@ function Photo({
    * @param event - the pointer moving
    */
   function onPointerMove(event: PointerEvent<HTMLImageElement>): void {
+    const press = pressAt.current;
+    if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > CLICK_SLOP) {
+      dragged.current = true;
+    }
     const from = dragFrom.current;
     if (!from) return;
-    dragged.current = true;
     setPan(clamp({ x: event.clientX - from.x, y: event.clientY - from.y }, zoom));
+  }
+
+  /**
+   * Zoom in about the pointer at fit size, or back to fit when zoomed. A drag is not a click.
+   * @param event - the click on the photo
+   */
+  function onClick(event: MouseEvent<HTMLImageElement>): void {
+    if (dragged.current) return;
+    if (zoom > 1) {
+      fitPhoto();
+      return;
+    }
+    const box = stage.current?.getBoundingClientRect();
+    if (!box) return;
+    zoomTo(CLICK_ZOOM, {
+      x: event.clientX - box.left - box.width / 2,
+      y: event.clientY - box.top - box.height / 2,
+    });
   }
 
   /** Stop dragging. */
   function onPointerUp(): void {
     dragFrom.current = null;
+    pressAt.current = null;
     setDragging(false);
   }
 
-  let cursor = "cursor-pointer";
+  let cursor = "cursor-zoom-in";
   if (zoom > 1) cursor = dragging ? "cursor-grabbing" : "cursor-grab";
   const changed = zoom > 1 || turns > 0;
 
@@ -721,11 +745,8 @@ function Photo({
         ref={photo}
         src={item.original ?? item.preview}
         alt={item.name}
-        title={zoom === 1 ? openLabel : undefined}
         draggable={false}
-        onClick={() => {
-          if (zoom === 1 && !dragged.current) onOpen();
-        }}
+        onClick={onClick}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
