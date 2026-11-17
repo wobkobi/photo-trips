@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.9] - 2026-11-18
+
+### Fixed
+
+- When a phone refuses to hand over a file, Pic Cabinet asks once more, then leaves that file and
+  the files that go with it on the phone and carries on with the rest. The import preview says how
+  many couldn't be read, with the iPhone setting that usually fixes it (Settings > Photos > Transfer
+  to Mac or PC > Keep Originals). The check only stops if the phone stops answering altogether.
+
 ## [0.25.8] - 2026-11-18
 
 ### Fixed

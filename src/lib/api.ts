@@ -288,6 +288,8 @@ export interface ImportPreview {
   leftAlone: number;
   /** Files at the source that aren't photos or videos. */
   otherFiles: number;
+  /** Phone files that couldn't be read, left on the phone with the files that go with them. */
+  unreadable: number;
   /** Groups that get a number added to their names because the name is taken. */
   renamed: number;
   folders: { folder: string; files: number }[];
