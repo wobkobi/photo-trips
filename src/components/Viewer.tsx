@@ -2,6 +2,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type FocusEvent,
   type MouseEvent,
   type PointerEvent,
   type ReactElement,
@@ -10,6 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { api, errorText, type MediaKind } from "../lib/api";
+import { formatTaken } from "../lib/format";
 import { MissingExtensions } from "./CodecHint";
 import { Icon, type IconName } from "./Icon";
 import { Button } from "./ui";
@@ -19,6 +21,8 @@ import { VideoPlayer } from "./VideoPlayer";
 export interface ViewItem {
   name: string;
   kind: MediaKind;
+  /** When it was taken, as the library stores it, for the bar over the photo. */
+  takenAt: string;
   /** The original file's URL, when the webview can show (photos) or play (videos) it as it is. */
   original: string | null;
   /** The file has gone from disk, deleted or moved outside Pic Cabinet. */
@@ -53,6 +57,19 @@ function preload(item: ViewItem): void {
   if (item.kind === "video") return;
   const image = new Image();
   image.src = item.original ?? item.preview;
+}
+
+/** How long the pointer can rest, in ms, before the bar and side arrows fade. */
+const REST_MS = 2000;
+
+/**
+ * Whether an element is part of the viewer's chrome (the bar and side arrows), which stays on
+ * show while the pointer is over it.
+ * @param target - an event's target
+ * @returns true inside an element marked `data-chrome`
+ */
+function inChrome(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("[data-chrome]") !== null;
 }
 
 /** Default app names by extension, looked up once each. Null: Windows has no default. */
@@ -108,6 +125,12 @@ export interface ViewSource {
 
 /**
  * Full-window view of one file with its details. Arrow keys step through the source.
+ *
+ * A slim bar over the top of the stage carries Back, the file's name and date, its place in the
+ * source and an icon row: the photo's zoom and rotate, then Show in folder, Copy and Open, built
+ * from the source so every caller gets them, then Info and, where the caller passes one, Bin. The
+ * bar and side arrows fade once the pointer has rested for {@link REST_MS}, and stay while the
+ * pointer is over them or keyboard focus is inside them.
  * @param props - Component props.
  * @param props.source - the files
  * @param props.index - which file is open
@@ -115,6 +138,7 @@ export interface ViewSource {
  * @param props.onClose - close the viewer
  * @param props.steps - labels for the previous and next buttons (default Previous and Next)
  * @param props.controls - shown above the details, e.g. a tick for the file on show
+ * @param props.onBin - send the file on show to the Recycle Bin; the bar shows Bin only when given
  * @returns the viewer, drawn over the whole window
  */
 export function Viewer({
@@ -124,6 +148,7 @@ export function Viewer({
   onClose,
   steps = ["Previous", "Next"],
   controls,
+  onBin,
 }: {
   source: ViewSource;
   index: number;
@@ -131,6 +156,7 @@ export function Viewer({
   onClose: () => void;
   steps?: [string, string];
   controls?: ReactNode;
+  onBin?: () => void;
 }): ReactElement {
   const key = source.key(index);
   // Loaded files by key: the one on show and up to AHEAD each side, fetched ahead so the
@@ -273,6 +299,48 @@ export function Viewer({
   async function copyFile(): Promise<void> {
     if (copy && (await run(() => copy(index)))) setCopied(key);
   }
+
+  // The details panel shows until Info hides it, for as long as the viewer is open.
+  const [info, setInfo] = useState(true);
+
+  // The photo's zoom and rotate buttons are drawn by the photo itself, into this spot in the bar,
+  // so they act on its own zoom and turn.
+  const [photoTools, setPhotoTools] = useState<HTMLSpanElement | null>(null);
+
+  // The bar and side arrows fade once the pointer rests. `awake` drops when the rest timer runs
+  // out; the pointer over them, or keyboard focus inside them, keeps them on show regardless.
+  const [awake, setAwake] = useState(true);
+  const [held, setHeld] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const restTimer = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    restTimer.current = window.setTimeout(() => setAwake(false), REST_MS);
+    return () => window.clearTimeout(restTimer.current);
+  }, []);
+  const chrome = `transition-opacity duration-300 ${awake || held || focused ? "opacity-100" : "opacity-0"}`;
+
+  /**
+   * Show the bar and arrows, start the rest timer again, and note whether the pointer is over
+   * them.
+   * @param event - the pointer moving anywhere in the viewer
+   */
+  function onPointerMove(event: PointerEvent<HTMLDivElement>): void {
+    setHeld(inChrome(event.target));
+    setAwake(true);
+    window.clearTimeout(restTimer.current);
+    restTimer.current = window.setTimeout(() => setAwake(false), REST_MS);
+  }
+
+  /**
+   * Keep the bar on show while a key has moved focus into it. A click focuses a button too, but
+   * only keyboard focus (`:focus-visible`) holds the bar, or it would never fade after a click.
+   * @param event - focus arriving anywhere in the viewer
+   */
+  function onFocus(event: FocusEvent<HTMLDivElement>): void {
+    setFocused(inChrome(event.target) && event.target.matches(":focus-visible"));
+  }
+
+  const usable = item !== null && !item.missing;
   return createPortal(
     <div
       ref={dialog}
@@ -280,6 +348,10 @@ export function Viewer({
       role="dialog"
       aria-modal="true"
       aria-label={item ? item.name : "Photo viewer"}
+      onPointerMove={onPointerMove}
+      onPointerLeave={() => setHeld(false)}
+      onFocus={onFocus}
+      onBlur={() => setFocused(false)}
       className="fixed inset-0 z-40 flex bg-ground outline-none"
     >
       <div className="on-dark relative flex min-w-0 flex-1 items-center justify-center overflow-hidden bg-ground p-6">
@@ -294,64 +366,96 @@ export function Viewer({
             openLabel={openLabel}
             onOpen={() => run(() => source.open(index))}
             onReveal={reveal && (() => run(() => reveal(index)))}
+            tools={photoTools}
           />
         )}
+        {error && (
+          <p className="absolute inset-x-0 top-14 mx-auto w-fit max-w-[80%] rounded-md bg-surface/90 px-3 py-1.5 text-danger">
+            {error}
+          </p>
+        )}
+
+        <div
+          data-chrome
+          className={`absolute inset-x-0 top-0 flex h-12 items-center gap-3 bg-surface/85 pr-2 pl-1.5 ${chrome}`}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Back"
+            title="Back (Esc)"
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line"
+          >
+            <Icon name="back" size={20} />
+          </button>
+          <p className="flex min-w-0 flex-1 items-baseline gap-3">
+            <span className="truncate font-semibold">{item?.name}</span>
+            {item && (
+              <span className="shrink-0 text-[14px] text-muted">{formatTaken(item.takenAt)}</span>
+            )}
+          </p>
+          <span className="shrink-0 text-[14px] text-faint tabular-nums">
+            {(index + 1).toLocaleString()} of {source.count.toLocaleString()}
+          </span>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <span ref={setPhotoTools} className="contents" />
+            {usable && reveal && (
+              <ToolButton
+                icon="folder"
+                label="Show in folder"
+                onClick={() => run(() => reveal(index))}
+              />
+            )}
+            {usable && copy && (
+              <ToolButton
+                icon={copied === key ? "check" : "copy"}
+                label={copied === key ? "Copied" : "Copy"}
+                onClick={() => void copyFile()}
+              />
+            )}
+            {usable && !item.empty && (
+              <ToolButton
+                icon="open"
+                label={openLabel}
+                onClick={() => run(() => source.open(index))}
+              />
+            )}
+            <ToolButton icon="info" label="Info" pressed={info} onClick={() => setInfo(!info)} />
+            {onBin && item && <ToolButton icon="bin" label="Move to Recycle Bin" onClick={onBin} />}
+          </div>
+        </div>
+
         <NavButton
           side="left"
           label={steps[0]}
           hidden={index === 0}
+          className={chrome}
           onClick={() => onIndex(index - 1)}
         />
         <NavButton
           side="right"
           label={steps[1]}
           hidden={index >= source.count - 1}
+          className={chrome}
           onClick={() => onIndex(index + 1)}
         />
       </div>
 
-      <aside className="flex w-80 max-w-[45%] shrink-0 flex-col border-l border-line bg-surface">
-        <div className="flex items-center justify-between px-5 pt-4">
-          <span className="text-[14px] text-faint">
-            {(index + 1).toLocaleString()} of {source.count.toLocaleString()}
-          </span>
-          <Button onClick={onClose}>
-            <Icon name="close" size={18} />
-            Close
-          </Button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 pt-3 pb-6">
-          {error && <p className="mb-4 text-danger">{error}</p>}
-          {item && (
-            <>
-              <h2 className="selectable text-[18px] leading-tight font-semibold break-all">
-                {item.name}
-              </h2>
-              {controls && <div className="mt-4">{controls}</div>}
-              {item.facts}
-              <div className="mt-6 flex flex-wrap gap-2" hidden={item.missing}>
-                {reveal && (
-                  <Button onClick={() => run(() => reveal(index))}>
-                    <Icon name="folder" size={16} />
-                    Show in folder
-                  </Button>
-                )}
-                {copy && (
-                  <Button onClick={() => void copyFile()}>
-                    <Icon name={copied === key ? "check" : "copy"} size={16} />
-                    {copied === key ? "Copied" : "Copy"}
-                  </Button>
-                )}
-                <Button onClick={() => run(() => source.open(index))}>
-                  <Icon name="open" size={16} />
-                  {openLabel}
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      </aside>
+      {info && (
+        <aside className="flex w-80 max-w-[45%] shrink-0 flex-col border-l border-line bg-surface">
+          <div className="flex-1 overflow-y-auto px-5 pt-4 pb-6">
+            {item && (
+              <>
+                <h2 className="selectable text-[18px] leading-tight font-semibold break-all">
+                  {item.name}
+                </h2>
+                {controls && <div className="mt-4">{controls}</div>}
+                {item.facts}
+              </>
+            )}
+          </div>
+        </aside>
+      )}
     </div>,
     document.body,
   );
@@ -372,6 +476,7 @@ export function Viewer({
  * @param props.openLabel - text for the open-in-app button
  * @param props.onOpen - open the file in its default app
  * @param props.onReveal - show the file in Explorer, where the source has a folder to show
+ * @param props.tools - the spot in the viewer's bar a photo draws its zoom and rotate buttons into
  * @returns the media, or the fallback with its open button
  */
 function Media({
@@ -383,6 +488,7 @@ function Media({
   openLabel,
   onOpen,
   onReveal,
+  tools,
 }: {
   item: ViewItem;
   gone: string;
@@ -392,6 +498,7 @@ function Media({
   openLabel: string;
   onOpen: () => void;
   onReveal?: () => void;
+  tools: HTMLElement | null;
 }): ReactElement {
   const [failed, setFailed] = useState(false);
   const video = item.kind === "video";
@@ -487,6 +594,7 @@ function Media({
   return (
     <Photo
       item={item}
+      tools={tools}
       onShown={onShown}
       onBroken={() => {
         onShown();
@@ -502,7 +610,7 @@ interface Offset {
   y: number;
 }
 
-/** Zoom steps the buttons, wheel and keys move through. 1 fits the photo in the window. */
+/** Zoom steps the wheel and keys move through. 1 fits the photo in the window. */
 const ZOOMS = [1, 1.5, 2, 3, 4, 6, 8];
 /**
  * Wheel travel per zoom step. A mouse wheel notch is 100, so each notch is a step, while a
@@ -529,22 +637,24 @@ function stepZoom(zoom: number, direction: 1 | -1): number {
 }
 
 /**
- * A photo to look at closely: click to zoom in about the pointer and click again to fit, zoom
- * with the wheel, the + and - keys or the buttons beneath it, drag to look around a zoomed
- * photo, and turn it with R. Turning only changes how it's shown here; the file is never
- * changed.
+ * A photo to look at closely: click or the Zoom button to zoom in and again to fit, zoom with
+ * the wheel or the + and - keys, drag to look around a zoomed photo, and turn it with R or the
+ * Rotate button. Turning only changes how it's shown here; the file is never changed.
  * @param props - Component props.
  * @param props.item - the photo on show
+ * @param props.tools - the spot in the viewer's bar its Zoom and Rotate buttons go, once drawn
  * @param props.onShown - the full picture is on screen
  * @param props.onBroken - the full picture failed to load
- * @returns the photo with its zoom and turn buttons
+ * @returns the photo, with its buttons drawn into the bar
  */
 function Photo({
   item,
+  tools,
   onShown,
   onBroken,
 }: {
   item: ViewItem;
+  tools: HTMLElement | null;
   onShown: () => void;
   onBroken: () => void;
 }): ReactElement {
@@ -760,7 +870,6 @@ function Photo({
 
   let cursor = "cursor-zoom-in";
   if (zoom > 1) cursor = dragging ? "cursor-grabbing" : "cursor-grab";
-  const changed = zoom > 1 || turns > 0;
 
   // The tile is the photo's background until the full picture loads, so the photo shows at once,
   // a little soft, then sharpens. As a background it fills the photo's own box, which is known as
@@ -773,7 +882,7 @@ function Photo({
     <div
       ref={stage}
       onWheel={onWheel}
-      className="group relative flex size-full items-center justify-center"
+      className="relative flex size-full items-center justify-center"
     >
       {!sized && !item.original && (
         <img
@@ -789,7 +898,7 @@ function Photo({
         <Icon
           name="busy"
           size={18}
-          className="pointer-events-none absolute top-0 right-0 animate-spin text-faint"
+          className="pointer-events-none absolute right-0 bottom-0 animate-spin text-faint"
         />
       )}
       <img
@@ -813,63 +922,58 @@ function Photo({
         onError={onBroken}
         className={`relative max-h-full max-w-full object-contain select-none ${cursor} ${dragging ? "" : "transition-transform duration-150"}`}
       />
-      <div
-        className={`absolute bottom-0 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-md border border-line bg-surface/90 p-1 transition-opacity group-hover:opacity-100 focus-within:opacity-100 ${changed ? "opacity-100" : "opacity-0"}`}
-      >
-        <ToolButton
-          icon="zoomOut"
-          label="Zoom out (-)"
-          disabled={zoom === ZOOMS[0]}
-          onClick={zoomOut}
-        />
-        <button
-          type="button"
-          onClick={fitPhoto}
-          title="Fit to window (0)"
-          className="min-w-12 rounded px-1.5 py-1 text-[14px] font-semibold tabular-nums hover:bg-raised"
-        >
-          {zoom === 1 ? "Fit" : `${zoom}x`}
-        </button>
-        <ToolButton
-          icon="zoom"
-          label="Zoom in (+)"
-          disabled={zoom === ZOOMS[ZOOMS.length - 1]}
-          onClick={zoomIn}
-        />
-        <ToolButton icon="rotate" label="Rotate (R)" onClick={turn} />
-      </div>
+      {tools &&
+        createPortal(
+          <>
+            {zoom > 1 ? (
+              <ToolButton icon="zoomOut" label="Fit" shortcut="0" onClick={fitPhoto} />
+            ) : (
+              <ToolButton
+                icon="zoom"
+                label="Zoom"
+                shortcut="+"
+                onClick={() => zoomTo(CLICK_ZOOM)}
+              />
+            )}
+            <ToolButton icon="rotate" label="Rotate" shortcut="R" onClick={turn} />
+          </>,
+          tools,
+        )}
     </div>
   );
 }
 
 /**
- * Small icon button under the photo, labelled by its tooltip.
+ * Small icon button in the viewer's bar, named by its tooltip.
  * @param props - Component props.
  * @param props.icon - which icon to show
- * @param props.label - what it does, with its key, for the tooltip and screen readers
- * @param props.disabled - at the end of its range
+ * @param props.label - what it does, for the tooltip and screen readers
+ * @param props.shortcut - its key, added to the tooltip
+ * @param props.pressed - on or off, for a button that toggles something
  * @param props.onClick - do it
  * @returns the button
  */
 function ToolButton({
   icon,
   label,
-  disabled,
+  shortcut,
+  pressed,
   onClick,
 }: {
   icon: IconName;
   label: string;
-  disabled?: boolean;
+  shortcut?: string;
+  pressed?: boolean;
   onClick: () => void;
 }): ReactElement {
   return (
     <button
       type="button"
-      title={label}
+      title={shortcut ? `${label} (${shortcut})` : label}
       aria-label={label}
-      disabled={disabled}
+      aria-pressed={pressed}
       onClick={onClick}
-      className="rounded p-1.5 text-muted hover:bg-raised hover:text-ink disabled:text-faint disabled:hover:bg-transparent"
+      className="inline-flex size-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line aria-pressed:bg-raised aria-pressed:text-ink"
     >
       <Icon name={icon} size={18} />
     </button>
@@ -883,6 +987,7 @@ function ToolButton({
  * @param props.side - which edge it sits on
  * @param props.label - what it does, e.g. "Older", for the tooltip and screen readers
  * @param props.hidden - at that end of the source, so there's nowhere to step
+ * @param props.className - extra classes, for fading it with the bar
  * @param props.onClick - step to the neighbouring file
  * @returns the button
  */
@@ -890,23 +995,26 @@ function NavButton({
   side,
   label,
   hidden,
+  className,
   onClick,
 }: {
   side: "left" | "right";
   label: string;
   hidden: boolean;
+  className: string;
   onClick: () => void;
 }): ReactElement {
   return (
     <button
       type="button"
+      data-chrome
       onClick={onClick}
       disabled={hidden}
       title={label}
       aria-label={label}
       className={`absolute top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-surface/70 text-ink hover:bg-raised disabled:invisible ${
         side === "left" ? "left-3" : "right-3"
-      }`}
+      } ${className}`}
     >
       <Icon name={side === "left" ? "back" : "chevron"} size={22} />
     </button>

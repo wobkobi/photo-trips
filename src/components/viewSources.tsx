@@ -77,6 +77,7 @@ function libraryItem(detail: MediaDetail): ViewItem {
   return {
     name: detail.name,
     kind: detail.kind,
+    takenAt: detail.takenAt,
     original: shown ? fileUrl(detail.path) : null,
     missing: detail.missing,
     empty: detail.empty,
@@ -150,6 +151,7 @@ function importItem(
   return {
     name: splitPath(item.from).name,
     kind: item.kind,
+    takenAt: item.takenAt,
     original: shown ? fileUrl(file.path) : null,
     missing: file.missing,
     // Empty files are left out of an import, so none is ever previewed.

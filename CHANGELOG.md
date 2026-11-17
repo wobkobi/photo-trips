@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.39.0] - 2026-11-18
+
+### Added
+
+- The viewer has a slim bar over the photo: Back, the file name and date, "N of M", and buttons for
+  Zoom, Rotate, Show in folder, Copy, Open and Info. It fades while the mouse rests and comes back
+  when you move it. The same bar shows wherever photos open, including Import and Duplicates.
+
 ## [0.38.0] - 2026-11-18
 
 ### Added

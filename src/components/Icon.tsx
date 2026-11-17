@@ -13,6 +13,7 @@ import {
   Folder,
   HistoryIcon,
   Images,
+  Info,
   Layers,
   LayoutGrid,
   LoaderCircle,
@@ -27,6 +28,7 @@ import {
   Settings,
   Smartphone,
   Sparkles,
+  Trash2,
   TriangleAlert,
   Undo2,
   Volume2,
@@ -82,6 +84,8 @@ const ICONS = {
   help: CircleHelp,
   busy: LoaderCircle,
   panel: PanelLeft,
+  info: Info,
+  bin: Trash2,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;
