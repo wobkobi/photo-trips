@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.59.2] - 2026-11-18
+
+### Fixed
+
+- A Live Photo's clip plays in place over the photo, with no control bar pushing the picture up; a
+  click stops it
+
 ## [0.59.1] - 2026-11-18
 
 ### Fixed

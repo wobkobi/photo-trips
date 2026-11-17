@@ -532,20 +532,7 @@ export function Viewer({
         onContextMenu={onStageMenu}
         className="on-dark relative flex min-w-0 flex-1 items-center justify-center overflow-hidden bg-ground"
       >
-        {item && live && (
-          <VideoPlayer
-            key={`${key}-live`}
-            src={live}
-            poster={item.preview}
-            label={item.name}
-            onEnded={() => setLiveKey(null)}
-            onError={() => {
-              setLiveKey(null);
-              setFailure({ key, message: "This Live Photo's clip can't play inside Pic Cabinet" });
-            }}
-          />
-        )}
-        {item && !live && (
+        {item && (
           <Media
             key={key}
             item={item}
@@ -557,6 +544,24 @@ export function Viewer({
             onOpen={() => run(() => source.open(index))}
             onReveal={reveal && (() => run(() => reveal(index)))}
             tools={photoTools}
+          />
+        )}
+        {/* The clip plays over the still in the same box, so the picture stays put. A click or
+            its end shows the still again. */}
+        {item && live && (
+          <video
+            key={`${key}-live`}
+            src={live}
+            poster={item.original ?? item.preview}
+            aria-label={`${item.name}, Live Photo`}
+            autoPlay
+            onClick={() => setLiveKey(null)}
+            onEnded={() => setLiveKey(null)}
+            onError={() => {
+              setLiveKey(null);
+              setFailure({ key, message: "This Live Photo's clip can't play inside Pic Cabinet" });
+            }}
+            className="absolute inset-0 size-full cursor-pointer bg-ground object-contain"
           />
         )}
         {error && (
