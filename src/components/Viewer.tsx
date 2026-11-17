@@ -414,10 +414,12 @@ function Media({
     );
   }
 
-  // The tile underneath is the same picture smaller, so the photo shows at once, a little soft,
-  // and sharpens when the full one has loaded. It goes once that's in, since a small or
-  // transparent full picture wouldn't cover it. Clicking the photo opens it in its app; the space
-  // around it lets clicks through.
+  // The tile is the photo's background until the full picture loads, so the photo shows at once,
+  // a little soft, then sharpens. As a background it fills the photo's own box, which is known as
+  // soon as the file's header is read, so a picture smaller than the screen never flashes up
+  // stretched. It goes once the photo is in: the tile is flattened onto grey, which would show
+  // through a transparent picture. Clicking the photo opens it in its app; the space around it
+  // lets clicks through.
   return (
     <button
       type="button"
@@ -425,19 +427,13 @@ function Media({
       title={openLabel}
       className="pointer-events-none relative flex size-full items-center justify-center"
     >
-      {!sharp && (
-        <img
-          src={item.thumb}
-          alt=""
-          aria-hidden="true"
-          draggable={false}
-          className="pointer-events-auto absolute inset-0 size-full cursor-pointer object-contain"
-        />
-      )}
       <img
         src={item.original ?? item.preview}
         alt={item.name}
         draggable={false}
+        style={
+          sharp ? undefined : { background: `url("${item.thumb}") center / contain no-repeat` }
+        }
         onLoad={() => {
           setSharp(true);
           onShown();
