@@ -75,7 +75,8 @@ struct Entry {
     dst: PathBuf,
     status: String,
     media_id: Option<i64>,
-    /// Size from the stashed media row of a binned file, to find the right item in the bin.
+    /// Size of a binned file as it went in (the indexed size for entries from before that was
+    /// recorded), to find the right item in the bin.
     size: Option<u64>,
     /// Hash from the stashed media row: the contents an imported copy must still have.
     hash: Option<String>,
@@ -395,6 +396,15 @@ pub fn remove(env: &Env, batch: &NewBatch, removals: &[Removal]) -> Result<Apply
             match outcome {
                 Ok(()) => {
                     conn.execute("DELETE FROM media WHERE id = ?1", [file.media_id])?;
+                    // The size as it went in, which the bin item is found by. The indexed
+                    // size is out of date when the file was edited since the last refresh.
+                    if let Some(size) = size {
+                        conn.execute(
+                            "UPDATE journal SET media_row = json_set(media_row, '$.binned_size', ?1)
+                             WHERE id = ?2",
+                            params![size as i64, id],
+                        )?;
+                    }
                     set_entry(&conn, id, "done", None)?;
                     binned.push(Binned { path: &file.path, id, size });
                 }
@@ -1132,7 +1142,8 @@ fn load_entries(
     args: impl rusqlite::Params,
 ) -> Result<Vec<Entry>> {
     let mut stmt = conn.prepare(&format!(
-        "SELECT id, op, src, dst, status, media_id, json_extract(media_row, '$.size'),
+        "SELECT id, op, src, dst, status, media_id,
+                COALESCE(json_extract(media_row, '$.binned_size'), json_extract(media_row, '$.size')),
                 json_extract(media_row, '$.hash')
          FROM journal {filter}"
     ))?;
@@ -1606,6 +1617,34 @@ mod tests {
         assert_eq!((undone.restored, undone.failed), (1, 0));
         assert!(rows[0].path.exists());
         assert_eq!(index::load_rows(&db.lock().unwrap()).unwrap(), rows);
+    }
+
+    #[test]
+    fn undo_finds_a_file_that_changed_size_since_the_refresh() {
+        let (dir, db) = library(&["in\\IMG_20250312_101500.jpg"]);
+        let root = dir.path();
+        let table = FormatTable::default();
+        let rows = index::load_rows(&db.lock().unwrap()).unwrap();
+        // Edited in another program after the last refresh, so the index has the old size.
+        fs::write(&rows[0].path, "edited, and longer than before").unwrap();
+        let removal = Removal {
+            files: vec![BinFile { media_id: rows[0].id, path: rows[0].path.clone() }],
+            keeper: None,
+        };
+        let cancel = AtomicBool::new(false);
+        let env = Env {
+            db: &db,
+            root,
+            table: &table,
+            cancel: &cancel,
+            report: &no_report,
+        };
+        let summary = remove(&env, &TEST_BATCH, &[removal]).unwrap();
+        assert_eq!(summary.moved, 1);
+
+        let undone = undo(&env, summary.batch_id).unwrap();
+        assert_eq!((undone.restored, undone.failed), (1, 0));
+        assert_eq!(fs::read_to_string(&rows[0].path).unwrap(), "edited, and longer than before");
     }
 
     /// Windows refuses to rename a file held open with no sharing, which stands in for a RAW

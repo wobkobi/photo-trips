@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.8] - 2026-11-18
+
+### Fixed
+
+- Undoing a Recycle Bin batch now finds a file that was edited in another program after the last
+  refresh. It used to say the file was no longer in the Recycle Bin.
+
 ## [0.25.7] - 2026-11-18
 
 ### Fixed
