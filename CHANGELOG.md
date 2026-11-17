@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.41.0] - 2026-11-18
+
+### Added
+
+- The viewer shows how far a photo is zoomed as a percent of its real size; 1 or a click goes to
+  exactly 100%, 0 fits, and Ctrl+wheel or a touchpad pinch zooms smoothly around the pointer
+
 ## [0.40.0] - 2026-11-18
 
 ### Added

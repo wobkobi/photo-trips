@@ -8,12 +8,21 @@ import {
   type PointerEvent,
   type ReactElement,
   type ReactNode,
-  type WheelEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { api, errorText, type MediaKind } from "../lib/api";
 import { formatTaken } from "../lib/format";
 import { savedPanel, savePanel } from "../lib/viewerPanel";
+import {
+  MAX_SCALE,
+  stepIn,
+  stepOut,
+  wheelScale,
+  zoomLabel,
+  zoomLadder,
+  zoomPan,
+  type Point,
+} from "../lib/zoom";
 import { MissingExtensions } from "./CodecHint";
 import { Icon, type IconName } from "./Icon";
 import { Button } from "./ui";
@@ -621,41 +630,26 @@ function Media({
 }
 
 /** How far a zoomed photo is moved from centred, in px. */
-interface Offset {
-  x: number;
-  y: number;
-}
+type Offset = Point;
 
-/** Zoom steps the wheel and keys move through. 1 fits the photo in the window. */
-const ZOOMS = [1, 1.5, 2, 3, 4, 6, 8];
 /**
  * Wheel travel per zoom step. A mouse wheel notch is 100, so each notch is a step, while a
  * touchpad's stream of small deltas adds up instead of racing to the largest zoom.
  */
 const WHEEL_STEP = 60;
 
-/** Where a click on the photo at fit size zooms to. */
-const CLICK_ZOOM = 2;
 /** How far a press can move, in px, and still count as a click rather than a drag. */
 const CLICK_SLOP = 4;
 /** How long the full picture can take, in ms, before a busy mark shows. */
 const SLOW_MS = 300;
 
 /**
- * The next zoom step in or out, stopping at either end of {@link ZOOMS}.
- * @param zoom - the zoom now, one of {@link ZOOMS}
- * @param direction - 1 to zoom in, -1 to zoom out
- * @returns the zoom to go to
- */
-function stepZoom(zoom: number, direction: 1 | -1): number {
-  const at = ZOOMS.indexOf(zoom) + direction;
-  return ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, at))];
-}
-
-/**
- * A photo to look at closely: click or the Zoom button to zoom in and again to fit, zoom with
- * the wheel or the + and - keys, drag to look around a zoomed photo, and turn it with R or the
- * Rotate button. Turning only changes how it's shown here; the file is never changed.
+ * A photo to look at closely: click it or its percent in the bar for 100% and again to fit, step
+ * through the zoom stops with the wheel or the + and - keys, Ctrl+wheel to zoom smoothly, 1 for
+ * 100% and 0 to fit, drag to look around a zoomed photo, and turn it with R or the Rotate button.
+ * Zoom is measured against the picture's real pixels; a HEIC or RAW is shown from Windows' 2048px
+ * preview, so its percent is of the preview and it zooms no closer than the preview's 100%.
+ * Turning only changes how it's shown here; the file is never changed.
  * @param props - Component props.
  * @param props.item - the photo on show
  * @param props.tools - the spot in the viewer's bar its Zoom and Rotate buttons go, once drawn
@@ -678,9 +672,14 @@ function Photo({
   // Whether the full picture's size is known yet; until then its box is empty.
   const [sized, setSized] = useState(false);
   const [slow, setSlow] = useState(false);
-  const [zoom, setZoom] = useState(1);
+  // The zoom as a scale of the picture's real pixels, or null while fitted, so a fitted photo
+  // stays fitted and 100% stays 100% when the window or the details panel changes size.
+  const [scale, setScale] = useState<number | null>(null);
+  // The scale the photo shows at when fitted, 0 until the picture's size is known.
+  const [fitScale, setFitScale] = useState(0);
   const [turns, setTurns] = useState(0);
   const [pan, setPan] = useState<Offset>({ x: 0, y: 0 });
+  // A turned photo's extra scale to fit the stage again, applied over its laid-out size.
   const [fit, setFit] = useState(1);
   const [dragging, setDragging] = useState(false);
   const stage = useRef<HTMLDivElement>(null);
@@ -693,6 +692,13 @@ function Photo({
   const dragged = useRef(false);
   const wheel = useRef(0);
   const sideways = turns % 2 === 1;
+  const fitted = scale === null || !fitScale;
+  // How many times its fitted size the photo is drawn, for the transform and the pan's reach.
+  const zoom = scale === null || !fitScale ? 1 : scale / fitScale;
+  const now = scale ?? fitScale;
+  // A preview's pixels are all there is to show, so it goes no closer than its own 100%.
+  const ladder = fitScale ? zoomLadder(fitScale, item.original ? MAX_SCALE : 1) : [];
+  const canZoomIn = ladder.length > 0 && stepIn(now, ladder) !== now;
 
   // A HEIC, RAW or TIFF is drawn by Windows first, so its size isn't known until that's done,
   // and its own box (and the tile drawn in it) stays empty meanwhile. Watch for the box to open.
@@ -713,25 +719,31 @@ function Photo({
   }, [sharp]);
 
   // The photo is laid out unturned, fitted to the stage. A quarter turn swaps its width and
-  // height, so it's scaled to fit again, but never past its real size.
+  // height, so it's scaled to fit again, but never past its real size. The fitted scale counts
+  // screen pixels, not CSS pixels, so 100% shows one picture pixel per screen pixel when Windows
+  // display scaling is above 100%.
   useEffect(() => {
     const box = stage.current;
     const img = photo.current;
     if (!box || !img) return;
-    /** Work out the turned photo's fit for the stage's size now. */
+    /** Work out the turned photo's fit, and the scale it shows at fitted, for the stage now. */
     function measure(): void {
-      if (!box || !img || !sideways || !img.offsetWidth || !img.offsetHeight) {
-        setFit(1);
-        return;
-      }
+      if (!box || !img) return;
       const width = img.offsetWidth;
       const height = img.offsetHeight;
-      setFit(
-        Math.min(
-          box.clientWidth / height,
-          box.clientHeight / width,
-          (img.naturalWidth || width) / width,
-        ),
+      const turned =
+        sideways && width && height
+          ? Math.min(
+              box.clientWidth / height,
+              box.clientHeight / width,
+              (img.naturalWidth || width) / width,
+            )
+          : 1;
+      setFit(turned);
+      setFitScale(
+        img.naturalWidth && width
+          ? (width * turned * window.devicePixelRatio) / img.naturalWidth
+          : 0,
       );
     }
     measure();
@@ -762,31 +774,43 @@ function Photo({
   }
 
   /**
-   * Zoom to a step, keeping the point under `at` where it is.
-   * @param next - the zoom to go to
+   * Zoom to a scale, keeping the point under `at` where it is. A scale at or below the fitted
+   * size fits the photo.
+   * @param next - the scale to go to, 1 being the picture's real size
    * @param at - the point to zoom about, in px from the stage's centre (default the centre)
    */
   function zoomTo(next: number, at: Offset = { x: 0, y: 0 }): void {
-    if (next === zoom) return;
-    const ratio = next / zoom;
-    setPan(clamp({ x: at.x - (at.x - pan.x) * ratio, y: at.y - (at.y - pan.y) * ratio }, next));
-    setZoom(next);
+    if (!fitScale) return;
+    const to = Math.max(1, next / fitScale);
+    if (to === zoom) return;
+    setPan(clamp(zoomPan(pan, at, to / zoom), to));
+    setScale(to > 1 ? next : null);
   }
 
-  /** One step closer, about the centre. */
+  /** One stop closer, about the centre. */
   function zoomIn(): void {
-    zoomTo(stepZoom(zoom, 1));
+    if (ladder.length) zoomTo(stepIn(now, ladder));
   }
 
-  /** One step further out, about the centre. */
+  /** One stop further out, about the centre. */
   function zoomOut(): void {
-    zoomTo(stepZoom(zoom, -1));
+    if (ladder.length) zoomTo(stepOut(now, ladder));
   }
 
   /** Back to the whole photo, fitted to the window. */
   function fitPhoto(): void {
-    setZoom(1);
+    setScale(null);
     setPan({ x: 0, y: 0 });
+  }
+
+  /**
+   * From fitted to 100%, or the next stop when 100% is no closer than fitted; back to fit when
+   * zoomed.
+   * @param at - the point to zoom about, in px from the stage's centre (default the centre)
+   */
+  function toggleZoom(at?: Offset): void {
+    if (!fitted) fitPhoto();
+    else if (canZoomIn) zoomTo(fitScale < 1 ? 1 : stepIn(fitScale, ladder), at);
   }
 
   /** A quarter turn clockwise, centred again. */
@@ -799,7 +823,7 @@ function Photo({
   // the text size, and keys typed into a box or meant for a focused control are left to it.
   useEffect(() => {
     /**
-     * + and - zoom, 0 fits the photo again, R turns it.
+     * + and - step the zoom, 1 shows the real size, 0 fits the photo again, R turns it.
      * @param event - the window's keydown
      */
     function onKey(event: KeyboardEvent): void {
@@ -809,6 +833,7 @@ function Photo({
       }
       if (event.key === "+" || event.key === "=") zoomIn();
       else if (event.key === "-" || event.key === "_") zoomOut();
+      else if (event.key === "1") zoomTo(1);
       else if (event.key === "0") fitPhoto();
       else if (event.key === "r" || event.key === "R") turn();
     }
@@ -816,21 +841,37 @@ function Photo({
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  /**
-   * Zoom a step per notch, about the pointer.
-   * @param event - the wheel over the stage
-   */
-  function onWheel(event: WheelEvent<HTMLDivElement>): void {
-    wheel.current += event.deltaY;
-    if (Math.abs(wheel.current) < WHEEL_STEP) return;
-    const direction = wheel.current < 0 ? 1 : -1;
-    wheel.current = 0;
-    const rect = event.currentTarget.getBoundingClientRect();
-    zoomTo(stepZoom(zoom, direction), {
-      x: event.clientX - rect.left - rect.width / 2,
-      y: event.clientY - rect.top - rect.height / 2,
-    });
-  }
+  // React's wheel listener is passive, so it can't stop Ctrl+wheel zooming the whole page; the
+  // stage gets its own.
+  useEffect(() => {
+    const box = stage.current;
+    if (!box) return;
+    /**
+     * Ctrl+wheel, or a touchpad pinch, which arrives as one, zooms smoothly about the pointer. A
+     * plain wheel steps a stop per notch.
+     * @param event - the wheel over the stage
+     */
+    function onWheel(event: WheelEvent): void {
+      if (event.ctrlKey) event.preventDefault();
+      if (!box || !ladder.length) return;
+      const rect = box.getBoundingClientRect();
+      const at = {
+        x: event.clientX - rect.left - rect.width / 2,
+        y: event.clientY - rect.top - rect.height / 2,
+      };
+      if (event.ctrlKey) {
+        zoomTo(wheelScale(now, event.deltaY, fitScale, ladder[ladder.length - 1]), at);
+        return;
+      }
+      wheel.current += event.deltaY;
+      if (Math.abs(wheel.current) < WHEEL_STEP) return;
+      const closer = wheel.current < 0;
+      wheel.current = 0;
+      zoomTo(closer ? stepIn(now, ladder) : stepOut(now, ladder), at);
+    }
+    box.addEventListener("wheel", onWheel, { passive: false });
+    return () => box.removeEventListener("wheel", onWheel);
+  });
 
   /**
    * Start dragging a zoomed photo.
@@ -839,7 +880,7 @@ function Photo({
   function onPointerDown(event: PointerEvent<HTMLImageElement>): void {
     dragged.current = false;
     pressAt.current = { x: event.clientX, y: event.clientY };
-    if (zoom === 1 || event.button !== 0) return;
+    if (fitted || event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     dragFrom.current = { x: event.clientX - pan.x, y: event.clientY - pan.y };
     setDragging(true);
@@ -860,18 +901,14 @@ function Photo({
   }
 
   /**
-   * Zoom in about the pointer at fit size, or back to fit when zoomed. A drag is not a click.
+   * Go to 100% about the pointer when fitted, or back to fit when zoomed. A drag is not a click.
    * @param event - the click on the photo
    */
   function onClick(event: MouseEvent<HTMLImageElement>): void {
     if (dragged.current) return;
-    if (zoom > 1) {
-      fitPhoto();
-      return;
-    }
     const box = stage.current?.getBoundingClientRect();
     if (!box) return;
-    zoomTo(CLICK_ZOOM, {
+    toggleZoom({
       x: event.clientX - box.left - box.width / 2,
       y: event.clientY - box.top - box.height / 2,
     });
@@ -884,8 +921,8 @@ function Photo({
     setDragging(false);
   }
 
-  let cursor = "cursor-zoom-in";
-  if (zoom > 1) cursor = dragging ? "cursor-grabbing" : "cursor-grab";
+  let cursor = canZoomIn ? "cursor-zoom-in" : "";
+  if (!fitted) cursor = dragging ? "cursor-grabbing" : "cursor-grab";
 
   // The tile is the photo's background until the full picture loads, so the photo shows at once,
   // a little soft, then sharpens. As a background it fills the photo's own box, which is known as
@@ -895,11 +932,7 @@ function Photo({
   // tile is its own layer filling the stage until then. A file the webview shows itself skips
   // that: its box comes within moments, and a small picture would flash up stretched.
   return (
-    <div
-      ref={stage}
-      onWheel={onWheel}
-      className="relative flex size-full items-center justify-center"
-    >
+    <div ref={stage} className="relative flex size-full items-center justify-center">
       {!sized && !item.original && (
         <img
           src={item.thumb}
@@ -941,16 +974,29 @@ function Photo({
       {tools &&
         createPortal(
           <>
-            {zoom > 1 ? (
-              <ToolButton icon="zoomOut" label="Fit" shortcut="0" onClick={fitPhoto} />
-            ) : (
-              <ToolButton
-                icon="zoom"
-                label="Zoom"
-                shortcut="+"
-                onClick={() => zoomTo(CLICK_ZOOM)}
-              />
-            )}
+            <ToolButton
+              icon="zoomOut"
+              label="Zoom out"
+              shortcut="-"
+              disabled={fitted}
+              onClick={zoomOut}
+            />
+            <button
+              type="button"
+              title={fitted ? "100% (1)" : "Fit (0)"}
+              disabled={fitted && !canZoomIn}
+              onClick={() => toggleZoom()}
+              className="h-8 min-w-17 rounded-md px-1.5 text-[13px] text-muted tabular-nums transition-colors hover:bg-raised hover:text-ink active:bg-line disabled:pointer-events-none"
+            >
+              {zoomLabel(now, fitted)}
+            </button>
+            <ToolButton
+              icon="zoom"
+              label="Zoom in"
+              shortcut="+"
+              disabled={!canZoomIn}
+              onClick={zoomIn}
+            />
             <ToolButton icon="rotate" label="Rotate" shortcut="R" onClick={turn} />
           </>,
           tools,
@@ -966,6 +1012,7 @@ function Photo({
  * @param props.label - what it does, for the tooltip and screen readers
  * @param props.shortcut - its key, added to the tooltip
  * @param props.pressed - on or off, for a button that toggles something
+ * @param props.disabled - greyed out, for a step that can go no further
  * @param props.onClick - do it
  * @returns the button
  */
@@ -974,12 +1021,14 @@ function ToolButton({
   label,
   shortcut,
   pressed,
+  disabled,
   onClick,
 }: {
   icon: IconName;
   label: string;
   shortcut?: string;
   pressed?: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }): ReactElement {
   return (
@@ -988,8 +1037,9 @@ function ToolButton({
       title={shortcut ? `${label} (${shortcut})` : label}
       aria-label={label}
       aria-pressed={pressed}
+      disabled={disabled}
       onClick={onClick}
-      className="inline-flex size-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line aria-pressed:bg-raised aria-pressed:text-ink"
+      className="inline-flex size-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line disabled:pointer-events-none disabled:opacity-35 aria-pressed:bg-raised aria-pressed:text-ink"
     >
       <Icon name={icon} size={18} />
     </button>
