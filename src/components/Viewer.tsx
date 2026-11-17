@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -12,6 +13,7 @@ import {
 import { createPortal } from "react-dom";
 import { api, errorText, type MediaKind } from "../lib/api";
 import { formatTaken } from "../lib/format";
+import { savedPanel, savePanel } from "../lib/viewerPanel";
 import { MissingExtensions } from "./CodecHint";
 import { Icon, type IconName } from "./Icon";
 import { Button } from "./ui";
@@ -219,12 +221,23 @@ export function Viewer({
     }
   }, [shown, key, index, items, source]);
 
+  // The details panel follows the last choice made with Info or the I key.
+  const [info, setInfo] = useState(savedPanel);
+
+  /** Show or hide the details panel and keep the choice. */
+  const toggleInfo = useCallback(() => {
+    setInfo((prev) => {
+      savePanel(!prev);
+      return !prev;
+    });
+  }, []);
+
   // Capture phase, so Escape closes only the viewer, not the selection or menu of the page behind.
   useEffect(() => {
     /**
      * Escape closes the viewer; the left and right arrows step through the source, and Home and
-     * End go to its first and last. Keys meant for a focused video's controls or a box in the side
-     * panel are left to them.
+     * End go to its first and last, and I toggles the details panel. Keys meant for a focused
+     * video's controls or a box in the side panel are left to them.
      * @param event - the window's keydown, caught before the page behind sees it
      */
     function onKey(event: KeyboardEvent): void {
@@ -237,12 +250,18 @@ export function Viewer({
       if (event.key === "ArrowLeft" && index > 0) onIndex(index - 1);
       if (event.key === "ArrowRight" && index < source.count - 1) onIndex(index + 1);
       if (event.target instanceof HTMLMediaElement) return;
+      const plainI =
+        event.key.toLowerCase() === "i" && !event.ctrlKey && !event.altKey && !event.metaKey;
+      // Held down, the key repeats; one press is one toggle.
+      if (plainI && !event.repeat) {
+        toggleInfo();
+      }
       if (event.key === "Home" && index > 0) onIndex(0);
       if (event.key === "End" && index < source.count - 1) onIndex(source.count - 1);
     }
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [index, source.count, onIndex, onClose]);
+  }, [index, source.count, onIndex, onClose, toggleInfo]);
 
   // Focus moves into the viewer, and back to whatever opened it on closing. That return doesn't
   // scroll: after stepping through photos the page may bring the last one shown into view
@@ -300,9 +319,6 @@ export function Viewer({
     if (copy && (await run(() => copy(index)))) setCopied(key);
   }
 
-  // The details panel shows until Info hides it, for as long as the viewer is open.
-  const [info, setInfo] = useState(true);
-
   // The photo's zoom and rotate buttons are drawn by the photo itself, into this spot in the bar,
   // so they act on its own zoom and turn.
   const [photoTools, setPhotoTools] = useState<HTMLSpanElement | null>(null);
@@ -354,7 +370,7 @@ export function Viewer({
       onBlur={() => setFocused(false)}
       className="fixed inset-0 z-40 flex bg-ground outline-none"
     >
-      <div className="on-dark relative flex min-w-0 flex-1 items-center justify-center overflow-hidden bg-ground p-6">
+      <div className="on-dark relative flex min-w-0 flex-1 items-center justify-center overflow-hidden bg-ground">
         {item && (
           <Media
             key={key}
@@ -420,7 +436,7 @@ export function Viewer({
                 onClick={() => run(() => source.open(index))}
               />
             )}
-            <ToolButton icon="info" label="Info" pressed={info} onClick={() => setInfo(!info)} />
+            <ToolButton icon="info" label="Info" shortcut="I" pressed={info} onClick={toggleInfo} />
             {onBin && item && <ToolButton icon="bin" label="Move to Recycle Bin" onClick={onBin} />}
           </div>
         </div>
