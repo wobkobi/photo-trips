@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.26.2] - 2026-11-18
+
+### Fixed
+
+- The menu down the left no longer repeats the app's name, which the title bar already shows, and
+  the button that narrows it sits at its top.
+
 ## [0.26.1] - 2026-11-18
 
 ### Fixed
