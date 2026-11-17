@@ -246,3 +246,29 @@ function textSelected(): boolean {
   const selection = window.getSelection();
   return selection !== null && !selection.isCollapsed && selection.toString().trim() !== "";
 }
+
+/**
+ * The photo the viewer moves to once some photos leave the list it steps through, as after
+ * sending them to the Recycle Bin: the nearest one after the photo on show that stays, else
+ * the nearest before it. A photo on show that stays is kept.
+ * @param ids - the photos in viewing order, before the removal
+ * @param removed - ids of the photos leaving
+ * @param current - the photo on show, or null when none is
+ * @returns the id to show, or null to close the viewer
+ */
+export function afterRemoval(
+  ids: readonly number[],
+  removed: ReadonlySet<number>,
+  current: number | null,
+): number | null {
+  if (current === null || !removed.has(current)) return current;
+  const at = ids.indexOf(current);
+  if (at < 0) return null;
+  for (let i = at + 1; i < ids.length; i += 1) {
+    if (!removed.has(ids[i])) return ids[i];
+  }
+  for (let i = at - 1; i >= 0; i -= 1) {
+    if (!removed.has(ids[i])) return ids[i];
+  }
+  return null;
+}

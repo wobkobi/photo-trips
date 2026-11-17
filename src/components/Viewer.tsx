@@ -14,6 +14,8 @@ import { api, errorText, type MediaKind } from "../lib/api";
 import { formatTaken } from "../lib/format";
 import { isFullscreenKey, useFullscreen } from "../lib/fullscreen";
 import { useLayer } from "../lib/layers";
+import { keyCommand, type PhotoCommand } from "../lib/photoCommands";
+import { useMediaQuery } from "../lib/useMediaQuery";
 import { savedPanel, savePanel } from "../lib/viewerPanel";
 import {
   MAX_SCALE,
@@ -144,9 +146,9 @@ export interface ViewSource {
  * A slim bar over the top of the stage carries Back, the file's name and date, its place in the
  * source and an icon row: the photo's zoom and rotate and a Live Photo's Play, then Show in
  * folder, Copy and Open, built from the source so every caller gets them, then Info, Fullscreen
- * and, where the caller passes one, Bin. The bar and side arrows fade once the pointer has rested for {@link REST_MS}, and stay
- * while the pointer is over them or keyboard focus is inside them. Fullscreen is left when the
- * viewer closes.
+ * and, where the caller passes a bin command, Bin. The bar and side arrows fade once the pointer
+ * has rested for {@link REST_MS}, and stay while the pointer is over them or keyboard focus is
+ * inside them. Fullscreen is left when the viewer closes.
  * @param props - Component props.
  * @param props.source - the files
  * @param props.index - which file is open
@@ -154,7 +156,10 @@ export interface ViewSource {
  * @param props.onClose - close the viewer
  * @param props.steps - labels for the previous and next buttons (default Previous and Next)
  * @param props.controls - shown above the details, e.g. a tick for the file on show
- * @param props.onBin - send the file on show to the Recycle Bin; the bar shows Bin only when given
+ * @param props.commands - the commands for the file on show; their shortcuts work while the
+ *   viewer is the top layer, and a `bin` command puts Bin in the bar
+ * @param props.removed - raise it when the file on show leaves the source from under the viewer,
+ *   as to the Recycle Bin, so the file that takes its place slides in
  * @returns the viewer, drawn over the whole window
  */
 export function Viewer({
@@ -164,7 +169,8 @@ export function Viewer({
   onClose,
   steps = ["Previous", "Next"],
   controls,
-  onBin,
+  commands,
+  removed = 0,
 }: {
   source: ViewSource;
   index: number;
@@ -172,7 +178,8 @@ export function Viewer({
   onClose: () => void;
   steps?: [string, string];
   controls?: ReactNode;
-  onBin?: () => void;
+  commands?: PhotoCommand[];
+  removed?: number;
 }): ReactElement {
   const key = source.key(index);
   // Loaded files by key: the one on show and up to AHEAD each side, fetched ahead so the
@@ -256,8 +263,8 @@ export function Viewer({
     /**
      * Escape leaves fullscreen, or closes the viewer when not in it; the left and right arrows
      * step through the source, and Home and End go to its first and last; I toggles the details
-     * panel and F or F11 fullscreen. Keys meant for a focused video's controls or a box in the
-     * side panel are left to them.
+     * panel and F or F11 fullscreen, and the commands' shortcuts (Delete) run. Keys meant for a
+     * focused video's controls or a box in the side panel are left to them.
      * @param event - the window's keydown, caught before the page behind sees it
      */
     function onKey(event: KeyboardEvent): void {
@@ -270,6 +277,12 @@ export function Viewer({
           if (fullscreen.on) fullscreen.set(false);
           else onClose();
         }
+      }
+      const command = commands && keyCommand(event, commands);
+      if (command) {
+        event.preventDefault();
+        command.run();
+        return;
       }
       // A box being typed in uses the arrows itself.
       if (event.target instanceof HTMLInputElement) return;
@@ -291,7 +304,7 @@ export function Viewer({
     }
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [index, source.count, onIndex, onClose, toggleInfo, onTop, fullscreen]);
+  }, [index, source.count, onIndex, onClose, toggleInfo, onTop, fullscreen, commands]);
 
   // Focus moves into the viewer, and back to whatever opened it on closing. That return doesn't
   // scroll: after stepping through photos the page may bring the last one shown into view
@@ -301,6 +314,41 @@ export function Viewer({
     dialog.current?.focus();
     return () => opener?.focus({ preventScroll: true });
   }, []);
+
+  // A file taken out from under the viewer is replaced by the next one sliding in from the
+  // right, or by the previous one from the left when it was the last. The slide waits for that
+  // file to load, and is dropped if another is stepped to first. It's a Web Animation, which the
+  // stylesheet's reduced-motion rule doesn't reach, so that preference is checked here.
+  const stage = useRef<HTMLDivElement>(null);
+  const stillMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const seenRemoved = useRef(removed);
+  const lastIndex = useRef(index);
+  const slide = useRef<{ key: string; from: number } | null>(null);
+  useEffect(() => {
+    if (removed !== seenRemoved.current) {
+      seenRemoved.current = removed;
+      slide.current = { key, from: index < lastIndex.current ? -1 : 1 };
+    }
+    lastIndex.current = index;
+    const pending = slide.current;
+    if (pending === null) return;
+    if (pending.key !== key) {
+      slide.current = null;
+      return;
+    }
+    if (!item) return;
+    slide.current = null;
+    // The file's own element comes first in the stage, ahead of the error line and the bar.
+    const media = stage.current?.firstElementChild;
+    if (stillMotion || !media) return;
+    media.animate(
+      [
+        { opacity: 0, transform: `translateX(${pending.from * 48}px)` },
+        { opacity: 1, transform: "none" },
+      ],
+      { duration: 220, easing: "cubic-bezier(0.2, 0, 0, 1)" },
+    );
+  }, [removed, key, index, item, stillMotion]);
 
   /**
    * Run a file action, showing any failure in the side panel against the file on show.
@@ -392,6 +440,7 @@ export function Viewer({
   if (liveKey !== null && liveKey !== key) setLiveKey(null);
   const live = item?.live !== undefined && liveKey === key ? item.live : null;
 
+  const bin = commands?.find((c) => c.id === "bin");
   const usable = item !== null && !item.missing;
   return createPortal(
     <div
@@ -406,7 +455,10 @@ export function Viewer({
       onBlur={() => setFocused(false)}
       className="fixed inset-0 z-40 flex bg-ground outline-none"
     >
-      <div className="on-dark relative flex min-w-0 flex-1 items-center justify-center overflow-hidden bg-ground">
+      <div
+        ref={stage}
+        className="on-dark relative flex min-w-0 flex-1 items-center justify-center overflow-hidden bg-ground"
+      >
         {item && live && (
           <VideoPlayer
             key={`${key}-live`}
@@ -501,7 +553,15 @@ export function Viewer({
               pressed={fullscreen.on}
               onClick={() => fullscreen.set(!fullscreen.on)}
             />
-            {onBin && item && <ToolButton icon="bin" label="Move to Recycle Bin" onClick={onBin} />}
+            {bin && item && (
+              <ToolButton
+                icon="bin"
+                label={bin.label}
+                shortcut={bin.shortcut}
+                disabled={bin.disabled}
+                onClick={bin.run}
+              />
+            )}
           </div>
         </div>
 

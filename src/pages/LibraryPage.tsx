@@ -34,6 +34,7 @@ import {
 import { isTextEntry, modalOnScreen } from "../lib/menu";
 import {
   ADD_CHOICES,
+  afterRemoval,
   keyCommand,
   menuItems,
   photoCommands,
@@ -123,6 +124,8 @@ export function LibraryPage({
     place,
     clearSelection: clearPicks,
     reload,
+    hide,
+    unhide,
   } = useLibrary();
   const tiles = useMemo(() => allTiles && filterTiles(allTiles, filter), [allTiles, filter]);
   // The trip on show, read from the store by id so a rename shows; its name in the filter is
@@ -139,6 +142,8 @@ export function LibraryPage({
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   /** Photos waiting for the user to confirm sending them to the Recycle Bin. */
   const [binning, setBinning] = useState<Tile[] | null>(null);
+  /** Raised each time the photo open in the viewer is binned, so the next one slides in. */
+  const [binnedOpen, setBinnedOpen] = useState(0);
 
   /** This page started the running Recycle Bin job, so its end shows here. */
   const [binStarted, setBinStarted] = useState(false);
@@ -205,8 +210,8 @@ export function LibraryPage({
   const ids = useMemo(() => tiles?.map((t) => t.id) ?? [], [tiles]);
   const indexOf = useMemo(() => new Map(ids.map((id, index) => [id, index])), [ids]);
   const open = openId === null ? null : (indexOf.get(openId) ?? null);
-  // A photo that left the list (binned, or filtered out by a new date) closes the viewer for
-  // good, rather than reopening if it comes back.
+  // A photo that left the list (filtered out by a new date, or gone on a refresh) closes the
+  // viewer for good, rather than reopening if it comes back.
   const openGone = openId !== null && tiles !== null && open === null;
   useEffect(() => {
     if (openGone) setOpenId(null);
@@ -216,6 +221,16 @@ export function LibraryPage({
     setOpenId(null);
   }, [open, setOpenId]);
   const source = useLibrarySource(ids, revision);
+  // The viewer offers Recycle Bin alone, so Delete there asks to bin the photo on show.
+  const viewerCommands = useMemo(
+    () =>
+      tiles && open !== null
+        ? photoCommands({ photo: tiles[open], photos: [tiles[open]], selection: false }, null, {
+            bin: setBinning,
+          })
+        : undefined,
+    [tiles, open],
+  );
   const clearSelection = useCallback(() => {
     clearPicks();
     setMenu(null);
@@ -404,17 +419,27 @@ export function LibraryPage({
     setMenu({ x: event.clientX, y: event.clientY, items: menuItems(commands) });
   }
 
-  /** Send the photos waiting for confirmation to the Recycle Bin; the job's end shows the result. */
+  /**
+   * Send the photos waiting for confirmation to the Recycle Bin; the job's end shows the result.
+   * They leave the grid at once, and an open viewer moves on to the next photo, closing only when
+   * none is left. If the job can't start they come back.
+   */
   function confirmBin(): void {
     if (binning === null) return;
     const binIds = binning.map((t) => t.id);
     setBinning(null);
     setBinResult(null);
     clearSelection();
-    setOpenId(null);
+    const next = afterRemoval(ids, new Set(binIds), openId);
+    if (next !== openId) {
+      setOpenId(next);
+      if (next !== null) setBinnedOpen((n) => n + 1);
+    }
+    hide(binIds);
     setBinStarted(true);
     api.recycleMedia(binIds).catch((err) => {
       setBinStarted(false);
+      unhide(binIds);
       setError(errorText(err));
     });
   }
@@ -778,6 +803,8 @@ export function LibraryPage({
           onIndex={(index) => setOpenId(tiles[index]?.id ?? null)}
           onClose={closeViewer}
           steps={["Newer", "Older"]}
+          commands={viewerCommands}
+          removed={binnedOpen}
           controls={
             <>
               <ViewerTrip

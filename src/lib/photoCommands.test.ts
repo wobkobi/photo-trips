@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Tile, TripInfo } from "./api";
 import type { KeyPress } from "./menu";
 import {
+  afterRemoval,
   matchCommand,
   menuItems,
   photoCommands,
@@ -222,5 +223,33 @@ describe("matchCommand", () => {
     );
     expect(matchCommand(press("c", { ctrl: true }), many)).toBeNull();
     expect(matchCommand(press("Delete"), many)?.id).toBe("bin");
+  });
+});
+
+describe("afterRemoval", () => {
+  const ids = [1, 2, 3, 4, 5];
+
+  it("keeps the photo on show when it stays", () => {
+    expect(afterRemoval(ids, new Set([2, 4]), 3)).toBe(3);
+    expect(afterRemoval(ids, new Set([2]), null)).toBeNull();
+  });
+
+  it("moves to the next photo that stays", () => {
+    expect(afterRemoval(ids, new Set([3]), 3)).toBe(4);
+    expect(afterRemoval(ids, new Set([3, 4]), 3)).toBe(5);
+  });
+
+  it("falls back to the photo before at the end of the list", () => {
+    expect(afterRemoval(ids, new Set([5]), 5)).toBe(4);
+    expect(afterRemoval(ids, new Set([3, 4, 5]), 4)).toBe(2);
+  });
+
+  it("closes the viewer when nothing stays", () => {
+    expect(afterRemoval(ids, new Set(ids), 2)).toBeNull();
+    expect(afterRemoval([7], new Set([7]), 7)).toBeNull();
+  });
+
+  it("closes the viewer for a removed photo not in the list", () => {
+    expect(afterRemoval(ids, new Set([9]), 9)).toBeNull();
   });
 });

@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.46.0] - 2026-11-18
+
+### Added
+
+- In the Library's viewer, Delete or the bin button asks, then sends the photo to the Recycle Bin;
+  the viewer stays open on the next photo
+
 ## [0.45.0] - 2026-11-18
 
 ### Added

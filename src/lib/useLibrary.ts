@@ -10,7 +10,10 @@ import type { GridPlace } from "./format";
 import type { LibraryFilter } from "./libraryFilter";
 
 export interface LibraryContextValue {
-  /** Every photo and video in the library, or null until the first load. */
+  /**
+   * Every photo and video in the library, less those hidden on their way to the Recycle Bin,
+   * or null until the first load.
+   */
   tiles: Tile[] | null;
   trips: TripInfo[];
   /** What the last library refresh found, once one has finished. */
@@ -39,6 +42,10 @@ export interface LibraryContextValue {
   clearSelection: () => void;
   /** Read the photos and trips again; resolves once both are in. */
   reload: () => Promise<void>;
+  /** Hide photos on their way to the Recycle Bin, until the first load after the bin job ends. */
+  hide: (ids: number[]) => void;
+  /** Show hidden photos again, as when the bin job couldn't start. */
+  unhide: (ids: number[]) => void;
 }
 
 export const LibraryContext = createContext<LibraryContextValue | null>(null);

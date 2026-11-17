@@ -14,13 +14,21 @@ import { useJobDone } from "./useJobs";
 import { LibraryContext } from "./useLibrary";
 import { useSettings } from "./useSettings";
 
-/** Jobs whose end can change which photos there are, or their dates and trips. */
-const RELOAD_ON = ["apply", "undo", "remove", "import", "inbox"];
+/**
+ * Jobs whose end can change which photos there are, or their dates and trips. The Recycle Bin
+ * job reloads too, with its own handler, as it also shows the photos it hid.
+ */
+const RELOAD_ON = ["apply", "undo", "import", "inbox"];
+
+/** No photos hidden. */
+const NONE: ReadonlySet<number> = new Set();
 
 /**
  * Loads the library's photos and trips and keeps the Library page's filter, selection and open
  * photo, so leaving the page and coming back finds everything as it was. Reloads when a job
- * that changes the library ends, whichever page is showing. Must be under JobsProvider and
+ * that changes the library ends, whichever page is showing. Photos on their way to the Recycle
+ * Bin are hidden from the moment the job starts until the first load after it ends lands, which
+ * drops them or, when the job failed, brings them back. Must be under JobsProvider and
  * SettingsProvider.
  * @param props - Component props.
  * @param props.children - app content
@@ -29,7 +37,8 @@ const RELOAD_ON = ["apply", "undo", "remove", "import", "inbox"];
 export function LibraryProvider({ children }: { children: ReactNode }): ReactElement {
   const { settings } = useSettings();
   const root = settings?.library_root || null;
-  const [tiles, setTiles] = useState<Tile[] | null>(null);
+  const [loaded, setLoaded] = useState<Tile[] | null>(null);
+  const [hidden, setHidden] = useState<ReadonlySet<number>>(NONE);
   const [trips, setTrips] = useState<TripInfo[]>([]);
   const [summary, setSummary] = useState<IndexSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +51,8 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
   const place = useRef<GridPlace | null>(null);
   // Loads can overlap (a job ends while the last one is still reading); only the newest lands.
   const loadSeq = useRef(0);
+  // Set when the bin job ends, so the next load to land shows the photos as they now are.
+  const unhideOnLoad = useRef(false);
 
   const reload = useCallback((): Promise<void> => {
     loadSeq.current += 1;
@@ -49,14 +60,34 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
     return Promise.all([api.libraryTiles(), api.listTrips()]).then(
       ([loadedTiles, loadedTrips]) => {
         if (seq !== loadSeq.current) return;
-        setTiles(loadedTiles);
+        setLoaded(loadedTiles);
         setTrips(loadedTrips);
         setError(null);
+        if (unhideOnLoad.current) {
+          unhideOnLoad.current = false;
+          setHidden(NONE);
+        }
       },
       (err) => {
         if (seq === loadSeq.current) setError(errorText(err));
       },
     );
+  }, []);
+
+  const tiles = useMemo(
+    () => (loaded && hidden.size > 0 ? loaded.filter((t) => !hidden.has(t.id)) : loaded),
+    [loaded, hidden],
+  );
+
+  const hide = useCallback((ids: number[]) => {
+    setHidden((prev) => new Set([...prev, ...ids]));
+  }, []);
+  const unhide = useCallback((ids: number[]) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.delete(id);
+      return next.size === 0 ? NONE : next;
+    });
   }, []);
 
   const clearSelection = useCallback(() => {
@@ -80,7 +111,8 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
   const [shownRoot, setShownRoot] = useState(root);
   if (shownRoot !== root) {
     setShownRoot(root);
-    setTiles(null);
+    setLoaded(null);
+    setHidden(NONE);
     setTrips([]);
     setSummary(null);
     setError(null);
@@ -100,6 +132,12 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
     void reload();
   });
   useJobDone(RELOAD_ON, () => void reload());
+  // Flagged after starting the load, which makes every earlier load stale, so the photos come
+  // back from a read made after the job.
+  useJobDone("remove", () => {
+    void reload();
+    unhideOnLoad.current = true;
+  });
 
   // One object per change, so pages that read the store redraw only when it changes, not on
   // every render of the provider.
@@ -122,6 +160,8 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
       place,
       clearSelection,
       reload,
+      hide,
+      unhide,
     }),
     // State setters and the place ref never change, so they aren't listed.
     [
@@ -137,6 +177,8 @@ export function LibraryProvider({ children }: { children: ReactNode }): ReactEle
       openId,
       clearSelection,
       reload,
+      hide,
+      unhide,
     ],
   );
 
