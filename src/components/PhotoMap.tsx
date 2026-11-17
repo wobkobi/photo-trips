@@ -4,7 +4,7 @@ import { Map as MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, type ReactElement } from "react";
-import { darkenStyle, MAP_STYLE } from "../lib/maps";
+import { MAP_STYLE } from "../lib/maps";
 
 // MapLibre finds its worker beside its own file, which Vite moves; point it at the bundled copy.
 setWorkerUrl(workerUrl);
@@ -21,7 +21,6 @@ const PIN = `<svg width="16" height="24" viewBox="-8 -24 16 24" style="display:b
  * @param props.lon - longitude in degrees
  * @param props.zoom - MapLibre zoom (512px tiles, so one step closer than the same number on
  * a 256px tile map)
- * @param props.dark - recolour the map for the dark theme
  * @param props.label - what a screen reader says for the map
  * @param props.onFail - called when the map can't load
  * @returns the map
@@ -30,14 +29,12 @@ export function PhotoMap({
   lat,
   lon,
   zoom,
-  dark,
   label,
   onFail,
 }: {
   lat: number;
   lon: number;
   zoom: number;
-  dark: boolean;
   label: string;
   onFail: () => void;
 }): ReactElement {
@@ -45,7 +42,7 @@ export function PhotoMap({
   const map = useRef<MapLibreMap | null>(null);
   const marker = useRef<Marker | null>(null);
   // The first render's values build the map; the effects below follow later changes.
-  const initial = useRef({ lat, lon, zoom, dark });
+  const initial = useRef({ lat, lon, zoom });
   const fail = useRef(onFail);
 
   useEffect(() => {
@@ -58,7 +55,6 @@ export function PhotoMap({
     const created = new MapLibreMap({
       container: box.current,
       style: MAP_STYLE,
-      transformStyle: start.dark ? (_, next) => darkenStyle(next) : undefined,
       center: [start.lon, start.lat],
       zoom: start.zoom,
       // MapLibre's credit control pops open whenever map data arrives; a fixed line is used below.
@@ -94,16 +90,6 @@ export function PhotoMap({
   useEffect(() => {
     map.current?.easeTo({ zoom, duration: 300 });
   }, [zoom]);
-
-  useEffect(() => {
-    if (map.current && dark !== initial.current.dark) {
-      map.current.setStyle(MAP_STYLE, {
-        diff: false,
-        transformStyle: dark ? (_, next) => darkenStyle(next) : undefined,
-      });
-      initial.current.dark = dark;
-    }
-  }, [dark]);
 
   useEffect(() => {
     map.current?.getCanvas().setAttribute("aria-label", label);

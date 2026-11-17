@@ -1,12 +1,9 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { lazy, Suspense, useEffect, useState, type ReactElement } from "react";
 import { api, errorText, type MapView } from "../lib/api";
-import { themeOf } from "../lib/display";
 import { currentZoomStep, keepZoomStep, loadPhotoMap, ZOOMS } from "../lib/mapAhead";
 import { googleMapsUrl } from "../lib/maps";
 import { knownPlace, lookUpPlace } from "../lib/places";
-import { useMediaQuery } from "../lib/useMediaQuery";
-import { useSettings } from "../lib/useSettings";
 import { Icon } from "./Icon";
 import { Fact } from "./Viewer";
 import { Button } from "./ui";
@@ -34,10 +31,6 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactE
   const [loaded, setLoaded] = useState<{ key: string; spot: string; view: MapView } | null>(null);
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
   const [offline, setOffline] = useState(mapOffline);
-  const { settings } = useSettings();
-  const systemDark = useMediaQuery("(prefers-color-scheme: dark)");
-  const theme = themeOf(settings);
-  const dark = theme === "dark" || (theme === "system" && systemDark);
   const [lookup, setLookup] = useState<{ spot: string; place: string | null } | null>(null);
 
   // Usually already answered by the viewer's look-ahead. A lookup left running when the viewer
@@ -108,7 +101,6 @@ export function LocationFact({ lat, lon }: { lat: number; lon: number }): ReactE
               lat={lat}
               lon={lon}
               zoom={ZOOMS[zoom].map}
-              dark={dark}
               label={place ? `Map around ${place}` : "Map of where it was taken"}
               onFail={goOffline}
             />

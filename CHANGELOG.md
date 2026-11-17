@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.59.6] - 2026-11-18
+
+### Fixed
+
+- The map beside a photo uses OpenFreeMap's Bright style in both themes, which is easier to read
+  than a darkened map
+
 ## [0.59.5] - 2026-11-18
 
 ### Fixed
