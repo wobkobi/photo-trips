@@ -6,7 +6,7 @@ import { Icon } from "../components/Icon";
 import { LibraryFilterBar } from "../components/LibraryFilterBar";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
 import { TileMenu, type MenuItem } from "../components/TileMenu";
-import { TimelineGrid, type TileEvent } from "../components/TimelineGrid";
+import { TimelineGrid, type TileEvent, type TileJump } from "../components/TimelineGrid";
 import { Viewer } from "../components/Viewer";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { useLibrarySource } from "../components/viewSources";
@@ -160,7 +160,13 @@ export function LibraryPage({
     (tile: Tile) => setFailedThumbs((prev) => (prev.length >= 50 ? prev : [...prev, tile])),
     [],
   );
-  const closeViewer = useCallback(() => setOpen(null), []);
+  // Closing the viewer brings the last photo it showed into view in the grid and focuses it,
+  // since stepping through photos may have gone well past the one it opened on.
+  const [jump, setJump] = useState<TileJump | null>(null);
+  const closeViewer = useCallback(() => {
+    if (open !== null) setJump({ index: open, align: "auto" });
+    setOpen(null);
+  }, [open]);
   const ids = useMemo(() => tiles?.map((t) => t.id) ?? [], [tiles]);
   const source = useLibrarySource(ids, revision);
   const clearSelection = useCallback(() => {
@@ -671,6 +677,7 @@ export function LibraryPage({
           // While picking, a click picks, so the magnifier is the way to look at a photo.
           onTileZoom={selecting ? setOpen : undefined}
           onThumbError={onThumbError}
+          jump={jump}
         />
       )}
       {menu && <TileMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)} items={menu.items} />}

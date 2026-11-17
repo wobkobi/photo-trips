@@ -13,6 +13,7 @@ import {
   parseTaken,
   splitPath,
   stepTile,
+  tileRow,
   timelineRows,
 } from "./format";
 
@@ -91,6 +92,11 @@ describe("timelineRows", () => {
     expect(jumpRow(rows, 2)).toBe(2);
     expect(jumpRow(rows, 3)).toBe(4);
     expect(jumpRow(rows, 9)).toBe(-1);
+    // A tile's own row skips the heading.
+    expect(tileRow(rows, 0)).toBe(1);
+    expect(tileRow(rows, 2)).toBe(3);
+    expect(tileRow(rows, 3)).toBe(4);
+    expect(tileRow(rows, 9)).toBe(-1);
   });
 
   it("moves focus through the grid by arrow key, keeping the column across a month break", () => {
