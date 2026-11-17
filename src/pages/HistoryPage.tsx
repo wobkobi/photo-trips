@@ -218,6 +218,7 @@ function confirmText(batch: BatchInfo): string {
 /** What a batch did to its files, by batch kind. */
 const DID_TEXT: Record<string, string> = {
   duplicates: "sent to the Recycle Bin",
+  recycle: "sent to the Recycle Bin",
   import: "copied in",
   import_move: "moved in",
 };

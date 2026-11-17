@@ -22,7 +22,7 @@ export const JOB_NAMES: Record<string, string> = {
   apply: "Moving files",
   undo: "Putting files back",
   duplicates: "Checking for duplicates",
-  remove: "Moving copies to the Recycle Bin",
+  remove: "Moving files to the Recycle Bin",
   "import-scan": "Checking for new photos",
   import: "Bringing photos in",
   inbox: "Moving new photos in from the inbox",

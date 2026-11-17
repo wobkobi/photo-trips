@@ -9,7 +9,14 @@ import { TimelineGrid, type TileEvent } from "../components/TimelineGrid";
 import { Viewer } from "../components/Viewer";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { useLibrarySource } from "../components/viewSources";
-import { api, errorText, type IndexSummary, type Tile, type TripInfo } from "../lib/api";
+import {
+  api,
+  errorText,
+  type ApplySummary,
+  type IndexSummary,
+  type Tile,
+  type TripInfo,
+} from "../lib/api";
 import { tileSizeOf } from "../lib/display";
 import { count as countOf } from "../lib/format";
 import { filterTiles, isFiltered, NO_FILTER, type LibraryFilter } from "../lib/libraryFilter";
@@ -76,6 +83,11 @@ export function LibraryPage({
   const [anchor, setAnchor] = useState<number | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [trips, setTrips] = useState<TripInfo[]>([]);
+  /** Photos waiting for the user to confirm sending them to the Recycle Bin. */
+  const [binning, setBinning] = useState<Tile[] | null>(null);
+  /** This page started the running Recycle Bin job, so its end shows here. */
+  const [binStarted, setBinStarted] = useState(false);
+  const [binResult, setBinResult] = useState<ApplySummary | null>(null);
   const tripReview = useTripReview();
 
   const load = useCallback(() => {
@@ -95,6 +107,13 @@ export function LibraryPage({
     load();
   });
   useJobDone(["apply", "undo", "remove", "import", "inbox"], load);
+  useJobDone("remove", (job) => {
+    if (!binStarted) return;
+    setBinStarted(false);
+    if (job.ok) setBinResult(job.result as ApplySummary);
+    else if (job.error) setError(job.error);
+  });
+  useJobDone("undo", () => setBinResult(null));
 
   const onThumbError = useCallback(
     (tile: Tile) => setFailedThumbs((prev) => (prev.length >= 50 ? prev : [...prev, tile])),
@@ -139,20 +158,23 @@ export function LibraryPage({
   const gridShown = open === null && tripReview.review === null;
   useEffect(() => {
     /**
-     * Escape stops picking; Ctrl+A picks every photo shown, unless the key is for a text box.
+     * Escape stops picking; Ctrl+A picks every photo shown and Delete asks to bin the picked
+     * ones, unless the key is for a text box.
      * @param event - the key pressed
      */
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === "Escape" && selecting) clearSelection();
+      if (!gridShown || isTyping(event.target)) return;
+      if (event.key === "Delete" && picked.length > 0) setBinning(picked);
       const pickAll = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a";
-      if (!pickAll || !gridShown || ids.length === 0 || isTyping(event.target)) return;
+      if (!pickAll || ids.length === 0) return;
       event.preventDefault();
       setSelected(new Set(ids));
       setAnchor(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selecting, clearSelection, gridShown, ids]);
+  }, [selecting, clearSelection, gridShown, ids, picked]);
 
   /**
    * Explorer-style selection: Ctrl toggles, Shift extends from the last clicked tile, and a
@@ -217,7 +239,30 @@ export function LibraryPage({
     }
     if (selecting) tripItems.push({ label: "Stop picking", onSelect: clearSelection });
     if (tripItems.length > 0) tripItems[0].divided = true;
-    setMenu({ x: event.clientX, y: event.clientY, items: [...items, ...tripItems] });
+    const bin: MenuItem = {
+      label:
+        pick.length > 1
+          ? `Send ${countOf(pick.length, "photo", "photos")} to the Recycle Bin`
+          : "Send to the Recycle Bin",
+      onSelect: setBinning.bind(null, pick),
+      divided: true,
+    };
+    setMenu({ x: event.clientX, y: event.clientY, items: [...items, ...tripItems, bin] });
+  }
+
+  /** Send the photos waiting for confirmation to the Recycle Bin; the job's end shows the result. */
+  function confirmBin(): void {
+    if (binning === null) return;
+    const binIds = binning.map((t) => t.id);
+    setBinning(null);
+    setBinResult(null);
+    clearSelection();
+    setOpen(null);
+    setBinStarted(true);
+    api.recycleMedia(binIds).catch((err) => {
+      setBinStarted(false);
+      setError(errorText(err));
+    });
   }
 
   /**
@@ -414,6 +459,29 @@ export function LibraryPage({
           undoable
           busy={running !== null}
           onUndo={() => void tripReview.undo()}
+          onHistory={() => onNavigate("history")}
+        />
+      )}
+      {binning !== null && !reviewing && (
+        <div className="mx-5 mt-3 flex flex-wrap items-center gap-3 rounded-md border border-warn-line bg-warn-soft p-4">
+          <p className="min-w-0 flex-1 basis-60">
+            Send {countOf(binning.length, "photo", "photos")} to the Recycle Bin? Files that go with{" "}
+            {binning.length === 1 ? "it go" : "them go"} too. You can undo this from History.
+          </p>
+          <Button variant="primary" onClick={confirmBin} disabled={running !== null}>
+            Send to the Recycle Bin
+          </Button>
+          <Button variant="ghost" onClick={() => setBinning(null)}>
+            Cancel
+          </Button>
+        </div>
+      )}
+      {binResult && !reviewing && (
+        <ResultBanner
+          result={binResult}
+          destination="the Recycle Bin"
+          busy={running !== null}
+          onUndo={() => api.undoBatch(binResult.batchId).catch((err) => setError(errorText(err)))}
           onHistory={() => onNavigate("history")}
         />
       )}

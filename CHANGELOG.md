@@ -19,6 +19,8 @@ All notable changes to this project are documented here. The format follows
   first and last photo in the viewer, and Help lists them.
 - The Library can find photos by any part of their file name.
 - Sort can leave photos where they are: untick them in the list before moving.
+- Photos can go to the Recycle Bin from the Library's right-click menu or the Delete key, with the
+  files that go with them, after a confirm. History can undo it.
 
 ## [0.24.0] - 2026-11-16
 
