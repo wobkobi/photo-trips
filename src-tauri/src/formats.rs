@@ -68,8 +68,15 @@ pub const VIDEO_EXTS: &[&str] = &[
 ];
 
 /// Sidecars: Apple edits (.aae), XMP, GoPro thumbnail/low-res proxy (.thm, .lrv), Sony clip
-/// metadata (C0001M01.XML) and DJI flight logs (.srt).
-pub const COMPANION_EXTS: &[&str] = &["aae", "xmp", "thm", "lrv", "xml", "srt"];
+/// metadata (C0001M01.XML), DJI flight logs (.srt), and the edit files RAW editors keep beside
+/// a RAW (RawTherapee .pp3, DxO .dop, Adobe Camera Raw masks .acr, ON1 .on1, AfterShot .arp,
+/// Capture One .cos).
+pub const COMPANION_EXTS: &[&str] = &[
+    "aae", "xmp", "thm", "lrv", "xml", "srt", "pp3", "dop", "acr", "on1", "arp", "cos",
+];
+
+/// Sidecars that hold RAW edits, so they go with the RAW when its name is shared.
+pub const RAW_EDIT_EXTS: &[&str] = &["xmp", "pp3", "dop", "acr", "on1", "arp", "cos"];
 
 /// Photo formats WebView2 renders directly. Everything else gets a converted JPEG preview.
 const WEB_IMAGE_EXTS: &[&str] = &["jpg", "jpeg", "jpe", "jfif", "png", "gif", "bmp", "webp", "avif"];

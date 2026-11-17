@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use chrono::NaiveDateTime;
 
 use crate::dates::DateSource;
-use crate::formats::Kind;
+use crate::formats::{Kind, RAW_EDIT_EXTS};
 
 /// One indexed file, as loaded from the `media` table.
 #[derive(Debug, Clone, PartialEq)]
@@ -103,7 +103,7 @@ fn belongs_with(leader: &MediaRow, other: &MediaRow) -> bool {
 /// Index of the group a sidecar belongs with when its name is shared by several groups.
 ///
 /// A sidecar that names its file (`IMG_1.CR2.xmp`) goes with the group holding `IMG_1.CR2`.
-/// Otherwise its type decides: XMP edits belong to the RAW, AAE edits to the photo, THM, LRV,
+/// Otherwise its type decides: XMP and other RAW editors' files belong to the RAW, AAE edits to the photo, THM, LRV,
 /// XML and SRT files to the video. With no such group it follows the first one, which is
 /// photo-led whenever there is a photo.
 fn companion_home(companion: &MediaRow, groups: &[Vec<MediaRow>]) -> usize {
@@ -117,7 +117,7 @@ fn companion_home(companion: &MediaRow, groups: &[Vec<MediaRow>]) -> usize {
         return at;
     }
     let wanted = match ext {
-        "xmp" => Some(Kind::Raw),
+        e if RAW_EDIT_EXTS.contains(&e) => Some(Kind::Raw),
         "aae" => Some(Kind::Photo),
         "thm" | "lrv" | "xml" | "srt" => Some(Kind::Video),
         _ => None,

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.5] - 2026-11-18
+
+### Fixed
+
+- Edit files that RawTherapee (.pp3), DxO (.dop), Adobe Camera Raw (.acr), ON1 (.on1), AfterShot
+  (.arp) and Capture One (.cos) keep beside a RAW now move, import and go to the Recycle Bin with
+  it, instead of being left behind.
+
 ## [0.25.4] - 2026-11-18
 
 ### Fixed

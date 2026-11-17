@@ -306,6 +306,9 @@ mod tests {
         assert_eq!(key("IMG_1.HEIC"), key("IMG_1.MOV"));
         assert_eq!(key("IMG_1.HEIC"), key("img_1.aae"));
         assert_eq!(key("DSC_5.NEF"), key("DSC_5.NEF.xmp"));
+        assert_eq!(key("DSC_5.NEF"), key("DSC_5.NEF.pp3"));
+        assert_eq!(key("DSC_5.NEF"), key("DSC_5.NEF.dop"));
+        assert_eq!(key("DSC_5.NEF"), key("DSC_5.acr"));
         assert_eq!(key("DSC_5.NEF"), key("DSC_5.JPG"));
         assert_eq!(key("C0001.MP4"), key("C0001M01.XML"));
         assert_eq!(key("GX010001.MP4"), key("GX010001.THM"));
