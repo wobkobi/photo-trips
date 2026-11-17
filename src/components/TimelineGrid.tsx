@@ -77,6 +77,8 @@ function libraryThumb(tile: Tile): string {
  * @param props.thumbOf - a tile's thumbnail URL (default: the library thumbnail for its id)
  * @param props.monthAction - something to show at the right of a month heading
  * @param props.fadeUnselected - fade tiles that aren't selected, for when most are
+ * @param props.showUncertain - mark every tile with an uncertain date, not just the one hovered,
+ *   for when those are what's being looked for
  * @param props.jump - scroll to this tile ({@link TileJump} says how far) and move keyboard focus
  *   to it unless asked not to
  * @param props.ownsHeight - the grid sits straight in a page column, so it keeps its own minimum
@@ -95,6 +97,7 @@ export function TimelineGrid({
   thumbOf = libraryThumb,
   monthAction,
   fadeUnselected = false,
+  showUncertain = false,
   jump,
   ownsHeight = false,
 }: {
@@ -109,6 +112,7 @@ export function TimelineGrid({
   thumbOf?: (tile: Tile) => string;
   monthAction?: (month: MonthRow) => ReactNode;
   fadeUnselected?: boolean;
+  showUncertain?: boolean;
   jump?: TileJump | null;
   ownsHeight?: boolean;
 }): ReactElement {
@@ -275,6 +279,7 @@ export function TimelineGrid({
                           thumb={thumbOf(tile)}
                           selected={selected.has(tile.id)}
                           faded={fadeUnselected && !selected.has(tile.id)}
+                          showUncertain={showUncertain}
                           onClick={(event) => onTileClick(row.start + offset, event)}
                           onMenu={(event) => onTileMenu(row.start + offset, event)}
                           onZoom={onTileZoom && (() => onTileZoom(row.start + offset))}
@@ -305,6 +310,7 @@ export function TimelineGrid({
  * @param props.selecting - picking photos, so a plain click picks instead of opening
  * @param props.selected - the tile is picked
  * @param props.faded - dim the tile, for an unpicked one when most are picked
+ * @param props.showUncertain - show the uncertain-date mark without a hover
  * @param props.onClick - called with the click
  * @param props.onMenu - called with the right-click
  * @param props.onZoom - open the tile in the viewer from a magnifier button; no magnifier without it
@@ -319,6 +325,7 @@ function TileButton({
   selecting,
   selected,
   faded,
+  showUncertain,
   onClick,
   onMenu,
   onZoom,
@@ -333,6 +340,7 @@ function TileButton({
   selecting: boolean;
   selected: boolean;
   faded: boolean;
+  showUncertain: boolean;
   onClick: (event: TileEvent) => void;
   onMenu: (event: TileEvent) => void;
   /** Open the tile in the viewer from a magnifier button, for when a click picks instead. */
@@ -344,7 +352,14 @@ function TileButton({
   const taken = formatTaken(tile.takenAt);
   const trip = tile.trip ? `, ${tile.trip.name} trip` : "";
   const label = `${tile.name}, ${kind.toLowerCase()} taken ${taken}${trip}`;
-  const tip = [tile.name, taken, tile.trip && `${tile.trip.name} trip`].filter(Boolean).join("\n");
+  const tip = [
+    tile.name,
+    taken,
+    tile.uncertain && "Date uncertain",
+    tile.trip && `${tile.trip.name} trip`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   // The magnifier sits beside the tile's button rather than in it, since a button can't hold
   // another button.
@@ -379,12 +394,14 @@ function TileButton({
             }`}
           />
         )}
+        {/* A guessed date is worth a mark only on the tile being looked at, or on all of them
+            while they're what the filter shows; on every tile it's noise. */}
         {tile.uncertain && (
           <span
             title="Date uncertain: guessed from when the file was last changed"
             className={`on-dark absolute top-2 rounded-full bg-ground/80 p-1.5 text-warn ${
               onZoom ? "right-11" : "right-2"
-            }`}
+            } ${showUncertain ? "" : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"}`}
           >
             <Icon name="warn" size={16} />
           </span>
