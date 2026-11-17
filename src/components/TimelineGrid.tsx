@@ -9,15 +9,19 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { thumbUrl, type Tile } from "../lib/api";
 import {
   count,
   formatTaken,
+  gridPlace,
   jumpRow,
+  placeRow,
   stepTile,
   tileRow,
   timelineRows,
+  type GridPlace,
   type TimelineRow,
 } from "../lib/format";
 import { tripBg } from "../lib/trips";
@@ -84,6 +88,9 @@ function libraryThumb(tile: Tile): string {
  *   to it unless asked not to
  * @param props.ownsHeight - the grid sits straight in a page column, so it keeps its own minimum
  *   height ({@link LIST_FILL}); otherwise its parent row does
+ * @param props.place - where the grid is scrolled to ({@link GridPlace}), kept up to date as it
+ *   scrolls and gone back to when the grid mounts again; without it the grid keeps its own,
+ *   which still holds its place when the column count changes
  * @returns the scrolling grid
  */
 export function TimelineGrid({
@@ -102,6 +109,7 @@ export function TimelineGrid({
   showUncertain = false,
   jump,
   ownsHeight = false,
+  place,
 }: {
   tiles: Tile[];
   tileSize: number;
@@ -118,14 +126,21 @@ export function TimelineGrid({
   showUncertain?: boolean;
   jump?: TileJump | null;
   ownsHeight?: boolean;
+  place?: RefObject<GridPlace | null>;
 }): ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const ownPlace = useRef<GridPlace | null>(null);
+  const placeRef = place ?? ownPlace;
   const [width, setWidth] = useState(0);
   const [viewHeight, setViewHeight] = useState(0);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    // Measured at once, before the first paint, so the first frame already has its rows and a
+    // place gone back to never shows the top first. The observer keeps it current after that.
+    setWidth(el.clientWidth);
+    setViewHeight(el.clientHeight);
     const observer = new ResizeObserver(([entry]) => {
       setWidth(entry.contentRect.width);
       setViewHeight(entry.contentRect.height);
@@ -177,11 +192,40 @@ export function TimelineGrid({
     virtualizer.measure();
   }, [virtualizer, tileSize, rows]);
 
+  // Go back to the kept place once the grid is first laid out, and again at a new column count,
+  // where the same pixel offset would land months away. Before paint, so there's no jump.
+  const laidOut = width > 0;
+  const placedAt = useRef(0);
+  useLayoutEffect(() => {
+    if (!laidOut || placedAt.current === columns) return;
+    placedAt.current = columns;
+    const kept = placeRef.current;
+    const row = kept ? placeRow(rows, tiles, kept) : -1;
+    if (row < 0) return;
+    // Sizes may still be the estimates from before the width was known.
+    virtualizer.measure();
+    virtualizer.scrollToIndex(row, { align: "start" });
+    // Only the layout decides when to go back; new tiles or a moved place mustn't pull the view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [laidOut, columns]);
+
+  // Keep the place up to date as the grid scrolls, by the row at the top of the view.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !laidOut) return;
+    /** Note the row now at the top of the view. */
+    const onScroll = (): void => {
+      const top = virtualizer.getVirtualItemForOffset(el.scrollTop);
+      if (top) placeRef.current = gridPlace(rows, tiles, top.index);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [virtualizer, rows, tiles, placeRef, laidOut]);
+
   // Only the rows on screen exist, so the tile can be focused only once the scroll has drawn it,
   // usually a frame or two later; it's looked for each frame, up to JUMP_FRAMES. Focus is moved
   // without scrolling again, so the month heading stays in view above it. Each request is handled
   // once, so a later re-layout (the grid hidden and shown again) doesn't replay an old jump.
-  const laidOut = width > 0;
   const handledJump = useRef<TileJump | null>(null);
   useEffect(() => {
     if (!jump || !laidOut || handledJump.current === jump) return;
