@@ -175,6 +175,7 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
           busy={busy}
           onUndo={() => run(() => api.undoBatch(result.batchId))}
           onHistory={() => onNavigate("history")}
+          onLibrary={() => onNavigate("library")}
         />
       )}
 

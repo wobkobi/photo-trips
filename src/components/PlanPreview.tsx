@@ -137,6 +137,7 @@ export function MovingProgress({ job }: { job: JobProgress }): ReactElement {
  * @param props.busy - another job is running, so Undo waits
  * @param props.onUndo - undo the whole change
  * @param props.onHistory - open History
+ * @param props.onLibrary - open the Library, offered once files have arrived there
  * @returns the banner
  */
 export function ResultBanner({
@@ -148,6 +149,7 @@ export function ResultBanner({
   busy,
   onUndo,
   onHistory,
+  onLibrary,
 }: {
   result: ApplySummary;
   intro?: string;
@@ -157,6 +159,7 @@ export function ResultBanner({
   busy: boolean;
   onUndo: () => void;
   onHistory: () => void;
+  onLibrary?: () => void;
 }): ReactElement {
   const [past, ing, plain] = VERBS[verb];
   const moved = count(result.moved, "file", "files") + (destination ? ` to ${destination}` : "");
@@ -185,6 +188,12 @@ export function ResultBanner({
         <Button onClick={onUndo} disabled={busy}>
           <Icon name="undo" size={16} />
           Undo
+        </Button>
+      )}
+      {onLibrary && result.moved > 0 && (
+        <Button onClick={onLibrary}>
+          <Icon name="library" size={16} />
+          See in Library
         </Button>
       )}
       <Button variant="ghost" onClick={onHistory}>

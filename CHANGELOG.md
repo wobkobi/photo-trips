@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.0] - 2026-11-17
+
+### Added
+
+- Right-clicking a photo in the Library offers Open, Show in folder and Copy path.
+- A photo that has gone from disk has a button to look for new photos.
+- Settings can open the library folder, asks before switching to another one, and can show the
+  missing extension tip again once it's hidden.
+- After an import, See in Library goes straight to the new photos.
+- History can show or open each file wherever it is now, lists older changes on request rather
+  than stopping at 200, and offers to sort or import again when some files failed.
+
 ## [0.24.0] - 2026-11-16
 
 ### Added

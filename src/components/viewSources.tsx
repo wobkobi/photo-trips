@@ -48,7 +48,8 @@ export function useLibrarySource(ids: number[]): ViewSource {
        * @returns resolves once Explorer has been asked to show it
        */
       reveal: (index) => api.revealMedia(ids[index]),
-      gone: "Look for new photos (F5) to bring the library up to date.",
+      gone: "Look for new photos to bring the library up to date.",
+      refresh: { label: "Look for new photos", run: api.indexLibrary },
     }),
     [ids],
   );

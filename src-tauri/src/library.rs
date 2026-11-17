@@ -187,6 +187,13 @@ pub fn open_media(state: State<'_, AppState>, id: i64) -> Result<()> {
     tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| Error::msg(e.to_string()))
 }
 
+/// Open the library folder in Explorer.
+#[tauri::command(async)]
+pub fn open_library(state: State<'_, AppState>) -> Result<()> {
+    let root = crate::commands::library_root(&*crate::commands::lock_db(&state)?)?;
+    tauri_plugin_opener::open_path(&root, None::<&str>).map_err(|e| Error::msg(e.to_string()))
+}
+
 /// What an indexed file says about itself beyond what the index keeps: camera, size, settings.
 #[tauri::command(async)]
 pub fn media_details(app: AppHandle, state: State<'_, AppState>, id: i64) -> Result<details::Details> {

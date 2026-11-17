@@ -88,6 +88,8 @@ export interface ViewSource {
   reveal?: (index: number) => Promise<void>;
   /** What to do about a file that has gone from disk, shown under the notice. */
   gone: string;
+  /** A button under that notice that brings the source up to date, when there's one to offer. */
+  refresh?: { label: string; run: () => Promise<void> };
 }
 
 /**
@@ -246,6 +248,7 @@ export function Viewer({
             key={key}
             item={item}
             gone={source.gone}
+            refresh={source.refresh}
             onBroken={recheck}
             onShown={() => setShown(key)}
             openLabel={openLabel}
@@ -313,6 +316,9 @@ export function Viewer({
  * @param props - Component props.
  * @param props.item - the file on show
  * @param props.gone - what to do about a file that has gone, from the source
+ * @param props.refresh - a button that brings the source up to date, from the source
+ * @param props.refresh.label - the button's text
+ * @param props.refresh.run - bring the source up to date
  * @param props.onBroken - ask whether the file has gone after it failed to load; resolves true
  * when it has, and the item is then marked missing
  * @param props.onShown - the file is on screen as fully as it will be, so neighbours can load
@@ -323,6 +329,7 @@ export function Viewer({
 function Media({
   item,
   gone,
+  refresh,
   onBroken,
   onShown,
   openLabel,
@@ -330,6 +337,7 @@ function Media({
 }: {
   item: ViewItem;
   gone: string;
+  refresh?: { label: string; run: () => Promise<void> };
   onBroken: () => Promise<boolean>;
   onShown: () => void;
   openLabel: string;
@@ -359,6 +367,12 @@ function Media({
         <Icon name="warn" size={32} className="mx-auto mb-4 text-faint" />
         <p className="text-[17px] font-semibold">This file has been moved or deleted</p>
         <p className="mt-2 text-muted">{gone}</p>
+        {refresh && (
+          <Button variant="primary" className="mt-5" onClick={() => void refresh.run()}>
+            <Icon name="refresh" size={16} />
+            {refresh.label}
+          </Button>
+        )}
       </div>
     );
   }

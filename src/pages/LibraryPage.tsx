@@ -177,33 +177,61 @@ export function LibraryPage({
   }
 
   /**
-   * Right-click opens the trip menu, picking the tile first unless it's already picked.
+   * Right-click menu: the file actions for the photo under the pointer, then the trip changes
+   * for the pick. Outside picking it acts on that photo alone without starting to pick; while
+   * picking, an unpicked photo becomes the whole pick, as in Explorer.
    * @param index - position of the tile in the shown list
    * @param event - the right-click, for where to open the menu
    */
   function onTileMenu(index: number, event: TileEvent): void {
     if (!tiles) return;
     event.preventDefault();
-    const id = tiles[index].id;
+    const tile = tiles[index];
     // The menu acts on the pick as it will be, so work its choices out from that pick.
-    const pick = selected.has(id) ? picked : [tiles[index]];
-    if (!selected.has(id)) {
-      setSelected(new Set([id]));
+    const pick = selected.has(tile.id) ? picked : [tile];
+    if (selecting && !selected.has(tile.id)) {
+      setSelected(new Set([tile.id]));
       setAnchor(index);
     }
+    const items: MenuItem[] = [
+      { label: "Open", onSelect: fileAction.bind(null, api.openMedia, tile.id) },
+      { label: "Show in folder", onSelect: fileAction.bind(null, api.revealMedia, tile.id) },
+      { label: "Copy path", onSelect: copyPath.bind(null, tile.id) },
+    ];
     const found = pickedEdits(pick, trips, allTiles ?? []);
     const adds = nearestTrips(found.free, trips, ADD_CHOICES).map((trip) =>
       addEdit(trip, found.free, allTiles ?? []),
     );
-    const items = [...found.remove, ...found.putBack, ...adds].map(editItem);
+    const tripItems = [...found.remove, ...found.putBack, ...adds].map(editItem);
     if (found.free.length > 0) {
-      items.push({
+      tripItems.push({
         label: `Make a trip from ${countOf(found.free.length, "photo", "photos")}`,
         onSelect: createTrip.bind(null, found.free),
       });
     }
-    items.push({ label: "Stop picking", onSelect: clearSelection });
-    setMenu({ x: event.clientX, y: event.clientY, items });
+    if (selecting) tripItems.push({ label: "Stop picking", onSelect: clearSelection });
+    if (tripItems.length > 0) tripItems[0].divided = true;
+    setMenu({ x: event.clientX, y: event.clientY, items: [...items, ...tripItems] });
+  }
+
+  /**
+   * Open or reveal a file, showing any failure as the page error.
+   * @param action - {@link api.openMedia} or {@link api.revealMedia}
+   * @param id - the file's media id
+   */
+  function fileAction(action: (id: number) => Promise<void>, id: number): void {
+    action(id).catch((err) => setError(errorText(err)));
+  }
+
+  /**
+   * Put a file's full path on the clipboard.
+   * @param id - the file's media id
+   */
+  function copyPath(id: number): void {
+    api
+      .mediaDetail(id)
+      .then((detail) => navigator.clipboard.writeText(detail.path))
+      .catch((err) => setError(errorText(err)));
   }
 
   /**

@@ -563,6 +563,11 @@ export const api = {
    */
   revealMedia: (id: number) => invoke<void>("reveal_media", { id }),
   /**
+   * Open the library folder in Explorer.
+   * @returns resolves once opened
+   */
+  openLibrary: () => invoke<void>("open_library"),
+  /**
    * Open the third-party notices installed with the app.
    * @returns resolves once opened
    */
@@ -596,16 +601,31 @@ export const api = {
    */
   applyPlan: (id: number) => invoke<void>("apply_plan", { id }),
   /**
-   * Every undoable change, for History.
+   * Every undoable change, for History, newest first.
+   * @param limit - how many to list
    * @returns the batches
    */
-  listBatches: () => invoke<BatchInfo[]>("list_batches"),
+  listBatches: (limit: number) => invoke<BatchInfo[]>("list_batches", { limit }),
   /**
    * The files one batch touched, in the order it touched them.
    * @param batchId - batch id
    * @returns the entries
    */
   batchEntries: (batchId: number) => invoke<BatchEntry[]>("batch_entries", { batchId }),
+  /**
+   * Show a file a batch touched selected in Explorer, wherever it is now.
+   * @param batchId - batch id
+   * @param seq - the file's place in the batch
+   * @returns resolves once shown
+   */
+  revealEntry: (batchId: number, seq: number) => invoke<void>("reveal_entry", { batchId, seq }),
+  /**
+   * Open a file a batch touched in its default app, wherever it is now.
+   * @param batchId - batch id
+   * @param seq - the file's place in the batch
+   * @returns resolves once opened
+   */
+  openEntry: (batchId: number, seq: number) => invoke<void>("open_entry", { batchId, seq }),
   /**
    * Put back the files a batch moved, in the background.
    * @param batchId - batch id

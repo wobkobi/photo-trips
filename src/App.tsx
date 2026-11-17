@@ -243,7 +243,7 @@ function CurrentPage({
     case "duplicates":
       return <DuplicatesPage onNavigate={onNavigate} />;
     case "history":
-      return <HistoryPage />;
+      return <HistoryPage onNavigate={onNavigate} />;
     case "settings":
       return (
         <SettingsPage showAbout={showAbout} onAboutShown={onAboutShown} onNavigate={onNavigate} />
