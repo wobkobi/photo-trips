@@ -4,7 +4,7 @@
 
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useRef, useState, type ReactElement, type ReactNode } from "react";
-import { thumbUrl, type ApplySummary, type JobProgress, type Preview } from "../lib/api";
+import { api, thumbUrl, type ApplySummary, type JobProgress, type Preview } from "../lib/api";
 import { count, monthLabel, splitPath } from "../lib/format";
 import type { FolderCount } from "../lib/picker";
 import { JOB_NAMES } from "../lib/useJobs";
@@ -122,7 +122,8 @@ export function LeftAlone({ files }: { files: number }): ReactElement {
 }
 
 /**
- * Progress while files move, go to the Recycle Bin or go back.
+ * Progress while files move, go to the Recycle Bin or go back, with a Stop button. Stopping
+ * leaves the files already done where they went; the result says how far it got.
  * @param props - Component props.
  * @param props.job - the running job
  * @returns the progress block
@@ -132,9 +133,12 @@ export function MovingProgress({ job }: { job: JobProgress }): ReactElement {
     <div className="max-w-xl px-5 py-5">
       <p className="mb-3 text-[18px] font-semibold">{JOB_NAMES[job.kind] ?? "Working"}</p>
       <Progress done={job.done} total={job.total} label={job.stage} />
-      <p className="mt-4 text-[15px] text-muted">
-        You can close this window. Pic Cabinet keeps going in the tray.
-      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Button onClick={() => api.cancelJob().catch(() => undefined)}>Stop</Button>
+        <p className="text-[15px] text-muted">
+          You can close this window. Pic Cabinet keeps going in the tray.
+        </p>
+      </div>
     </div>
   );
 }
