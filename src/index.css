@@ -8,6 +8,8 @@
    photos sit on. Russian-violet marks the main actions and moonstone is the accent. Utilities read
    these as variables, so .on-dark below turns everything inside it dark. */
 @theme {
+  /* Hovers and presses answer at once, as a desktop app's do; the web's 150ms reads as lag. */
+  --default-transition-duration: 75ms;
   --color-ground: light-dark(#f6f7f8, #121417); /* seasalt */
   --color-surface: light-dark(#ffffff, #1b1e22);
   --color-raised: light-dark(#e2e6e9, #272b31); /* seasalt-100 */

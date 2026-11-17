@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { thumbUrl, type SampleTile } from "../lib/api";
 import { spreadPick } from "../lib/trips";
+import { HOVER_RING } from "./ui";
 import { Viewer } from "./Viewer";
 import { useLibrarySource } from "./viewSources";
 
@@ -84,7 +85,7 @@ function SampleThumb({
       onClick={onOpen}
       aria-label={label}
       title="Look at this one bigger"
-      className="shrink-0 overflow-hidden rounded-xs bg-raised hover:opacity-90"
+      className={`relative shrink-0 overflow-hidden rounded-xs bg-raised ${HOVER_RING}`}
       style={{ width: size, height: size }}
     >
       {!failed && (

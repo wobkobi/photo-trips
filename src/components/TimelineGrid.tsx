@@ -23,7 +23,7 @@ import {
 import { tripBg } from "../lib/trips";
 import { DateRail, type RailMonth } from "./DateRail";
 import { Icon } from "./Icon";
-import { LIST_FILL } from "./ui";
+import { HOVER_RING, LIST_FILL } from "./ui";
 
 // Tight gutters, so the grid reads as one wall of photos rather than a page of cards.
 const GAP = 3;
@@ -373,7 +373,7 @@ function TileButton({
         aria-label={label}
         title={tip}
         aria-pressed={selecting ? selected : undefined}
-        className="relative h-full w-full overflow-hidden rounded-xs bg-raised focus-visible:outline-offset-0"
+        className={`relative h-full w-full overflow-hidden rounded-xs bg-raised focus-visible:outline-offset-0 ${HOVER_RING}`}
       >
         {failed ? (
           <span className="flex h-full w-full items-center justify-center text-[20px] font-bold text-faint">
@@ -390,7 +390,7 @@ function TileButton({
               onThumbError(tile);
             }}
             className={`h-full w-full object-cover transition-opacity ${
-              faded ? "opacity-35 grayscale group-hover:opacity-60" : "group-hover:opacity-90"
+              faded ? "opacity-35 grayscale group-hover:opacity-60" : ""
             }`}
           />
         )}

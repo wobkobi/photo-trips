@@ -17,16 +17,27 @@ import { Icon } from "./Icon";
  */
 export const LIST_FILL = "min-h-[max(18rem,60vh)] flex-1 contain-size";
 
+/**
+ * A hover mark for a photo tile: a thin ring inside its edge, drawn by `::after` so it sits over
+ * the picture and doesn't clash with a selection ring on the tile itself. Fading the photo on
+ * hover reads as a web page; desktop photo apps outline it. The element must be positioned.
+ */
+export const HOVER_RING =
+  "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:opacity-0 after:ring-2 after:ring-ink/40 after:transition-opacity after:ring-inset hover:after:opacity-100";
+
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 const VARIANTS: Record<Variant, string> = {
   // Violet for the main action, filled grey for the rest, and no fill at all for minor ones.
-  primary: "bg-brand text-white hover:bg-brand-hover disabled:bg-raised disabled:text-faint",
+  // Each gets a deeper fill while pressed, so a click is seen to land.
+  primary:
+    "bg-brand text-white hover:bg-brand-hover enabled:active:brightness-90 disabled:bg-raised disabled:text-faint",
   secondary:
-    "border border-line-strong/60 bg-raised text-ink hover:border-line-strong hover:bg-line disabled:text-faint disabled:hover:border-line-strong/60 disabled:hover:bg-raised",
+    "border border-line-strong/60 bg-raised text-ink hover:border-line-strong hover:bg-line enabled:active:bg-line-strong/50 disabled:text-faint disabled:hover:border-line-strong/60 disabled:hover:bg-raised",
   ghost:
-    "text-muted hover:bg-raised hover:text-ink disabled:text-faint disabled:hover:bg-transparent",
-  danger: "border border-danger/40 bg-danger/10 text-danger hover:bg-danger/15",
+    "text-muted hover:bg-raised hover:text-ink enabled:active:bg-line disabled:text-faint disabled:hover:bg-transparent",
+  danger:
+    "border border-danger/40 bg-danger/10 text-danger hover:bg-danger/15 enabled:active:bg-danger/25",
 };
 
 /**

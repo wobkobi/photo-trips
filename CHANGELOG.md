@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.30.3] - 2026-11-18
+
+### Changed
+
+- Hovering a photo outlines it instead of fading it, buttons and menu rows darken while pressed, and
+  hover and press changes happen at once rather than easing in.
+
 ## [0.30.2] - 2026-11-18
 
 ### Changed

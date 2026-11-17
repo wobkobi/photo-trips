@@ -3,7 +3,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
 import { MovingProgress, ResultBanner } from "../components/PlanPreview";
-import { Button, EmptyState, LIST_FILL, PageHeader, ReviewHead } from "../components/ui";
+import {
+  Button,
+  EmptyState,
+  HOVER_RING,
+  LIST_FILL,
+  PageHeader,
+  ReviewHead,
+} from "../components/ui";
 import { Viewer } from "../components/Viewer";
 import { useLibrarySource } from "../components/viewSources";
 import {
@@ -468,7 +475,7 @@ function CopyCard({
         className="group block w-full rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         <span
-          className={`relative block aspect-4/3 overflow-hidden rounded-[3px] bg-raised ${
+          className={`relative block aspect-4/3 overflow-hidden rounded-[3px] bg-raised ${HOVER_RING} ${
             state === "keep" ? "ring-3 ring-accent" : ""
           }`}
         >
