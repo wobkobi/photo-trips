@@ -18,7 +18,7 @@ use crate::groups;
 use crate::index;
 use crate::jobs;
 use crate::naming::Naming;
-use crate::planner::{self, Plan, Rules};
+use crate::planner::{self, GroupMove, Plan, Rules};
 use crate::trips;
 
 /// A previewed plan waiting for the user to apply it.
@@ -154,11 +154,7 @@ pub fn plan_organise(state: State<'_, AppState>, previews: State<'_, Previews>) 
         &table,
         &|p| fs::symlink_metadata(p).is_ok(),
     );
-    let files = plan.file_count();
-    let label = format!(
-        "Sorted {files} {} into their folders",
-        if files == 1 { "file" } else { "files" }
-    );
+    let label = sort_label(plan.file_count());
     let mut preview = describe(&root, &plan, &versions);
     preview.id = previews.store(PendingBatch {
         kind: "organise",
@@ -170,10 +166,51 @@ pub fn plan_organise(state: State<'_, AppState>, previews: State<'_, Previews>) 
     Ok(preview)
 }
 
-/// Run a previewed plan in the background as one undoable batch.
+/// History's label for a sort.
+fn sort_label(files: usize) -> String {
+    let noun = if files == 1 { "file" } else { "files" };
+    format!("Sorted {files} {noun} into their folders")
+}
+
+/// The plan without the groups whose leader the user unticked, relabelled to match. Only a sort
+/// can leave photos out: a trip change or folder rename half done would leave the library out
+/// of step with the trip or the naming setting.
+fn without(pending: &PendingBatch, skip: &[i64]) -> Result<(Plan, String)> {
+    if skip.is_empty() {
+        return Ok((pending.plan.clone(), pending.label.clone()));
+    }
+    if pending.kind != "organise" {
+        return Err(Error::msg("Only a sort can leave photos out"));
+    }
+    let groups: Vec<GroupMove> = pending
+        .plan
+        .groups
+        .iter()
+        .filter(|g| g.moves.first().is_none_or(|m| !skip.contains(&m.media_id)))
+        .cloned()
+        .collect();
+    if groups.is_empty() {
+        return Err(Error::msg("Tick at least one photo to move"));
+    }
+    let plan = Plan {
+        groups,
+        ..pending.plan.clone()
+    };
+    let label = sort_label(plan.file_count());
+    Ok((plan, label))
+}
+
+/// Run a previewed plan in the background as one undoable batch, less any photos the user
+/// unticked (`skip`, by leader media id).
 #[tauri::command]
-pub fn apply_plan(app: AppHandle, previews: State<Previews>, id: u64) -> Result<()> {
+pub fn apply_plan(
+    app: AppHandle,
+    previews: State<Previews>,
+    id: u64,
+    skip: Option<Vec<i64>>,
+) -> Result<()> {
     let pending = previews.get(id)?;
+    let (plan, label) = without(&pending, &skip.unwrap_or_default())?;
     let handle = app.clone();
     jobs::start(&app, "apply", move |ctx| {
         let state = handle.state::<AppState>();
@@ -187,10 +224,10 @@ pub fn apply_plan(app: AppHandle, previews: State<Previews>, id: u64) -> Result<
         };
         let batch = NewBatch {
             kind: pending.kind,
-            label: &pending.label,
+            label: &label,
             on_begin: pending.on_begin.as_deref(),
         };
-        executor::apply(&env, &batch, &pending.plan)
+        executor::apply(&env, &batch, &plan)
     })?;
     previews.clear(id);
     Ok(())
@@ -287,5 +324,39 @@ mod tests {
         assert_eq!(folders, [("2025\\2025-04", 1), ("2025\\2025-03", 2)]);
         assert_eq!(preview.items[0].from, "in\\IMG_1.HEIC");
         assert_eq!((preview.items[0].extra, preview.items[0].version), (1, 77));
+    }
+
+    #[test]
+    fn a_sort_leaves_out_unticked_photos_with_their_companions() {
+        let mv = |id: i64| Move {
+            media_id: id,
+            from: PathBuf::from(format!("C:\\L\\in\\{id}")),
+            to: PathBuf::from(format!("C:\\L\\out\\{id}")),
+        };
+        let group = |ids: &[i64]| GroupMove {
+            moves: ids.iter().map(|&id| mv(id)).collect(),
+            renamed: false,
+        };
+        let pending = |kind| PendingBatch {
+            kind,
+            label: sort_label(3),
+            root: PathBuf::from("C:\\L"),
+            plan: Plan {
+                groups: vec![group(&[1, 2]), group(&[3])],
+                in_place: 5,
+                left_alone: 0,
+            },
+            on_begin: None,
+        };
+
+        let (plan, label) = without(&pending("organise"), &[1]).unwrap();
+        assert_eq!(plan.groups, [group(&[3])]);
+        assert_eq!((plan.in_place, label.as_str()), (5, "Sorted 1 file into their folders"));
+
+        let (all, label) = without(&pending("organise"), &[]).unwrap();
+        assert_eq!((all.file_count(), label.as_str()), (3, "Sorted 3 files into their folders"));
+
+        assert!(without(&pending("organise"), &[1, 3]).is_err());
+        assert!(without(&pending("trip"), &[1]).is_err());
     }
 }

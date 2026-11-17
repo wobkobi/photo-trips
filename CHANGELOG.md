@@ -18,6 +18,7 @@ All notable changes to this project are documented here. The format follows
 - Arrow keys move between photos in the grid, Ctrl+A picks every photo shown, Home and End go to the
   first and last photo in the viewer, and Help lists them.
 - The Library can find photos by any part of their file name.
+- Sort can leave photos where they are: untick them in the list before moving.
 
 ## [0.24.0] - 2026-11-16
 

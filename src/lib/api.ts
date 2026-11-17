@@ -599,9 +599,10 @@ export const api = {
   /**
    * Run a previewed plan in the background as one undoable batch.
    * @param id - preview id
+   * @param skip - photos (leader media ids) to leave where they are; a sort only
    * @returns resolves once the job has started
    */
-  applyPlan: (id: number) => invoke<void>("apply_plan", { id }),
+  applyPlan: (id: number, skip: number[] = []) => invoke<void>("apply_plan", { id, skip }),
   /**
    * Every undoable change, for History, newest first.
    * @param limit - how many to list
