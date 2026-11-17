@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.52.0] - 2026-11-18
+
+### Added
+
+- The date rail sits over the right edge of the Library's grid in place of the scrollbar, and the
+  month you're in stays pinned to the top of the grid
+
 ## [0.51.0] - 2026-11-18
 
 ### Added

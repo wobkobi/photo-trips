@@ -24,9 +24,11 @@ import {
   type GridPlace,
   type TimelineRow,
 } from "../lib/format";
+import { gridColumns, monthStarts } from "../lib/timelineLayout";
 import { tripBg } from "../lib/trips";
-import { DateRail, type RailMonth } from "./DateRail";
+import { DateRail, RAIL_SPACE } from "./DateRail";
 import { Icon } from "./Icon";
+import { MonthPin } from "./MonthPin";
 import { HOVER_RING, LIST_FILL } from "./ui";
 
 // Tight gutters, so the grid reads as one wall of photos rather than a page of cards.
@@ -37,6 +39,8 @@ const HEADER_HEIGHT = 48;
 const JUMP_FRAMES = 6;
 /** Space left under the last row, so it doesn't sit hard against the bottom edge. */
 const END_SPACE = 32;
+/** Right padding of the rows while the date rail lies over the grid, keeping tiles clear of it. */
+const RAIL_PADDING = RAIL_SPACE + 4;
 /**
  * Ctrl+wheel travel per photo size step. A mouse wheel notch is 100, so each notch is a step,
  * while a touchpad pinch's stream of small deltas adds up instead of racing to an end.
@@ -144,42 +148,57 @@ export function TimelineGrid({
   const scrollRef = useRef<HTMLDivElement>(null);
   const ownPlace = useRef<GridPlace | null>(null);
   const placeRef = place ?? ownPlace;
+  // The scroller's width less its scrollbar, and the whole grid's, which no scrollbar changes.
   const [width, setWidth] = useState(0);
+  const [outerWidth, setOuterWidth] = useState(0);
   const [viewHeight, setViewHeight] = useState(0);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    const outer = outerRef.current;
+    if (!el || !outer) return;
     // Measured at once, before the first paint, so the first frame already has its rows and a
     // place gone back to never shows the top first. The observer keeps it current after that.
     setWidth(el.clientWidth);
     setViewHeight(el.clientHeight);
-    const observer = new ResizeObserver(([entry]) => {
-      setWidth(entry.contentRect.width);
-      setViewHeight(entry.contentRect.height);
+    setOuterWidth(outer.clientWidth);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === outer) setOuterWidth(entry.contentRect.width);
+        else {
+          setWidth(entry.contentRect.width);
+          setViewHeight(entry.contentRect.height);
+        }
+      }
     });
     observer.observe(el);
+    observer.observe(outer);
     return () => observer.disconnect();
   }, []);
 
-  const inner = Math.max(0, width - SIDE_PADDING * 2);
-  const columns = Math.max(2, Math.floor((inner + GAP) / (target + GAP)));
-  const tileSize = Math.floor((inner - GAP * (columns - 1)) / columns);
-  const rows = useMemo(() => timelineRows(tiles, columns), [tiles, columns]);
-  // Where each month starts, from the same row heights the list lays out with, for the date rail.
-  const { months, total } = useMemo(() => {
-    const found: RailMonth[] = [];
-    let top = 0;
-    for (const row of rows) {
-      if (row.type === "month") {
-        found.push({ key: row.key, label: row.label, top });
-        top += HEADER_HEIGHT;
-      } else top += tileSize + GAP;
-    }
-    return { months: found, total: top + END_SPACE };
-  }, [rows, tileSize]);
-  // Only worth showing when there's somewhere to jump to.
-  const showRail = months.length > 1 && total > viewHeight * 1.5;
+  // The rail is decided from the layout it would leave, at the grid's full width (the scrollbar
+  // hides while it shows), so it never depends on itself: the layout without it is wider, so
+  // shorter, and can't call for it either. It's only worth showing with somewhere to jump to.
+  const railed = gridColumns(outerWidth - SIDE_PADDING - RAIL_PADDING, target, GAP);
+  const railRows = useMemo(() => timelineRows(tiles, railed.columns), [tiles, railed.columns]);
+  const railHeight = useMemo(
+    () => monthStarts(railRows, railed.tileSize, GAP, HEADER_HEIGHT),
+    [railRows, railed.tileSize],
+  );
+  const showRail = railHeight.months.length > 1 && railHeight.total + END_SPACE > viewHeight * 1.5;
+  const plain = gridColumns(width - SIDE_PADDING * 2, target, GAP);
+  const { columns, tileSize } = showRail ? railed : plain;
+  const rows = useMemo(
+    () => (columns === railed.columns ? railRows : timelineRows(tiles, columns)),
+    [tiles, columns, railed.columns, railRows],
+  );
+  // Where each month starts, from the same row heights the list lays out with, for the date rail
+  // and the pinned month label.
+  const { months, total: rowsHeight } = useMemo(
+    () => monthStarts(rows, tileSize, GAP, HEADER_HEIGHT),
+    [rows, tileSize],
+  );
+  const total = rowsHeight + END_SPACE;
 
   // TanStack Virtual returns fresh functions each render, which the React Compiler can't
   // memoise; it skips this component, which is the documented, intended outcome.
@@ -332,9 +351,14 @@ export function TimelineGrid({
   }
 
   return (
-    <div ref={outerRef} className={`flex ${ownsHeight ? LIST_FILL : "min-h-0 flex-1"}`}>
-      {/* Key presses bubble up from the focused tile button. */}
-      <div ref={scrollRef} onKeyDown={onGridKey} className="min-w-0 flex-1 overflow-y-auto">
+    <div ref={outerRef} className={`relative flex ${ownsHeight ? LIST_FILL : "min-h-0 flex-1"}`}>
+      {/* Key presses bubble up from the focused tile button. The date rail stands in for the
+          scrollbar while it shows. */}
+      <div
+        ref={scrollRef}
+        onKeyDown={onGridKey}
+        className={`min-w-0 flex-1 overflow-y-auto ${showRail ? "no-scrollbar" : ""}`}
+      >
         {width > 0 && (
           <div
             className="relative w-full"
@@ -349,7 +373,8 @@ export function TimelineGrid({
                   style={{
                     transform: `translateY(${item.start}px)`,
                     height: item.size,
-                    paddingInline: SIDE_PADDING,
+                    paddingLeft: SIDE_PADDING,
+                    paddingRight: showRail ? RAIL_PADDING : SIDE_PADDING,
                   }}
                 >
                   {row.type === "month" ? (
@@ -394,6 +419,7 @@ export function TimelineGrid({
           </div>
         )}
       </div>
+      {width > 0 && <MonthPin months={months} scrollRef={scrollRef} inset={SIDE_PADDING} />}
       {showRail && <DateRail months={months} total={total} scrollRef={scrollRef} />}
     </div>
   );

@@ -127,6 +127,15 @@ body {
   background: transparent;
 }
 
+/* A scroller whose scrollbar something else stands in for, as the date rail does for the photo
+   grid. It still scrolls by wheel, keys and script. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
