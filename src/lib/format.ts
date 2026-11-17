@@ -71,6 +71,7 @@ export function formatBytes(bytes: number): string {
 }
 
 const SOURCE_TEXT: Record<DateSource, string> = {
+  set: "You set this date in Pic Cabinet. The file itself still has its own date, which other apps show.",
   exif: "From the camera's record of when the photo was taken.",
   video: "From the video's own recording date.",
   windows: "From the date Windows reads from the file.",
@@ -90,12 +91,13 @@ export function sourceText(source: DateSource): string {
 }
 
 /**
- * A short note under a date that's less sure than the file's own record of it; nothing for the
- * rest, whose source shows on hover instead.
+ * A short note under a date that isn't the file's own record of it (set in Pic Cabinet, or
+ * guessed); nothing for the rest, whose source shows on hover instead.
  * @param source - where the date came from
  * @returns the note, or null when the date came from the file's own record
  */
 export function dateNote(source: DateSource): string | null {
+  if (source === "set") return "Set in Pic Cabinet";
   if (source === "filename") return "From the file name";
   if (source === "modified") return "When the file last changed";
   return null;
@@ -210,6 +212,36 @@ export function jumpRow(rows: TimelineRow[], tile: number): number {
     return at - 1;
   }
   return at;
+}
+
+/**
+ * The tile a key moves focus to in the grid. Left and Right step through the tiles in order,
+ * across month breaks. Up and Down keep the column in the tile row above or below, skipping
+ * month headings; a shorter row (a month's last) lands on its last tile. Home and End go to the
+ * first and last tile.
+ * @param rows - rows from {@link timelineRows}
+ * @param tile - the focused tile's index
+ * @param key - the key's `key` value
+ * @param total - how many tiles there are
+ * @returns the tile to focus, or null when the key isn't one of these or can't go further
+ */
+export function stepTile(
+  rows: TimelineRow[],
+  tile: number,
+  key: string,
+  total: number,
+): number | null {
+  const last = total - 1;
+  if (key === "ArrowLeft") return tile > 0 ? tile - 1 : null;
+  if (key === "ArrowRight") return tile < last ? tile + 1 : null;
+  if (key === "Home") return tile > 0 ? 0 : null;
+  if (key === "End") return tile < last ? last : null;
+  if (key !== "ArrowUp" && key !== "ArrowDown") return null;
+  const tileRows = rows.filter((row) => row.type === "tiles");
+  const at = tileRows.findIndex((row) => tile >= row.start && tile < row.end);
+  const to = at < 0 ? undefined : tileRows[at + (key === "ArrowUp" ? -1 : 1)];
+  if (!to) return null;
+  return Math.min(to.start + (tile - tileRows[at].start), to.end - 1);
 }
 
 /**

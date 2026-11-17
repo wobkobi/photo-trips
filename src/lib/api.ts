@@ -7,7 +7,8 @@ export type Settings = Record<string, string>;
 export type MediaKind = "photo" | "raw" | "video" | "companion";
 
 /** Where a file's date came from, best first. Mirrors DateSource in dates.rs. */
-export type DateSource = "exif" | "video" | "windows" | "exiftool" | "filename" | "modified";
+export type DateSource =
+  "set" | "exif" | "video" | "windows" | "exiftool" | "filename" | "modified";
 
 /** One grid tile: a photo or video plus any files that travel with it. */
 export interface Tile {
@@ -15,8 +16,12 @@ export interface Tile {
   takenAt: string;
   kind: MediaKind;
   ext: string;
+  /** The file name, for finding it by name. */
+  name: string;
   /** Date guessed from the file's modified time. */
   uncertain: boolean;
+  /** Date set in Pic Cabinet, over the file's own. */
+  dateSet: boolean;
   /** Companion files (Live Photo video, RAW twin, sidecars). */
   extra: number;
   version: number;
@@ -563,6 +568,32 @@ export const api = {
    */
   revealMedia: (id: number) => invoke<void>("reveal_media", { id }),
   /**
+   * Put an indexed file on the clipboard, to paste into a folder, an email or a chat.
+   * @param id - media id
+   * @returns resolves once it's on the clipboard
+   */
+  copyMedia: (id: number) => invoke<void>("copy_media", { id }),
+  /**
+   * Set the date of photos, with the files that go with them, in Pic Cabinet only: the files
+   * aren't changed. History can undo it.
+   * @param ids - the photos' media ids
+   * @param date - local time, `YYYY-MM-DDTHH:MM:SS`, or null to go back to the files' own dates
+   * @returns the History batch id, for an Undo button
+   */
+  setDates: (ids: number[], date: string | null) => invoke<number>("set_dates", { ids, date }),
+  /**
+   * Send photos and the files that go with them to the Recycle Bin, in the background, as one
+   * change History can undo.
+   * @param ids - the photos' media ids
+   * @returns resolves once the job has started
+   */
+  recycleMedia: (ids: number[]) => invoke<void>("recycle_media", { ids }),
+  /**
+   * Open the library folder in Explorer.
+   * @returns resolves once opened
+   */
+  openLibrary: () => invoke<void>("open_library"),
+  /**
    * Open the third-party notices installed with the app.
    * @returns resolves once opened
    */
@@ -592,20 +623,36 @@ export const api = {
   /**
    * Run a previewed plan in the background as one undoable batch.
    * @param id - preview id
+   * @param skip - photos (leader media ids) to leave where they are; a sort only
    * @returns resolves once the job has started
    */
-  applyPlan: (id: number) => invoke<void>("apply_plan", { id }),
+  applyPlan: (id: number, skip: number[] = []) => invoke<void>("apply_plan", { id, skip }),
   /**
-   * Every undoable change, for History.
+   * Every undoable change, for History, newest first.
+   * @param limit - how many to list
    * @returns the batches
    */
-  listBatches: () => invoke<BatchInfo[]>("list_batches"),
+  listBatches: (limit: number) => invoke<BatchInfo[]>("list_batches", { limit }),
   /**
    * The files one batch touched, in the order it touched them.
    * @param batchId - batch id
    * @returns the entries
    */
   batchEntries: (batchId: number) => invoke<BatchEntry[]>("batch_entries", { batchId }),
+  /**
+   * Show a file a batch touched selected in Explorer, wherever it is now.
+   * @param batchId - batch id
+   * @param seq - the file's place in the batch
+   * @returns resolves once shown
+   */
+  revealEntry: (batchId: number, seq: number) => invoke<void>("reveal_entry", { batchId, seq }),
+  /**
+   * Open a file a batch touched in its default app, wherever it is now.
+   * @param batchId - batch id
+   * @param seq - the file's place in the batch
+   * @returns resolves once opened
+   */
+  openEntry: (batchId: number, seq: number) => invoke<void>("open_entry", { batchId, seq }),
   /**
    * Put back the files a batch moved, in the background.
    * @param batchId - batch id

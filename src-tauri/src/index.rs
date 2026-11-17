@@ -237,7 +237,8 @@ pub fn load_group(conn: &Connection, group_key: &str) -> Result<Vec<MediaRow>> {
 
 fn query_rows(conn: &Connection, filter: &str, args: impl rusqlite::Params) -> Result<Vec<MediaRow>> {
     let mut stmt = conn.prepare(&format!(
-        "SELECT id, path, group_key, kind, size, mtime, taken_at, date_source, lat, lon, hash
+        "SELECT id, path, group_key, kind, size, mtime, COALESCE(date_set, taken_at),
+                CASE WHEN date_set IS NULL THEN date_source ELSE 'set' END, lat, lon, hash
          FROM media {filter}"
     ))?;
     let rows = stmt.query_map(args, |row| {

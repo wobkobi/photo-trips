@@ -11,6 +11,7 @@ use crate::AppState;
 use crate::dates::{self, DateSource};
 use crate::details;
 use crate::error::{Error, Result};
+use crate::executor::{self, BinFile, Env, NewBatch, Removal};
 use crate::formats::{self, Kind};
 use crate::groups::{self, Group};
 use crate::index;
@@ -24,8 +25,12 @@ pub struct Tile {
     pub taken_at: String,
     pub kind: &'static str,
     pub ext: String,
+    /// The leader's file name, for finding it by name.
+    pub name: String,
     /// Date guessed from the file's modified time.
     pub uncertain: bool,
+    /// Date set by the user in Pic Cabinet, over the file's own.
+    pub date_set: bool,
     /// Companion files travelling with the leader (Live Photo video, RAW twin, sidecars).
     pub extra: usize,
     /// Changes whenever the file does, so thumbnail URLs bust the webview cache.
@@ -100,7 +105,9 @@ pub fn tile(group: &Group, trips: &[Trip]) -> Tile {
         taken_at: dates::format(&group.taken_at),
         kind: leader.kind.as_str(),
         ext: formats::ext_of(&leader.path),
+        name: file_name(&leader.path),
         uncertain: group.date_source == DateSource::Modified,
+        date_set: group.date_source == DateSource::Set,
         extra: group.members.len() - 1,
         version: leader.mtime,
         trip: trip_of(trips, group).map(|t| TileTrip {
@@ -187,6 +194,87 @@ pub fn open_media(state: State<'_, AppState>, id: i64) -> Result<()> {
     tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| Error::msg(e.to_string()))
 }
 
+/// Put an indexed file on the clipboard, to paste into a folder, an email or a chat. Only the
+/// photo itself: its Live Photo video or sidecars would just clutter wherever it's pasted.
+#[tauri::command(async)]
+pub fn copy_media(state: State<'_, AppState>, id: i64) -> Result<()> {
+    let path = media_path(&state, id)?;
+    #[cfg(windows)]
+    return crate::win::copy_files(&[path]);
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        Err(Error::msg("Copying files is only on Windows"))
+    }
+}
+
+/// Open the library folder in Explorer.
+#[tauri::command(async)]
+pub fn open_library(state: State<'_, AppState>) -> Result<()> {
+    let root = crate::commands::library_root(&*crate::commands::lock_db(&state)?)?;
+    tauri_plugin_opener::open_path(&root, None::<&str>).map_err(|e| Error::msg(e.to_string()))
+}
+
+/// Photos the user picked to bin, each with every file of its group (Live Photo video, RAW
+/// twin, sidecars), so nothing is left behind without its photo. `ids` are leader media ids.
+fn bin_removals(groups: &[Group], ids: &[i64]) -> Vec<Removal> {
+    groups
+        .iter()
+        .filter(|g| ids.contains(&g.leader().id))
+        .map(|g| Removal {
+            files: g
+                .members
+                .iter()
+                .map(|m| BinFile {
+                    media_id: m.id,
+                    path: m.path.clone(),
+                })
+                .collect(),
+            keeper: None,
+        })
+        .collect()
+}
+
+/// Send picked photos and the files that go with them to the Recycle Bin, in the background,
+/// as one change History can undo.
+#[tauri::command]
+pub fn recycle_media(app: AppHandle, state: State<AppState>, ids: Vec<i64>) -> Result<()> {
+    let (root, table, removals) = {
+        let conn = crate::commands::lock_db(&state)?;
+        let (groups, _orphans) = groups::build(index::load_rows(&conn)?);
+        (
+            crate::commands::library_root(&conn)?,
+            crate::commands::format_table(&conn)?,
+            bin_removals(&groups, &ids),
+        )
+    };
+    if removals.is_empty() {
+        return Err(Error::msg("These photos are no longer in the library"));
+    }
+    let photos = removals.len();
+    let label = format!(
+        "Moved {photos} {} to the Recycle Bin",
+        if photos == 1 { "photo" } else { "photos" }
+    );
+    let handle = app.clone();
+    crate::jobs::start(&app, "remove", move |ctx| {
+        let state = handle.state::<AppState>();
+        let env = Env {
+            db: &state.db,
+            root: &root,
+            table: &table,
+            cancel: ctx.cancel_flag(),
+            report: &|stage, done, total| ctx.report(stage, done, total),
+        };
+        let batch = NewBatch {
+            kind: "recycle",
+            label: &label,
+            on_begin: None,
+        };
+        executor::remove(&env, &batch, &removals)
+    })
+}
+
 /// What an indexed file says about itself beyond what the index keeps: camera, size, settings.
 #[tauri::command(async)]
 pub fn media_details(app: AppHandle, state: State<'_, AppState>, id: i64) -> Result<details::Details> {
@@ -212,4 +300,26 @@ pub fn open_notices(app: AppHandle) -> Result<()> {
         ));
     }
     tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| Error::msg(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::groups::tests::row;
+
+    #[test]
+    fn binning_a_photo_takes_its_live_photo_video_with_it() {
+        let when = "2025-03-12T10:00:00";
+        let (groups, _) = groups::build(vec![
+            row(1, "2025", "IMG_1.HEIC", Kind::Photo, when, DateSource::Exif),
+            row(2, "2025", "IMG_1.MOV", Kind::Video, when, DateSource::Exif),
+            row(3, "2025", "IMG_2.JPG", Kind::Photo, when, DateSource::Exif),
+        ]);
+        let removals = bin_removals(&groups, &[1]);
+        assert_eq!(removals.len(), 1);
+        let ids: Vec<i64> = removals[0].files.iter().map(|f| f.media_id).collect();
+        assert_eq!(ids, [1, 2]);
+        assert!(removals[0].keeper.is_none());
+        assert!(bin_removals(&groups, &[99]).is_empty());
+    }
 }

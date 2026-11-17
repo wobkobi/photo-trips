@@ -15,7 +15,9 @@ function tile(id: number, takenAt: string, extra: Partial<Tile> = {}): Tile {
     takenAt,
     kind: "photo",
     ext: "jpg",
+    name: `IMG_${id}.jpg`,
     uncertain: false,
+    dateSet: false,
     extra: 0,
     version: 0,
     trip: null,
@@ -55,6 +57,13 @@ describe("filterTiles", () => {
     expect(ids(filterTiles(tiles, { ...NO_FILTER, kind: "photos" }))).toEqual([1, 3, 4]);
     expect(ids(filterTiles(tiles, { ...NO_FILTER, kind: "videos" }))).toEqual([2]);
     expect(ids(filterTiles(tiles, { ...NO_FILTER, uncertain: true }))).toEqual([3]);
+  });
+
+  it("finds files by any part of their name, in any case, ignoring spaces around it", () => {
+    expect(ids(filterTiles(tiles, { ...NO_FILTER, name: " img_3" }))).toEqual([3]);
+    expect(ids(filterTiles(tiles, { ...NO_FILTER, name: ".JPG" }))).toEqual([1, 2, 3, 4]);
+    expect(ids(filterTiles(tiles, { ...NO_FILTER, name: "beach" }))).toEqual([]);
+    expect(isFiltered({ ...NO_FILTER, name: "  " })).toBe(false);
   });
 
   it("combines every part", () => {

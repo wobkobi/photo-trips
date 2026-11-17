@@ -4,6 +4,43 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.0] - 2026-11-17
+
+### Added
+
+- Right-clicking a photo in the Library offers Open, Show in folder and Copy path.
+- A photo that has gone from disk has a button to look for new photos.
+- Settings can open the library folder, asks before switching to another one, and can show the
+  missing extension tip again once it's hidden.
+- After an import, See in Library goes straight to the new photos.
+- History can show or open each file wherever it is now, lists older changes on request rather
+  than stopping at 200, and offers to sort or import again when some files failed.
+- Arrow keys move between photos in the grid, Ctrl+A picks every photo shown, Home and End go to the
+  first and last photo in the viewer, and Help lists them.
+- The Library can find photos by any part of their file name.
+- Sort can leave photos where they are: untick them in the list before moving.
+- Photos can go to the Recycle Bin from the Library's right-click menu or the Delete key, with the
+  files that go with them, after a confirm. History can undo it.
+- Zoom into a photo in the viewer with the mouse wheel, the + and - keys or the buttons under it,
+  drag to look around, and turn it with R. Copy puts a photo on the clipboard to paste into a
+  folder, email or chat, from the viewer or the Library's right-click menu.
+- Set the date of a photo whose own date is wrong or only a guess: Change date in the viewer, or Set
+  date from the Library's right-click menu for several at once. Pic Cabinet keeps the new date and
+  the file isn't changed, so other apps still show its own. Undo it from the banner or History, or
+  go back with Use the file's date.
+- Picked photos in the Library can be taken out of their trip, put back in, or added to a trip
+  within two weeks of them, from the header or the right-click menu. The viewer shows each photo's
+  trip with the same choices.
+
+### Changed
+
+- Smoother, more consistent icons throughout the app.
+
+### Fixed
+
+- Small or transparent photos no longer flash up stretched across the viewer before shrinking to
+  their real size.
+
 ## [0.24.0] - 2026-11-16
 
 ### Added

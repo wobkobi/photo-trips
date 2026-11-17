@@ -10,6 +10,8 @@ import {
 export interface MenuItem {
   label: string;
   onSelect: () => void;
+  /** Draw a line above it, to start a new group. */
+  divided?: boolean;
 }
 
 /** Keep the menu this far from the window edges. */
@@ -110,7 +112,7 @@ export function TileMenu({
             onClose();
             item.onSelect();
           }}
-          className="block min-h-11 w-full px-4 py-2.5 text-left text-[16px] hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
+          className={`block min-h-11 w-full px-4 py-2.5 text-left text-[16px] hover:bg-raised focus-visible:bg-raised focus-visible:outline-none ${item.divided ? "mt-1 border-t border-line" : ""}`}
         >
           {item.label}
         </button>

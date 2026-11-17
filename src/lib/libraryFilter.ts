@@ -17,9 +17,17 @@ export interface LibraryFilter {
   kind: "all" | "photos" | "videos";
   /** Only photos whose date was guessed from when the file was last changed. */
   uncertain: boolean;
+  /** Only files whose name holds this text, in any case; "" for all. */
+  name: string;
 }
 
-export const NO_FILTER: LibraryFilter = { trip: "any", year: "any", kind: "all", uncertain: false };
+export const NO_FILTER: LibraryFilter = {
+  trip: "any",
+  year: "any",
+  kind: "all",
+  uncertain: false,
+  name: "",
+};
 
 /**
  * Whether the filter hides anything.
@@ -28,7 +36,11 @@ export const NO_FILTER: LibraryFilter = { trip: "any", year: "any", kind: "all",
  */
 export function isFiltered(filter: LibraryFilter): boolean {
   return (
-    filter.trip !== "any" || filter.year !== "any" || filter.kind !== "all" || filter.uncertain
+    filter.trip !== "any" ||
+    filter.year !== "any" ||
+    filter.kind !== "all" ||
+    filter.uncertain ||
+    filter.name.trim() !== ""
   );
 }
 
@@ -44,6 +56,8 @@ function matches(tile: Tile, filter: LibraryFilter): boolean {
   if (filter.year !== "any" && !tile.takenAt.startsWith(filter.year)) return false;
   if (filter.kind === "photos" && tile.kind === "video") return false;
   if (filter.kind === "videos" && tile.kind !== "video") return false;
+  const name = filter.name.trim().toLowerCase();
+  if (name !== "" && !tile.name.toLowerCase().includes(name)) return false;
   return !filter.uncertain || tile.uncertain;
 }
 

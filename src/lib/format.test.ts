@@ -12,6 +12,7 @@ import {
   monthLabel,
   parseTaken,
   splitPath,
+  stepTile,
   timelineRows,
 } from "./format";
 
@@ -27,7 +28,9 @@ function tile(id: number, takenAt: string): Tile {
     takenAt,
     kind: "photo",
     ext: "jpg",
+    name: `IMG_${id}.jpg`,
     uncertain: false,
+    dateSet: false,
     extra: 0,
     version: 0,
     trip: null,
@@ -90,6 +93,27 @@ describe("timelineRows", () => {
     expect(jumpRow(rows, 9)).toBe(-1);
   });
 
+  it("moves focus through the grid by arrow key, keeping the column across a month break", () => {
+    const tiles = [
+      tile(1, "2024-08-03T10:00:00"),
+      tile(2, "2024-08-02T10:00:00"),
+      tile(3, "2024-08-01T10:00:00"),
+      tile(4, "2024-07-30T10:00:00"),
+      tile(5, "2024-07-20T10:00:00"),
+    ];
+    // August heading, 0-2, 2-3, July heading, 3-5
+    const rows = timelineRows(tiles, 2);
+    expect(stepTile(rows, 1, "ArrowDown", 5)).toBe(2);
+    expect(stepTile(rows, 2, "ArrowDown", 5)).toBe(3);
+    expect(stepTile(rows, 4, "ArrowUp", 5)).toBe(2);
+    expect(stepTile(rows, 1, "ArrowUp", 5)).toBeNull();
+    expect(stepTile(rows, 2, "ArrowRight", 5)).toBe(3);
+    expect(stepTile(rows, 0, "ArrowLeft", 5)).toBeNull();
+    expect(stepTile(rows, 3, "End", 5)).toBe(4);
+    expect(stepTile(rows, 3, "Home", 5)).toBe(0);
+    expect(stepTile(rows, 3, "Enter", 5)).toBeNull();
+  });
+
   it("returns nothing for an empty library", () => {
     expect(timelineRows([], 4)).toEqual([]);
   });
@@ -150,7 +174,8 @@ describe("libraryFolder", () => {
 });
 
 describe("dateNote", () => {
-  it("notes only the less sure dates", () => {
+  it("notes only dates that aren't the file's own record", () => {
+    expect(dateNote("set")).toBe("Set in Pic Cabinet");
     expect(dateNote("exif")).toBeNull();
     expect(dateNote("video")).toBeNull();
     expect(dateNote("filename")).toBe("From the file name");

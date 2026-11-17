@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
 import { LeftAlone, MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
@@ -20,11 +20,14 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApplySummary | null>(null);
+  /** Photos unticked to stay where they are, by media id. A new plan ticks everything again. */
+  const [skipped, setSkipped] = useState<ReadonlySet<number>>(new Set());
 
   const load = useCallback(() => {
     api.planOrganise().then(
       (loaded) => {
         setPreview(loaded);
+        setSkipped(new Set());
         setError(null);
         setChecking(false);
       },
@@ -66,6 +69,25 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
     }
   }
 
+  /**
+   * Tick or untick one photo.
+   * @param id - its media id
+   */
+  function toggle(id: number): void {
+    const next = new Set(skipped);
+    if (!next.delete(id)) next.add(id);
+    setSkipped(next);
+  }
+
+  // Each unticked photo keeps its companions with it.
+  const files = useMemo(
+    () =>
+      (preview?.items ?? []).reduce(
+        (sum, item) => (skipped.has(item.id) ? sum : sum + 1 + item.extra),
+        0,
+      ),
+    [preview, skipped],
+  );
   const moving = running?.kind === "apply" || running?.kind === "undo";
   const ready = preview !== null && preview.files > 0 && !moving;
 
@@ -76,16 +98,21 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
         actions={
           ready && (
             <>
+              {skipped.size > 0 && (
+                <Button variant="ghost" onClick={() => setSkipped(new Set())}>
+                  Tick all
+                </Button>
+              )}
               <Button onClick={checkAgain} disabled={checking || running !== null}>
                 <Icon name="refresh" size={16} />
                 Check again
               </Button>
               <Button
                 variant="primary"
-                onClick={() => run(() => api.applyPlan(preview.id))}
-                disabled={checking || running !== null}
+                onClick={() => run(() => api.applyPlan(preview.id, [...skipped]))}
+                disabled={checking || running !== null || files === 0}
               >
-                Move {count(preview.files, "file", "files")}
+                Move {count(files, "file", "files")}
               </Button>
             </>
           )
@@ -110,7 +137,7 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
         <p className="px-8 py-6 text-muted">Working out where everything goes</p>
       )}
       {!moving && preview !== null && preview.files === 0 && <NothingToDo preview={preview} />}
-      {ready && <PlanView preview={preview} />}
+      {ready && <PlanView preview={preview} skipped={skipped} onToggle={toggle} />}
     </div>
   );
 }

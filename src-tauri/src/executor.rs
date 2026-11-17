@@ -141,14 +141,21 @@ pub struct BinFile {
     pub path: PathBuf,
 }
 
-/// A duplicate copy to send to the Recycle Bin, with the sidecars that only belonged to it.
-/// Nothing goes unless the copy and the keeper both still hash to `hash` when it runs.
+/// A photo to send to the Recycle Bin, with the files that go with it: a duplicate copy and the
+/// sidecars that only belonged to it, or a photo the user chose to bin and its companions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Removal {
-    /// The copy first, then its sidecars.
+    /// The photo first, then the files that go with it.
     pub files: Vec<BinFile>,
-    /// The copy that stays.
-    pub keeper: PathBuf,
+    /// For a duplicate, the copy that stays; nothing goes unless both still match. None for a
+    /// photo binned outright.
+    pub keeper: Option<Keeper>,
+}
+
+/// The copy of a duplicate that stays, and the hash it and the copy going must still have.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Keeper {
+    pub path: PathBuf,
     pub hash: String,
 }
 
@@ -218,7 +225,7 @@ fn begin_removals(
                 (SELECT json_object('id', id, 'path', path, 'group_key', group_key,
                     'kind', kind, 'size', size, 'mtime', mtime, 'taken_at', taken_at,
                     'tz_offset_min', tz_offset_min, 'date_source', date_source, 'lat', lat,
-                    'lon', lon, 'hash', hash, 'indexed_at', indexed_at)
+                    'lon', lon, 'hash', hash, 'indexed_at', indexed_at, 'date_set', date_set)
                  FROM media WHERE id = ?4))",
         )?;
         let mut seq = 0_i64;
@@ -354,7 +361,11 @@ pub fn apply(env: &Env, batch: &NewBatch, plan: &Plan) -> Result<ApplySummary> {
 /// counts files that went to the bin. Each copy and its keeper are hashed again first, so a
 /// file that changed since the duplicate check is never removed.
 pub fn remove(env: &Env, batch: &NewBatch, removals: &[Removal]) -> Result<ApplySummary> {
-    const STAGE: &str = "Moving copies to the Recycle Bin";
+    let stage = if removals.iter().all(|r| r.keeper.is_some()) {
+        "Moving copies to the Recycle Bin"
+    } else {
+        "Moving files to the Recycle Bin"
+    };
     let total: usize = removals.iter().map(|r| r.files.len()).sum();
     let (batch_id, ids) = begin_removals(&mut *lock(env.db)?, batch, removals)?;
     let mut summary = ApplySummary {
@@ -363,7 +374,7 @@ pub fn remove(env: &Env, batch: &NewBatch, removals: &[Removal]) -> Result<Apply
     };
     let mut emptied = BTreeSet::new();
     let mut keepers = HashMap::new();
-    (env.report)(STAGE, 0, total);
+    (env.report)(stage, 0, total);
     for (removal, removal_ids) in removals.iter().zip(&ids) {
         if env.cancel.load(Ordering::Relaxed) {
             summary.cancelled = true;
@@ -398,7 +409,7 @@ pub fn remove(env: &Env, batch: &NewBatch, removals: &[Removal]) -> Result<Apply
                 }
             }
         }
-        (env.report)(STAGE, summary.moved + summary.failed, total);
+        (env.report)(stage, summary.moved + summary.failed, total);
     }
     finish_batch(env, &summary)?;
     remove_empty_dirs(env.root, emptied);
@@ -561,21 +572,22 @@ fn add_media_row(conn: &Connection, entry_id: i64, hash: Option<&str>) -> Result
 }
 
 /// Why a removal must not go ahead, if it mustn't: the copy or its keeper changed or went
-/// since the duplicate check. `keepers` remembers each keeper's result, since one keeper can
-/// stand for several copies.
+/// since the duplicate check. A photo binned outright has no check. `keepers` remembers each
+/// keeper's result, since one keeper can stand for several copies.
 fn removal_blocker(removal: &Removal, keepers: &mut HashMap<PathBuf, bool>) -> Option<String> {
     let copy = &removal.files.first()?.path;
-    if same_path(copy, &removal.keeper) {
+    let keeper = removal.keeper.as_ref()?;
+    if same_path(copy, &keeper.path) {
         return Some("It is the copy being kept".into());
     }
-    let matches = |path: &Path| hash::file(path).is_ok_and(|h| h == removal.hash);
+    let matches = |path: &Path| hash::file(path).is_ok_and(|h| h == keeper.hash);
     let keeper_ok = *keepers
-        .entry(removal.keeper.clone())
-        .or_insert_with(|| matches(&removal.keeper));
+        .entry(keeper.path.clone())
+        .or_insert_with(|| matches(&keeper.path));
     if !keeper_ok {
         return Some(format!(
             "Kept because the copy being kept ({}) changed or went since the check",
-            file_name(&removal.keeper)
+            file_name(&keeper.path)
         ));
     }
     if !matches(copy) {
@@ -917,7 +929,7 @@ fn restore_media_row(conn: &Connection, entry_id: i64) -> Result<()> {
     )?;
     conn.execute(
         "INSERT INTO media (id, path, group_key, kind, size, mtime, taken_at, tz_offset_min,
-                            date_source, lat, lon, hash, indexed_at)
+                            date_source, lat, lon, hash, indexed_at, date_set)
          SELECT CASE WHEN EXISTS (SELECT 1 FROM media WHERE id = json_extract(r, '$.id'))
                      THEN NULL ELSE json_extract(r, '$.id') END,
                 json_extract(r, '$.path'), json_extract(r, '$.group_key'),
@@ -925,7 +937,7 @@ fn restore_media_row(conn: &Connection, entry_id: i64) -> Result<()> {
                 json_extract(r, '$.taken_at'), json_extract(r, '$.tz_offset_min'),
                 json_extract(r, '$.date_source'), json_extract(r, '$.lat'),
                 json_extract(r, '$.lon'), json_extract(r, '$.hash'),
-                json_extract(r, '$.indexed_at')
+                json_extract(r, '$.indexed_at'), json_extract(r, '$.date_set')
          FROM (SELECT media_row AS r FROM journal WHERE id = ?1 AND media_row IS NOT NULL)",
         [entry_id],
     )?;
@@ -1523,8 +1535,10 @@ mod tests {
                 media_id: rows[i].id,
                 path: rows[i].path.clone(),
             }],
-            keeper: rows[1 - i].path.clone(),
-            hash: "not checked by begin".into(),
+            keeper: Some(Keeper {
+                path: rows[1 - i].path.clone(),
+                hash: "not checked by begin".into(),
+            }),
         };
         let removals = [removal(0), removal(1)];
         let (batch_id, _) =

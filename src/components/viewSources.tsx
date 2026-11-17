@@ -18,18 +18,21 @@ import { ImportFacts, LibraryFacts } from "./ViewerFacts";
 /**
  * Viewer source for library files.
  * @param ids - media ids (group leaders), in the order the viewer steps through them
- * @returns the source, the same object until the ids change
+ * @param revision - raise it after changing what files show (a date, say), so the viewer loads
+ * them again instead of showing what it already has
+ * @returns the source, the same object until the ids or revision change
  */
-export function useLibrarySource(ids: number[]): ViewSource {
+export function useLibrarySource(ids: number[], revision = 0): ViewSource {
   return useMemo(
     () => ({
       count: ids.length,
       /**
-       * Keyed by media id, so a load for a file no longer at this index is dropped.
+       * Keyed by media id and revision, so a load for a file no longer at this index, or from
+       * before a change, is dropped.
        * @param index - position in `ids`
        * @returns the file's key
        */
-      key: (index) => `m${ids[index]}`,
+      key: (index) => `m${ids[index]}-${revision}`,
       /**
        * Fetch the file's indexed details and build what the viewer shows.
        * @param index - position in `ids`
@@ -48,9 +51,16 @@ export function useLibrarySource(ids: number[]): ViewSource {
        * @returns resolves once Explorer has been asked to show it
        */
       reveal: (index) => api.revealMedia(ids[index]),
-      gone: "Look for new photos (F5) to bring the library up to date.",
+      /**
+       * Put the file on the clipboard.
+       * @param index - position in `ids`
+       * @returns resolves once it's on the clipboard
+       */
+      copy: (index) => api.copyMedia(ids[index]),
+      gone: "Look for new photos to bring the library up to date.",
+      refresh: { label: "Look for new photos", run: api.indexLibrary },
     }),
-    [ids],
+    [ids, revision],
   );
 }
 

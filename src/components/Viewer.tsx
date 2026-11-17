@@ -1,7 +1,15 @@
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactElement,
+  type ReactNode,
+  type WheelEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import { api, errorText, type MediaKind } from "../lib/api";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 import { Button } from "./ui";
 import { VideoPlayer } from "./VideoPlayer";
 
@@ -86,8 +94,12 @@ export interface ViewSource {
   open: (index: number) => Promise<void>;
   /** Show the file selected in Explorer. Missing when there's no folder to show, e.g. a phone. */
   reveal?: (index: number) => Promise<void>;
+  /** Put the file on the clipboard. Missing where there's no file on disk to copy, e.g. a phone. */
+  copy?: (index: number) => Promise<void>;
   /** What to do about a file that has gone from disk, shown under the notice. */
   gone: string;
+  /** A button under that notice that brings the source up to date, when there's one to offer. */
+  refresh?: { label: string; run: () => Promise<void> };
 }
 
 /**
@@ -180,7 +192,9 @@ export function Viewer({
   // Capture phase, so Escape closes only the viewer, not the selection or menu of the page behind.
   useEffect(() => {
     /**
-     * Escape closes the viewer; the left and right arrows step through the source.
+     * Escape closes the viewer; the left and right arrows step through the source, and Home and
+     * End go to its first and last. Keys meant for a focused video's controls or a box in the side
+     * panel are left to them.
      * @param event - the window's keydown, caught before the page behind sees it
      */
     function onKey(event: KeyboardEvent): void {
@@ -188,8 +202,13 @@ export function Viewer({
         event.stopPropagation();
         onClose();
       }
+      // A date box in the side panel uses the arrows itself.
+      if (event.target instanceof HTMLInputElement) return;
       if (event.key === "ArrowLeft" && index > 0) onIndex(index - 1);
       if (event.key === "ArrowRight" && index < source.count - 1) onIndex(index + 1);
+      if (event.target instanceof HTMLMediaElement) return;
+      if (event.key === "Home" && index > 0) onIndex(0);
+      if (event.key === "End" && index < source.count - 1) onIndex(source.count - 1);
     }
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -204,13 +223,16 @@ export function Viewer({
 
   /**
    * Run a file action, showing any failure in the side panel against the file on show.
-   * @param action - the open or reveal call
+   * @param action - the open, reveal or copy call
+   * @returns true when it worked
    */
-  async function run(action: () => Promise<void>): Promise<void> {
+  async function run(action: () => Promise<void>): Promise<boolean> {
     try {
       await action();
+      return true;
     } catch (err) {
       setFailure({ key, message: errorText(err) });
+      return false;
     }
   }
 
@@ -230,7 +252,21 @@ export function Viewer({
   }
 
   const reveal = source.reveal;
+  const copy = source.copy;
   const openLabel = useOpenLabel(item?.name);
+
+  // "Copied" shows on the button for a moment, for the file that was copied.
+  const [copied, setCopied] = useState<string | null>(null);
+  useEffect(() => {
+    if (copied === null) return;
+    const timer = window.setTimeout(() => setCopied(null), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  /** Put the file on show on the clipboard. */
+  async function copyFile(): Promise<void> {
+    if (copy && (await run(() => copy(index)))) setCopied(key);
+  }
   return createPortal(
     <div
       ref={dialog}
@@ -240,12 +276,13 @@ export function Viewer({
       aria-label={item ? item.name : "Photo viewer"}
       className="fixed inset-0 z-40 flex bg-ground outline-none"
     >
-      <div className="on-dark relative flex min-w-0 flex-1 items-center justify-center bg-ground p-6">
+      <div className="on-dark relative flex min-w-0 flex-1 items-center justify-center overflow-hidden bg-ground p-6">
         {item && (
           <Media
             key={key}
             item={item}
             gone={source.gone}
+            refresh={source.refresh}
             onBroken={recheck}
             onShown={() => setShown(key)}
             openLabel={openLabel}
@@ -293,6 +330,12 @@ export function Viewer({
                     Show in folder
                   </Button>
                 )}
+                {copy && (
+                  <Button onClick={() => void copyFile()}>
+                    <Icon name={copied === key ? "check" : "copy"} size={16} />
+                    {copied === key ? "Copied" : "Copy"}
+                  </Button>
+                )}
                 <Button onClick={() => run(() => source.open(index))}>
                   <Icon name="open" size={16} />
                   {openLabel}
@@ -309,10 +352,13 @@ export function Viewer({
 
 /**
  * The photo or video itself, or a button to open it in its own app when Pic Cabinet can't. A
- * photo opens in its app when clicked. A file that has gone from disk says so instead.
+ * file that has gone from disk says so instead.
  * @param props - Component props.
  * @param props.item - the file on show
  * @param props.gone - what to do about a file that has gone, from the source
+ * @param props.refresh - a button that brings the source up to date, from the source
+ * @param props.refresh.label - the button's text
+ * @param props.refresh.run - bring the source up to date
  * @param props.onBroken - ask whether the file has gone after it failed to load; resolves true
  * when it has, and the item is then marked missing
  * @param props.onShown - the file is on screen as fully as it will be, so neighbours can load
@@ -323,6 +369,7 @@ export function Viewer({
 function Media({
   item,
   gone,
+  refresh,
   onBroken,
   onShown,
   openLabel,
@@ -330,14 +377,13 @@ function Media({
 }: {
   item: ViewItem;
   gone: string;
+  refresh?: { label: string; run: () => Promise<void> };
   onBroken: () => Promise<boolean>;
   onShown: () => void;
   openLabel: string;
   onOpen: () => void;
 }): ReactElement {
   const [failed, setFailed] = useState(false);
-  const [sharp, setSharp] = useState(false);
-  const mediaClass = "max-h-full max-w-full object-contain";
   const video = item.kind === "video";
 
   // Only a picture waits for its full image; anything else is as shown as it gets at once.
@@ -359,6 +405,12 @@ function Media({
         <Icon name="warn" size={32} className="mx-auto mb-4 text-faint" />
         <p className="text-[17px] font-semibold">This file has been moved or deleted</p>
         <p className="mt-2 text-muted">{gone}</p>
+        {refresh && (
+          <Button variant="primary" className="mt-5" onClick={() => void refresh.run()}>
+            <Icon name="refresh" size={16} />
+            {refresh.label}
+          </Button>
+        )}
       </div>
     );
   }
@@ -396,40 +448,332 @@ function Media({
     );
   }
 
-  // The tile underneath is the same picture smaller, so the photo shows at once, a little soft,
-  // and sharpens when the full one has loaded. It goes once that's in, since a small or
-  // transparent full picture wouldn't cover it. Clicking the photo opens it in its app; the space
-  // around it lets clicks through.
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      title={openLabel}
-      className="pointer-events-none relative flex size-full items-center justify-center"
+    <Photo
+      item={item}
+      openLabel={openLabel}
+      onOpen={onOpen}
+      onShown={onShown}
+      onBroken={() => {
+        onShown();
+        broken();
+      }}
+    />
+  );
+}
+
+/** How far a zoomed photo is moved from centred, in px. */
+interface Offset {
+  x: number;
+  y: number;
+}
+
+/** Zoom steps the buttons, wheel and keys move through. 1 fits the photo in the window. */
+const ZOOMS = [1, 1.5, 2, 3, 4, 6, 8];
+/**
+ * Wheel travel per zoom step. A mouse wheel notch is 100, so each notch is a step, while a
+ * touchpad's stream of small deltas adds up instead of racing to the largest zoom.
+ */
+const WHEEL_STEP = 60;
+
+/**
+ * The next zoom step in or out, stopping at either end of {@link ZOOMS}.
+ * @param zoom - the zoom now, one of {@link ZOOMS}
+ * @param direction - 1 to zoom in, -1 to zoom out
+ * @returns the zoom to go to
+ */
+function stepZoom(zoom: number, direction: 1 | -1): number {
+  const at = ZOOMS.indexOf(zoom) + direction;
+  return ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, at))];
+}
+
+/**
+ * A photo to look at closely: zoom with the wheel, the + and - keys or the buttons beneath it,
+ * drag to look around a zoomed photo, and turn it with R. Turning only changes how it's shown
+ * here; the file is never changed. Clicking it at fit size opens it in its app.
+ * @param props - Component props.
+ * @param props.item - the photo on show
+ * @param props.openLabel - tooltip for clicking the photo
+ * @param props.onOpen - open the photo in its default app
+ * @param props.onShown - the full picture is on screen
+ * @param props.onBroken - the full picture failed to load
+ * @returns the photo with its zoom and turn buttons
+ */
+function Photo({
+  item,
+  openLabel,
+  onOpen,
+  onShown,
+  onBroken,
+}: {
+  item: ViewItem;
+  openLabel: string;
+  onOpen: () => void;
+  onShown: () => void;
+  onBroken: () => void;
+}): ReactElement {
+  const [sharp, setSharp] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [turns, setTurns] = useState(0);
+  const [pan, setPan] = useState<Offset>({ x: 0, y: 0 });
+  const [fit, setFit] = useState(1);
+  const [dragging, setDragging] = useState(false);
+  const stage = useRef<HTMLDivElement>(null);
+  const photo = useRef<HTMLImageElement>(null);
+  // Where a drag started, less the pan then, so moving the pointer moves the photo with it.
+  const dragFrom = useRef<Offset | null>(null);
+  // Set once a press has moved the photo, so letting go doesn't count as a click that opens it.
+  const dragged = useRef(false);
+  const wheel = useRef(0);
+  const sideways = turns % 2 === 1;
+
+  // The photo is laid out unturned, fitted to the stage. A quarter turn swaps its width and
+  // height, so it's scaled to fit again, but never past its real size.
+  useEffect(() => {
+    const box = stage.current;
+    const img = photo.current;
+    if (!box || !img) return;
+    /** Work out the turned photo's fit for the stage's size now. */
+    function measure(): void {
+      if (!box || !img || !sideways || !img.offsetWidth || !img.offsetHeight) {
+        setFit(1);
+        return;
+      }
+      const width = img.offsetWidth;
+      const height = img.offsetHeight;
+      setFit(
+        Math.min(
+          box.clientWidth / height,
+          box.clientHeight / width,
+          (img.naturalWidth || width) / width,
+        ),
+      );
+    }
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [sideways, sharp]);
+
+  /**
+   * Keep a pan within reach of the photo's edges, so it can't be dragged off the stage.
+   * @param next - the pan wanted
+   * @param scale - the photo's zoom
+   * @returns the pan, pulled back where needed
+   */
+  function clamp(next: Offset, scale: number): Offset {
+    const box = stage.current;
+    const img = photo.current;
+    if (!box || !img) return { x: 0, y: 0 };
+    const size = fit * scale;
+    const width = (sideways ? img.offsetHeight : img.offsetWidth) * size;
+    const height = (sideways ? img.offsetWidth : img.offsetHeight) * size;
+    const reachX = Math.max(0, (width - box.clientWidth) / 2);
+    const reachY = Math.max(0, (height - box.clientHeight) / 2);
+    return {
+      x: Math.max(-reachX, Math.min(reachX, next.x)),
+      y: Math.max(-reachY, Math.min(reachY, next.y)),
+    };
+  }
+
+  /**
+   * Zoom to a step, keeping the point under `at` where it is.
+   * @param next - the zoom to go to
+   * @param at - the point to zoom about, in px from the stage's centre (default the centre)
+   */
+  function zoomTo(next: number, at: Offset = { x: 0, y: 0 }): void {
+    if (next === zoom) return;
+    const ratio = next / zoom;
+    setPan(clamp({ x: at.x - (at.x - pan.x) * ratio, y: at.y - (at.y - pan.y) * ratio }, next));
+    setZoom(next);
+  }
+
+  /** One step closer, about the centre. */
+  function zoomIn(): void {
+    zoomTo(stepZoom(zoom, 1));
+  }
+
+  /** One step further out, about the centre. */
+  function zoomOut(): void {
+    zoomTo(stepZoom(zoom, -1));
+  }
+
+  /** Back to the whole photo, fitted to the window. */
+  function fitPhoto(): void {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  /** A quarter turn clockwise, centred again. */
+  function turn(): void {
+    setTurns((t) => (t + 1) % 4);
+    setPan({ x: 0, y: 0 });
+  }
+
+  // Keys for the photo on show. Ctrl and Alt are left alone, so Ctrl+= and Ctrl+- still change
+  // the text size, and keys typed into a box or meant for a focused control are left to it.
+  useEffect(() => {
+    /**
+     * + and - zoom, 0 fits the photo again, R turns it.
+     * @param event - the window's keydown
+     */
+    function onKey(event: KeyboardEvent): void {
+      if (event.ctrlKey || event.altKey || event.metaKey) return;
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (event.key === "+" || event.key === "=") zoomIn();
+      else if (event.key === "-" || event.key === "_") zoomOut();
+      else if (event.key === "0") fitPhoto();
+      else if (event.key === "r" || event.key === "R") turn();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  /**
+   * Zoom a step per notch, about the pointer.
+   * @param event - the wheel over the stage
+   */
+  function onWheel(event: WheelEvent<HTMLDivElement>): void {
+    wheel.current += event.deltaY;
+    if (Math.abs(wheel.current) < WHEEL_STEP) return;
+    const direction = wheel.current < 0 ? 1 : -1;
+    wheel.current = 0;
+    const rect = event.currentTarget.getBoundingClientRect();
+    zoomTo(stepZoom(zoom, direction), {
+      x: event.clientX - rect.left - rect.width / 2,
+      y: event.clientY - rect.top - rect.height / 2,
+    });
+  }
+
+  /**
+   * Start dragging a zoomed photo.
+   * @param event - the press on the photo
+   */
+  function onPointerDown(event: PointerEvent<HTMLImageElement>): void {
+    dragged.current = false;
+    if (zoom === 1 || event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragFrom.current = { x: event.clientX - pan.x, y: event.clientY - pan.y };
+    setDragging(true);
+  }
+
+  /**
+   * Move the photo with the pointer while dragging.
+   * @param event - the pointer moving
+   */
+  function onPointerMove(event: PointerEvent<HTMLImageElement>): void {
+    const from = dragFrom.current;
+    if (!from) return;
+    dragged.current = true;
+    setPan(clamp({ x: event.clientX - from.x, y: event.clientY - from.y }, zoom));
+  }
+
+  /** Stop dragging. */
+  function onPointerUp(): void {
+    dragFrom.current = null;
+    setDragging(false);
+  }
+
+  let cursor = "cursor-pointer";
+  if (zoom > 1) cursor = dragging ? "cursor-grabbing" : "cursor-grab";
+  const changed = zoom > 1 || turns > 0;
+
+  // The tile is the photo's background until the full picture loads, so the photo shows at once,
+  // a little soft, then sharpens. As a background it fills the photo's own box, which is known as
+  // soon as the file's header is read, so a picture smaller than the screen never flashes up
+  // stretched. It goes once the photo is in: the tile is flattened onto grey, which would show
+  // through a transparent picture.
+  return (
+    <div
+      ref={stage}
+      onWheel={onWheel}
+      className="group relative flex size-full items-center justify-center"
     >
-      {!sharp && (
-        <img
-          src={item.thumb}
-          alt=""
-          aria-hidden="true"
-          draggable={false}
-          className="pointer-events-auto absolute inset-0 size-full cursor-pointer object-contain"
-        />
-      )}
       <img
+        ref={photo}
         src={item.original ?? item.preview}
         alt={item.name}
+        title={zoom === 1 ? openLabel : undefined}
         draggable={false}
+        onClick={() => {
+          if (zoom === 1 && !dragged.current) onOpen();
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        style={{
+          transform: `translate(${pan.x}px, ${pan.y}px) rotate(${turns * 90}deg) scale(${fit * zoom})`,
+          background: sharp ? undefined : `url("${item.thumb}") center / contain no-repeat`,
+        }}
         onLoad={() => {
           setSharp(true);
           onShown();
         }}
-        onError={() => {
-          onShown();
-          broken();
-        }}
-        className={`pointer-events-auto relative cursor-pointer ${mediaClass}`}
+        onError={onBroken}
+        className={`relative max-h-full max-w-full object-contain select-none ${cursor} ${dragging ? "" : "transition-transform duration-150"}`}
       />
+      <div
+        className={`absolute bottom-0 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-md border border-line bg-surface/90 p-1 transition-opacity group-hover:opacity-100 focus-within:opacity-100 ${changed ? "opacity-100" : "opacity-0"}`}
+      >
+        <ToolButton
+          icon="zoomOut"
+          label="Zoom out (-)"
+          disabled={zoom === ZOOMS[0]}
+          onClick={zoomOut}
+        />
+        <button
+          type="button"
+          onClick={fitPhoto}
+          title="Fit to window (0)"
+          className="min-w-12 rounded px-1.5 py-1 text-[14px] font-semibold tabular-nums hover:bg-raised"
+        >
+          {zoom === 1 ? "Fit" : `${zoom}x`}
+        </button>
+        <ToolButton
+          icon="zoom"
+          label="Zoom in (+)"
+          disabled={zoom === ZOOMS[ZOOMS.length - 1]}
+          onClick={zoomIn}
+        />
+        <ToolButton icon="rotate" label="Turn (R)" onClick={turn} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Small icon button under the photo, labelled by its tooltip.
+ * @param props - Component props.
+ * @param props.icon - which icon to show
+ * @param props.label - what it does, with its key, for the tooltip and screen readers
+ * @param props.disabled - at the end of its range
+ * @param props.onClick - do it
+ * @returns the button
+ */
+function ToolButton({
+  icon,
+  label,
+  disabled,
+  onClick,
+}: {
+  icon: IconName;
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+}): ReactElement {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="rounded p-1.5 text-muted hover:bg-raised hover:text-ink disabled:text-faint disabled:hover:bg-transparent"
+    >
+      <Icon name={icon} size={18} />
     </button>
   );
 }

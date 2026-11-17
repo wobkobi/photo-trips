@@ -17,7 +17,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::AppState;
 use crate::commands::{format_table, library_root, lock_db};
 use crate::error::{Error, Result};
-use crate::executor::{self, BinFile, Env, NewBatch, Removal};
+use crate::executor::{self, BinFile, Env, Keeper, NewBatch, Removal};
 use crate::formats::Kind;
 use crate::groups::{self, MediaRow};
 use crate::hash;
@@ -342,8 +342,10 @@ pub fn plan_removals(rows: Vec<MediaRow>, choices: &[Choice]) -> Result<Vec<Remo
             files.extend(sidecars.remove(&copy.id).unwrap_or_default());
             Removal {
                 files,
-                keeper: keeper.path.clone(),
-                hash: keeper.hash.clone().unwrap_or_default(),
+                keeper: Some(Keeper {
+                    path: keeper.path.clone(),
+                    hash: keeper.hash.clone().unwrap_or_default(),
+                }),
             }
         })
         .collect())

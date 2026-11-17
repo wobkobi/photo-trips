@@ -12,6 +12,8 @@ pub const DT_FORMAT: &str = "%Y-%m-%dT%H:%M:%S";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DateSource {
+    /// Set by the user in Pic Cabinet, over whatever the file says. Kept in the database only.
+    Set,
     /// EXIF DateTimeOriginal in a photo.
     Exif,
     /// Creation date in a video's metadata.
@@ -29,6 +31,7 @@ pub enum DateSource {
 impl DateSource {
     pub fn as_str(self) -> &'static str {
         match self {
+            DateSource::Set => "set",
             DateSource::Exif => "exif",
             DateSource::Video => "video",
             DateSource::Windows => "windows",
@@ -40,6 +43,7 @@ impl DateSource {
 
     pub fn parse(text: &str) -> DateSource {
         match text {
+            "set" => DateSource::Set,
             "exif" => DateSource::Exif,
             "video" => DateSource::Video,
             "windows" => DateSource::Windows,
@@ -49,7 +53,8 @@ impl DateSource {
         }
     }
 
-    /// True for dates read from inside the file, as opposed to guessed from its name or mtime.
+    /// True for dates read from inside the file (or set by the user, who knows better), as opposed
+    /// to guessed from its name or mtime.
     pub fn is_embedded(self) -> bool {
         self <= DateSource::Exiftool
     }

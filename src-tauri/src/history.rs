@@ -13,10 +13,11 @@ use crate::executor::{self, Env, UndoSummary};
 use crate::jobs;
 use crate::naming;
 use crate::organise::relative;
+use crate::redate;
 use crate::trips;
 
-/// Batches shown on the History page, newest first.
-const BATCH_LIMIT: i64 = 200;
+/// Most batches listed at once, newest first; the page asks for more as the user goes back.
+const BATCH_LIMIT: i64 = 2000;
 /// Files listed when a batch is expanded. A full-library sort can be tens of thousands.
 const ENTRY_LIMIT: i64 = 2000;
 
@@ -55,7 +56,7 @@ pub struct EntryInfo {
 }
 
 #[tauri::command(async)]
-pub fn list_batches(state: State<'_, AppState>) -> Result<Vec<BatchInfo>> {
+pub fn list_batches(state: State<'_, AppState>, limit: i64) -> Result<Vec<BatchInfo>> {
     let conn = lock_db(&state)?;
     let mut stmt = conn.prepare(
         "SELECT b.id, b.kind, b.label, b.status, b.created_at, b.undone_at, COUNT(j.id),
@@ -65,7 +66,7 @@ pub fn list_batches(state: State<'_, AppState>) -> Result<Vec<BatchInfo>> {
          FROM batches b LEFT JOIN journal j ON j.batch_id = b.id
          GROUP BY b.id ORDER BY b.id DESC LIMIT ?1",
     )?;
-    let rows = stmt.query_map([BATCH_LIMIT], |row| {
+    let rows = stmt.query_map([limit.clamp(1, BATCH_LIMIT)], |row| {
         let status: String = row.get(3)?;
         let done: i64 = row.get(7)?;
         let has_undo_data: bool = row.get(11)?;
@@ -112,6 +113,52 @@ pub fn batch_entries(state: State<'_, AppState>, batch_id: i64) -> Result<Vec<En
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
+/// Where a file a batch touched is now: where it went while the change stands, where it came
+/// from otherwise. A file in the Recycle Bin, or gone since, has nowhere to show.
+fn entry_now(conn: &Connection, batch_id: i64, seq: i64) -> Result<std::path::PathBuf> {
+    let (op, src, dst, status): (String, String, String, String) = conn
+        .query_row(
+            "SELECT op, src, dst, status FROM journal WHERE batch_id = ?1 AND seq = ?2",
+            params![batch_id, seq],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .optional()?
+        .ok_or_else(|| Error::msg("This change is no longer in History"))?;
+    let binned = match status.as_str() {
+        "done" => op == "trash",
+        "undone" => op == "copy",
+        _ => false,
+    };
+    if binned {
+        return Err(Error::msg("This file is in the Recycle Bin"));
+    }
+    // Mid-undo it could be at either end.
+    let places: &[&str] = match status.as_str() {
+        "done" => &[&dst],
+        "undoing" => &[&dst, &src],
+        _ => &[&src],
+    };
+    places
+        .iter()
+        .map(std::path::PathBuf::from)
+        .find(|path| path.exists())
+        .ok_or_else(|| Error::msg("This file isn't there any more"))
+}
+
+/// Show a file a batch touched selected in Explorer, wherever it is now.
+#[tauri::command(async)]
+pub fn reveal_entry(state: State<'_, AppState>, batch_id: i64, seq: i64) -> Result<()> {
+    let path = entry_now(&*lock_db(&state)?, batch_id, seq)?;
+    tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|e| Error::msg(e.to_string()))
+}
+
+/// Open a file a batch touched in its default Windows app, wherever it is now.
+#[tauri::command(async)]
+pub fn open_entry(state: State<'_, AppState>, batch_id: i64, seq: i64) -> Result<()> {
+    let path = entry_now(&*lock_db(&state)?, batch_id, seq)?;
+    tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| Error::msg(e.to_string()))
+}
+
 /// Put back the files a batch moved, in the background. A change that can't be undone is
 /// refused here, before the job starts, so the message reaches the button that asked.
 #[tauri::command]
@@ -152,6 +199,7 @@ pub fn undo(env: &Env, batch_id: i64) -> Result<UndoSummary> {
         if status == "undone" {
             match kind.as_str() {
                 "naming" => naming::restore(&conn, data)?,
+                "date" => redate::restore(&conn, data)?,
                 _ => trips::restore(&conn, data)?,
             }
         }
@@ -177,6 +225,7 @@ fn check(conn: &Connection, batch_id: i64) -> Result<Option<(String, String)>> {
     };
     match kind.as_str() {
         "naming" => naming::check_undo(conn, &data)?,
+        "date" => redate::check_undo(conn, &data)?,
         _ => trips::check_undo(conn, &data)?,
     }
     Ok(Some((kind, data)))

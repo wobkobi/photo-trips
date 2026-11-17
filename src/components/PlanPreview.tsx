@@ -37,9 +37,21 @@ const VERBS = {
  * @param props - Component props.
  * @param props.preview - the previewed plan
  * @param props.note - extra lines for the notes under the headline
+ * @param props.skipped - photos unticked to stay where they are, when moves can be unticked
+ * @param props.onToggle - tick or untick a photo; rows get tick boxes only when this is given
  * @returns the plan view, filling the remaining height
  */
-export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode }): ReactElement {
+export function PlanView({
+  preview,
+  note,
+  skipped,
+  onToggle,
+}: {
+  preview: Preview;
+  note?: ReactNode;
+  skipped?: ReadonlySet<number>;
+  onToggle?: (id: number) => void;
+}): ReactElement {
   return (
     <div className="flex flex-1 flex-col">
       <ReviewHead
@@ -84,6 +96,8 @@ export function PlanView({ preview, note }: { preview: Preview; note?: ReactNode
               key: item.id,
               thumb: thumbUrl(item.id, item.version),
             }))}
+            skipped={skipped}
+            onToggle={onToggle && ((key) => onToggle(Number(key)))}
           />
         </div>
       )}
@@ -137,6 +151,7 @@ export function MovingProgress({ job }: { job: JobProgress }): ReactElement {
  * @param props.busy - another job is running, so Undo waits
  * @param props.onUndo - undo the whole change
  * @param props.onHistory - open History
+ * @param props.onLibrary - open the Library, offered once files have arrived there
  * @returns the banner
  */
 export function ResultBanner({
@@ -148,6 +163,7 @@ export function ResultBanner({
   busy,
   onUndo,
   onHistory,
+  onLibrary,
 }: {
   result: ApplySummary;
   intro?: string;
@@ -157,6 +173,7 @@ export function ResultBanner({
   busy: boolean;
   onUndo: () => void;
   onHistory: () => void;
+  onLibrary?: () => void;
 }): ReactElement {
   const [past, ing, plain] = VERBS[verb];
   const moved = count(result.moved, "file", "files") + (destination ? ` to ${destination}` : "");
@@ -185,6 +202,12 @@ export function ResultBanner({
         <Button onClick={onUndo} disabled={busy}>
           <Icon name="undo" size={16} />
           Undo
+        </Button>
+      )}
+      {onLibrary && result.moved > 0 && (
+        <Button onClick={onLibrary}>
+          <Icon name="library" size={16} />
+          See in Library
         </Button>
       )}
       <Button variant="ghost" onClick={onHistory}>
@@ -318,16 +341,22 @@ function FolderEntries({
  * @param props.rows - the moves
  * @param props.label - accessible name for the list
  * @param props.origin - what an empty `from` folder is called (default "Library folder")
+ * @param props.skipped - row keys unticked to stay where they are
+ * @param props.onToggle - tick or untick a row; rows get tick boxes only when this is given
  * @returns the list, filling the remaining space
  */
 export function MoveList({
   rows,
   label,
   origin = "Library folder",
+  skipped,
+  onToggle,
 }: {
   rows: MoveRowData[];
   label: string;
   origin?: string;
+  skipped?: ReadonlySet<MoveRowData["key"]>;
+  onToggle?: (key: MoveRowData["key"]) => void;
 }): ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null);
   // TanStack Virtual returns fresh functions each render, which the React Compiler can't
@@ -357,6 +386,8 @@ export function MoveList({
             item={rows[row.index]}
             origin={origin}
             top={row.start}
+            skipped={skipped?.has(rows[row.index].key) ?? false}
+            onToggle={onToggle}
           />
         ))}
       </div>
@@ -371,16 +402,22 @@ export function MoveList({
  * @param props.item - the move to show
  * @param props.origin - what an empty `from` folder is called
  * @param props.top - offset from the top of the list, in pixels
+ * @param props.skipped - unticked, so it stays where it is
+ * @param props.onToggle - tick or untick it; no tick box without it
  * @returns the positioned row
  */
 function MoveRow({
   item,
   origin,
   top,
+  skipped,
+  onToggle,
 }: {
   item: MoveRowData;
   origin: string;
   top: number;
+  skipped: boolean;
+  onToggle?: (key: MoveRowData["key"]) => void;
 }): ReactElement {
   const [failed, setFailed] = useState(false);
   const from = splitPath(item.from);
@@ -393,51 +430,62 @@ function MoveRow({
       className="absolute left-0 flex w-full items-center gap-3 px-6"
       style={{ top, height: ROW_HEIGHT }}
     >
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[3px] bg-raised text-[13px] text-faint">
-        {failed ? (
-          `.${ext.toLowerCase()}`
-        ) : (
-          <img
-            src={item.thumb}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            draggable={false}
-            onError={() => setFailed(true)}
-            className="h-full w-full object-cover"
-          />
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="selectable min-w-0 truncate" title={to.name}>
-            {to.name}
-          </span>
-          {item.extra > 0 && (
-            <span
-              className="shrink-0 text-[14px] text-muted"
-              title={`${count(item.extra, "file travels", "files travel")} with this one`}
-            >
-              +{item.extra}
-            </span>
-          )}
-          {item.renamed && (
-            // Gives way before the new name does: shrink-4 takes most of any squeeze.
-            <span
-              className="min-w-0 shrink-4 truncate text-[14px] text-faint"
-              title={`was ${from.name}`}
-            >
-              was {from.name}
-            </span>
+      {onToggle && (
+        <input
+          type="checkbox"
+          checked={!skipped}
+          onChange={() => onToggle(item.key)}
+          aria-label={`Move ${to.name}`}
+          className="size-4 shrink-0 accent-accent"
+        />
+      )}
+      <span className={`flex min-w-0 flex-1 items-center gap-3 ${skipped ? "opacity-40" : ""}`}>
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[3px] bg-raised text-[13px] text-faint">
+          {failed ? (
+            `.${ext.toLowerCase()}`
+          ) : (
+            <img
+              src={item.thumb}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+              onError={() => setFailed(true)}
+              className="h-full w-full object-cover"
+            />
           )}
         </span>
-        <span className="flex min-w-0 items-center gap-1.5 text-[14px] text-muted">
-          <span className="selectable min-w-0 shrink-4 truncate" title={from.folder || origin}>
-            {from.folder || origin}
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="selectable min-w-0 truncate" title={to.name}>
+              {to.name}
+            </span>
+            {item.extra > 0 && (
+              <span
+                className="shrink-0 text-[14px] text-muted"
+                title={`${count(item.extra, "file travels", "files travel")} with this one`}
+              >
+                +{item.extra}
+              </span>
+            )}
+            {item.renamed && (
+              // Gives way before the new name does: shrink-4 takes most of any squeeze.
+              <span
+                className="min-w-0 shrink-4 truncate text-[14px] text-faint"
+                title={`was ${from.name}`}
+              >
+                was {from.name}
+              </span>
+            )}
           </span>
-          <Icon name="chevron" size={12} className="shrink-0 text-faint" />
-          <span className="selectable min-w-0 truncate text-ink" title={to.folder}>
-            {to.folder}
+          <span className="flex min-w-0 items-center gap-1.5 text-[14px] text-muted">
+            <span className="selectable min-w-0 shrink-4 truncate" title={from.folder || origin}>
+              {from.folder || origin}
+            </span>
+            <Icon name="chevron" size={12} className="shrink-0 text-faint" />
+            <span className="selectable min-w-0 truncate text-ink" title={to.folder}>
+              {to.folder}
+            </span>
           </span>
         </span>
       </span>

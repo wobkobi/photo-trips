@@ -77,6 +77,8 @@ export function SettingsPage({
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [version, setVersion] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>(showAbout ? "about" : "display");
+  /** A new library folder picked and waiting for the user to confirm it. */
+  const [newRoot, setNewRoot] = useState<string | null>(null);
 
   useEffect(() => {
     isEnabled().then(setAutostart, () => setAutostart(false));
@@ -132,10 +134,18 @@ export function SettingsPage({
     }
   }
 
-  /** Ask for a new library folder and save it. */
+  /** Ask for a new library folder, held for the user to confirm before it's saved. */
   async function changeLibrary(): Promise<void> {
     const picked = await open({ directory: true, title: "Choose your photo library folder" });
-    if (typeof picked === "string") await library.run(() => save("library_root", picked));
+    if (typeof picked === "string" && picked !== settings?.library_root) setNewRoot(picked);
+  }
+
+  /** Save the confirmed library folder; saving it reads the new folder for photos. */
+  async function confirmRoot(): Promise<void> {
+    if (newRoot === null) return;
+    const root = newRoot;
+    setNewRoot(null);
+    await library.run(() => save("library_root", root));
   }
 
   const closeToTray = settings?.close_to_tray !== "false";
@@ -250,8 +260,31 @@ export function SettingsPage({
                 title="Library folder"
                 detail={<span className="selectable">{settings?.library_root}</span>}
               >
-                <Button onClick={changeLibrary}>Change folder</Button>
+                <div className="flex flex-wrap gap-2">
+                  {settings?.library_root && (
+                    <Button onClick={() => library.run(api.openLibrary)}>Open</Button>
+                  )}
+                  <Button onClick={changeLibrary} disabled={newRoot !== null}>
+                    Change folder
+                  </Button>
+                </div>
               </Row>
+              {newRoot !== null && (
+                <div className="mb-4 rounded-md border border-line bg-raised p-4">
+                  <p>
+                    Use <span className="selectable font-semibold break-all">{newRoot}</span>? The
+                    Library will show the photos in it instead. Nothing is moved.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button variant="primary" onClick={confirmRoot} disabled={running !== null}>
+                      Use this folder
+                    </Button>
+                    <Button variant="ghost" onClick={() => setNewRoot(null)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Section>
 
             <FolderNames
@@ -295,6 +328,16 @@ export function SettingsPage({
                   onSave={(text) => types.run(() => save("extra_video_exts", text))}
                 />
               </Row>
+              {settings?.codec_hint_dismissed === "true" && (
+                <Row
+                  title="Missing extension tip"
+                  detail="Hidden. It names the Windows extension a photo needs when its thumbnail won't show."
+                >
+                  <Button onClick={() => types.run(() => save("codec_hint_dismissed", "false"))}>
+                    Show again
+                  </Button>
+                </Row>
+              )}
             </Section>
           </>
         )}
