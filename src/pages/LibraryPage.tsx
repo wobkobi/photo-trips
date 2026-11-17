@@ -135,18 +135,24 @@ export function LibraryPage({
     [edits.free, trips],
   );
 
+  // Ctrl+A only while the grid is what's on screen, not over the viewer or a trip review.
+  const gridShown = open === null && tripReview.review === null;
   useEffect(() => {
-    if (!selecting) return;
     /**
-     * Escape stops picking.
+     * Escape stops picking; Ctrl+A picks every photo shown, unless the key is for a text box.
      * @param event - the key pressed
      */
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") clearSelection();
+      if (event.key === "Escape" && selecting) clearSelection();
+      const pickAll = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a";
+      if (!pickAll || !gridShown || ids.length === 0 || isTyping(event.target)) return;
+      event.preventDefault();
+      setSelected(new Set(ids));
+      setAnchor(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selecting, clearSelection]);
+  }, [selecting, clearSelection, gridShown, ids]);
 
   /**
    * Explorer-style selection: Ctrl toggles, Shift extends from the last clicked tile, and a
@@ -581,4 +587,14 @@ function ViewerTrip({
       </div>
     </section>
   );
+}
+
+/**
+ * Whether a key press is going into a text box, where Ctrl+A selects the text instead.
+ * @param target - the key press's target
+ * @returns true for a text input, text area, drop-down or editable element
+ */
+function isTyping(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }

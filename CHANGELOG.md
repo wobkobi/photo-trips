@@ -15,6 +15,8 @@ All notable changes to this project are documented here. The format follows
 - After an import, See in Library goes straight to the new photos.
 - History can show or open each file wherever it is now, lists older changes on request rather
   than stopping at 200, and offers to sort or import again when some files failed.
+- Arrow keys move between photos in the grid, Ctrl+A picks every photo shown, Home and End go to the
+  first and last photo in the viewer, and Help lists them.
 
 ## [0.24.0] - 2026-11-16
 

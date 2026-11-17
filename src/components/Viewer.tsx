@@ -182,7 +182,8 @@ export function Viewer({
   // Capture phase, so Escape closes only the viewer, not the selection or menu of the page behind.
   useEffect(() => {
     /**
-     * Escape closes the viewer; the left and right arrows step through the source.
+     * Escape closes the viewer; the left and right arrows step through the source, and Home and
+     * End go to its first and last. Keys meant for a focused video's controls are left to it.
      * @param event - the window's keydown, caught before the page behind sees it
      */
     function onKey(event: KeyboardEvent): void {
@@ -192,6 +193,9 @@ export function Viewer({
       }
       if (event.key === "ArrowLeft" && index > 0) onIndex(index - 1);
       if (event.key === "ArrowRight" && index < source.count - 1) onIndex(index + 1);
+      if (event.target instanceof HTMLMediaElement) return;
+      if (event.key === "Home" && index > 0) onIndex(0);
+      if (event.key === "End" && index < source.count - 1) onIndex(source.count - 1);
     }
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);

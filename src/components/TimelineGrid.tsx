@@ -6,11 +6,12 @@ import {
   useRef,
   useState,
   type ReactElement,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import { thumbUrl, type Tile } from "../lib/api";
-import { count, jumpRow, timelineRows, type TimelineRow } from "../lib/format";
+import { count, jumpRow, stepTile, timelineRows, type TimelineRow } from "../lib/format";
 import { tripBg } from "../lib/trips";
 import { DateRail, type RailMonth } from "./DateRail";
 import { Icon } from "./Icon";
@@ -186,9 +187,34 @@ export function TimelineGrid({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jump, laidOut]);
 
+  /**
+   * Arrow keys, Home and End move focus between tiles. The tile may not be drawn yet, so its row
+   * is scrolled into view first and the tile focused once it's there, as for a jump.
+   * @param event - a key press inside the grid
+   */
+  function onGridKey(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const from = (event.target as HTMLElement).dataset.tile;
+    if (from === undefined) return;
+    const to = stepTile(rows, Number(from), event.key, tiles.length);
+    if (to === null) return;
+    event.preventDefault();
+    const row = rows.findIndex((r) => r.type === "tiles" && to >= r.start && to < r.end);
+    virtualizer.scrollToIndex(row, { align: "auto" });
+    let tries = 0;
+    /** Focus the tile once it's drawn, retrying each frame up to JUMP_FRAMES. */
+    const focusTile = (): void => {
+      const tile = scrollRef.current?.querySelector<HTMLButtonElement>(`[data-tile="${to}"]`);
+      if (tile) tile.focus({ preventScroll: true });
+      else if (++tries < JUMP_FRAMES) requestAnimationFrame(focusTile);
+    };
+    focusTile();
+  }
+
   return (
     <div className={`flex ${ownsHeight ? LIST_FILL : "min-h-0 flex-1"}`}>
-      <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto">
+      {/* Key presses bubble up from the focused tile button. */}
+      <div ref={scrollRef} onKeyDown={onGridKey} className="min-w-0 flex-1 overflow-y-auto">
         {width > 0 && (
           <div
             className="relative w-full"
