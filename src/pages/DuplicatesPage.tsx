@@ -1,8 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
-import { MovingProgress, ResultBanner } from "../components/PlanPreview";
+import { MovingProgress } from "../components/PlanPreview";
 import {
   Button,
   EmptyState,
@@ -13,19 +12,12 @@ import {
 } from "../components/ui";
 import { Viewer } from "../components/Viewer";
 import { useLibrarySource } from "../components/viewSources";
-import {
-  api,
-  errorText,
-  thumbUrl,
-  type ApplySummary,
-  type DupCopy,
-  type DupReport,
-  type DupSet,
-} from "../lib/api";
+import { api, errorText, thumbUrl, type DupCopy, type DupReport, type DupSet } from "../lib/api";
 import { keeperOf, pickWithPartners, prunePicks, removalPlan, type Picks } from "../lib/duplicates";
 import { count, formatBytes, splitPath } from "../lib/format";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { usePageMemory } from "../lib/usePageMemory";
+import { useToasts } from "../lib/useToasts";
 
 /**
  * Height of one set in the list (header, a row of copy cards and spacing) when nothing wraps. A
@@ -42,23 +34,18 @@ const KIND_TEXT: Record<DupSet["kind"], [string, string]> = {
 
 /**
  * Photos and videos that are exact copies of each other. One copy of each set stays; the
- * rest go to the Recycle Bin as one change that History can undo.
- * @param props - Component props.
- * @param props.onNavigate - switch to another page
+ * rest go to the Recycle Bin as one change that History can undo. The result shows as a toast
+ * with Undo.
  * @returns the page
  */
-export function DuplicatesPage({
-  onNavigate,
-}: {
-  onNavigate: (page: PageId) => void;
-}): ReactElement {
+export function DuplicatesPage(): ReactElement {
   const { running } = useJobs();
+  const { expectJob } = useToasts();
   const [report, setReport] = useState<DupReport | null>(null);
   // Kept for the next visit. Each read of the sets drops picks for sets or copies that went.
   const [picks, setPicks] = usePageMemory<Picks>("duplicates.picks", {});
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ApplySummary | null>(null);
 
   const load = useCallback(() => {
     api.listDuplicates().then(
@@ -75,14 +62,10 @@ export function DuplicatesPage({
   // An import check hashes library files, which can turn up sets nobody compared yet.
   useJobDone(["index", "duplicates", "import-scan", "import", "inbox"], load);
   useJobDone("remove", (done) => {
-    if (done.ok) setResult(done.result as ApplySummary);
-    else if (done.error) setError(done.error);
+    if (!done.ok && done.error) setError(done.error);
     load();
   });
-  useJobDone("undo", () => {
-    setResult(null);
-    load();
-  });
+  useJobDone("undo", load);
 
   /**
    * Run an action with the confirm closed, showing any failure as the page error.
@@ -109,6 +92,17 @@ export function DuplicatesPage({
    */
   const check = (): Promise<void> => run(api.findDuplicates);
 
+  /** Send the unpicked copies to the Recycle Bin; the job's end shows a toast. */
+  function removeCopies(): void {
+    const forget = expectJob("remove", { destination: "the Recycle Bin" });
+    void run(() =>
+      api.removeDuplicates(plan.choices).catch((err: unknown) => {
+        forget();
+        throw err;
+      }),
+    );
+  }
+
   return (
     <div className="flex h-full flex-col">
       <PageHeader
@@ -121,11 +115,7 @@ export function DuplicatesPage({
               <span className="text-[15px]">
                 Move {count(plan.copies, "copy", "copies")} to the Recycle Bin?
               </span>
-              <Button
-                variant="primary"
-                onClick={() => run(() => api.removeDuplicates(plan.choices))}
-                busy={busy}
-              >
+              <Button variant="primary" onClick={removeCopies} busy={busy}>
                 Move to Recycle Bin
               </Button>
               <Button variant="ghost" onClick={() => setConfirming(false)}>
@@ -156,15 +146,6 @@ export function DuplicatesPage({
         <p role="alert" className="mx-5 mt-3 text-danger">
           {error}
         </p>
-      )}
-      {result && !showProgress && (
-        <ResultBanner
-          result={result}
-          destination="the Recycle Bin"
-          busy={busy}
-          onUndo={() => run(() => api.undoBatch(result.batchId))}
-          onHistory={() => onNavigate("history")}
-        />
       )}
 
       {showProgress && running && <MovingProgress job={running} />}

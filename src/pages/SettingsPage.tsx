@@ -11,18 +11,17 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import type { PageId } from "../App";
 import { AppIcon } from "../components/AppIcon";
 import { BrandMark } from "../components/BrandMark";
 import { FolderNames } from "../components/FolderNames";
 import { InboxSettings } from "../components/InboxSettings";
 import { LegalLinks } from "../components/LegalLinks";
-import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
+import { MovingProgress, PlanView } from "../components/PlanPreview";
 import { Choices, Row, SavedText, Section, Toggle } from "../components/SettingParts";
 import { SuggestionSettings } from "../components/SuggestionSettings";
 import { Button, PageHeader } from "../components/ui";
 import { UpdateCheck } from "../components/UpdateCheck";
-import { api, AUTOSTART_CHANGED, errorText, type ApplySummary, type Preview } from "../lib/api";
+import { api, AUTOSTART_CHANGED, errorText, type Preview } from "../lib/api";
 import { PHOTO_SIZES, photoSizeOf, TEXT_SIZES, textSizeOf, themeOf, THEMES } from "../lib/display";
 import { count } from "../lib/format";
 import { normaliseExtensions } from "../lib/settingValues";
@@ -30,6 +29,7 @@ import { useAction } from "../lib/useAction";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { usePageMemory } from "../lib/usePageMemory";
 import { useSettings } from "../lib/useSettings";
+import { useToasts } from "../lib/useToasts";
 
 /** The groups of settings, one shown at a time, in the order the list shows them. */
 const TABS = [
@@ -48,27 +48,24 @@ type TabId = (typeof TABS)[number]["id"];
  * App settings in groups, picked from a list down the left (a row along the top on a narrow
  * window): display, library and folder names, inbox folders, suggestions, file types, window
  * behaviour, and the app's version, maker and updates. A folder name change swaps the page for
- * its preview of the renames until it's applied or abandoned.
+ * its preview of the renames until it's applied or abandoned; the result shows as a toast.
  * @param props - Component props.
  * @param props.showAbout - Help > About or Check for updates was picked; open at About
  * @param props.onAboutShown - called once About is showing
- * @param props.onNavigate - switch to another page
  * @returns the page
  */
 export function SettingsPage({
   showAbout,
   onAboutShown,
-  onNavigate,
 }: {
   showAbout: boolean;
   onAboutShown: () => void;
-  onNavigate: (page: PageId) => void;
 }): ReactElement {
   const { settings, save } = useSettings();
   const { running } = useJobs();
+  const { expectJob } = useToasts();
   const [review, setReview] = useState<Preview | null>(null);
   const [applying, setApplying] = useState(false);
-  const [result, setResult] = useState<ApplySummary | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
   const display = useAction();
   const library = useAction();
@@ -101,37 +98,24 @@ export function SettingsPage({
 
   useJobDone("apply", (done) => {
     if (!applying) return;
-    if (done.ok) setResult(done.result as ApplySummary);
-    else if (done.error) setRenameError(done.error);
+    if (!done.ok && done.error) setRenameError(done.error);
     setApplying(false);
     setReview(null);
   });
-  useJobDone("undo", () => setResult(null));
 
   /**
-   * Apply the reviewed folder renames; the apply job's end clears the review.
+   * Apply the reviewed folder renames; the apply job's end clears the review and shows a toast.
    * @param preview - the reviewed plan
    */
   async function rename(preview: Preview): Promise<void> {
     setRenameError(null);
     setApplying(true);
+    const forget = expectJob("apply", { intro: "Changed the folder names.", undoable: true });
     try {
       await api.applyPlan(preview.id);
     } catch (err) {
+      forget();
       setApplying(false);
-      setRenameError(errorText(err));
-    }
-  }
-
-  /**
-   * Undo the rename batch just applied, showing any failure under the header.
-   * @param batchId - the batch to undo
-   */
-  async function undo(batchId: number): Promise<void> {
-    setRenameError(null);
-    try {
-      await api.undoBatch(batchId);
-    } catch (err) {
       setRenameError(errorText(err));
     }
   }
@@ -190,16 +174,6 @@ export function SettingsPage({
     <>
       <PageHeader title="Settings" />
       {errorLine}
-      {result && (
-        <ResultBanner
-          result={result}
-          intro="Changed the folder names."
-          undoable
-          busy={running !== null}
-          onUndo={() => undo(result.batchId)}
-          onHistory={() => onNavigate("history")}
-        />
-      )}
       <SettingsTabs tab={tab} onTab={setTab}>
         {tab === "display" && (
           <>
@@ -288,7 +262,6 @@ export function SettingsPage({
             <FolderNames
               busy={running !== null}
               onReview={(preview) => {
-                setResult(null);
                 setRenameError(null);
                 setReview(preview);
               }}

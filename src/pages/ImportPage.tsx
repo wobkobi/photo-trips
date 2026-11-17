@@ -1,17 +1,10 @@
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import type { PageId } from "../App";
 import { CodecHint } from "../components/CodecHint";
 import { Icon } from "../components/Icon";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
-import {
-  FolderJumpList,
-  FolderList,
-  LeftAlone,
-  MovingProgress,
-  ResultBanner,
-} from "../components/PlanPreview";
+import { FolderJumpList, FolderList, LeftAlone, MovingProgress } from "../components/PlanPreview";
 import type { TileJump } from "../components/TimelineGrid";
 import { Button, EmptyState, LIST_FILL, PageHeader, ReviewHead } from "../components/ui";
 import { useImportSource } from "../components/viewSources";
@@ -20,7 +13,6 @@ import {
   DEVICES_CHANGED,
   errorText,
   thumbUrl,
-  type ApplySummary,
   type ImportDevice,
   type ImportPreview,
   type ImportSource,
@@ -31,34 +23,33 @@ import { count, formatBytes } from "../lib/format";
 import { firstInFolder, importTiles, pickedFolders, pickTotals } from "../lib/picker";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { useSettings } from "../lib/useSettings";
+import { useToasts } from "../lib/useToasts";
 
 const NONE_LEFT: ReadonlySet<number> = new Set();
 
 /**
  * Bring photos in from a memory card, a phone or a folder. A check lists what's new first,
- * nothing comes in until the user says so, and the whole import can be undone.
+ * nothing comes in until the user says so, and the whole import can be undone. The result
+ * shows as a toast with Undo.
  * @param props - Component props.
- * @param props.onNavigate - switch to another page
  * @param props.dropped - a folder dropped on the window, to check straight away
  * @param props.onDroppedUsed - called once the dropped folder has been taken
  * @returns the page
  */
 export function ImportPage({
-  onNavigate,
   dropped,
   onDroppedUsed,
 }: {
-  onNavigate: (page: PageId) => void;
   dropped: string | null;
   onDroppedUsed: () => void;
 }): ReactElement {
   const { running } = useJobs();
+  const { expectJob } = useToasts();
   const busy = running !== null;
   const [devices, setDevices] = useState<ImportDevice[] | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [moveFiles, setMoveFiles] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ApplySummary | null>(null);
   // Items deselected on the review screen, for the preview they were unticked on.
   const [leftOut, setLeftOut] = useState<{ preview: number; items: ReadonlySet<number> } | null>(
     null,
@@ -80,11 +71,9 @@ export function ImportPage({
     else if (done.error) setError(done.error);
   });
   useJobDone("import", (done) => {
-    if (done.ok) setResult(done.result as ApplySummary);
-    else if (done.error) setError(done.error);
+    if (!done.ok && done.error) setError(done.error);
     setPreview(null);
   });
-  useJobDone("undo", () => setResult(null));
 
   // A dropped folder is checked like a chosen one, with the copy or move choice in force. While
   // a job runs the check buttons are disabled, so a drop then only says to wait. The ref stops
@@ -98,7 +87,6 @@ export function ImportPage({
     takenDrop.current = dropped;
     onDroppedUsed();
     void (async () => {
-      setResult(null);
       setError(null);
       if (busy) {
         setError("Wait for the current task to finish, then drop the folder again.");
@@ -130,7 +118,6 @@ export function ImportPage({
    * @param source - the card, phone or folder to look through
    */
   function check(source: ImportSource): void {
-    setResult(null);
     void run(() => api.scanImport(source));
   }
 
@@ -146,11 +133,18 @@ export function ImportPage({
   }
 
   /**
-   * Start the import, leaving out the unticked items.
+   * Start the import, leaving out the unticked items; the job's end shows a toast.
    * @param ready - the checked import to bring in
    */
-  function bringIn(ready: ImportPreview): void {
-    void run(() => api.applyImport(ready.id, [...left]));
+  async function bringIn(ready: ImportPreview): Promise<void> {
+    setError(null);
+    const forget = expectJob("import", { verb: "imported", show: "library" });
+    try {
+      await api.applyImport(ready.id, [...left]);
+    } catch (err) {
+      forget();
+      setError(errorText(err));
+    }
   }
 
   /** Drop the checked import and go back to the list of sources. */
@@ -182,7 +176,7 @@ export function ImportPage({
               </Button>
               <Button
                 variant="primary"
-                onClick={() => bringIn(preview)}
+                onClick={() => void bringIn(preview)}
                 disabled={totals === null || totals.items === 0}
                 busy={busy}
                 title={
@@ -201,16 +195,6 @@ export function ImportPage({
         <p role="alert" className="mx-5 mt-3 text-danger">
           {error}
         </p>
-      )}
-      {result && !working && (
-        <ResultBanner
-          result={result}
-          verb="imported"
-          busy={busy}
-          onUndo={() => run(() => api.undoBatch(result.batchId))}
-          onHistory={() => onNavigate("history")}
-          onLibrary={() => onNavigate("library")}
-        />
       )}
 
       {working && running && <MovingProgress job={running} />}

@@ -154,7 +154,7 @@ export function nearestTrips(free: Tile[], trips: TripInfo[], limit: number): Tr
 }
 
 /**
- * The result banner's first sentence once a change is made.
+ * The result toast's first sentence once a change is made.
  * @param edit - the change
  * @returns e.g. "Took 2 photos out of Japan."
  */

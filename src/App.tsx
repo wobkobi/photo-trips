@@ -521,7 +521,7 @@ function CurrentPage({
         />
       );
     case "sort":
-      return <SortPage onNavigate={onNavigate} />;
+      return <SortPage />;
     case "trips":
       return (
         <TripsPage
@@ -529,26 +529,21 @@ function CurrentPage({
           onDraftUsed={onTripDraftUsed}
           edit={tripEdit}
           onEditUsed={onTripEditUsed}
-          onNavigate={onNavigate}
           onShowTrip={onShowTrip}
         />
       );
     case "suggestions":
-      return <SuggestionsPage onNavigate={onNavigate} onCreateTrip={onCreateTrip} />;
+      return <SuggestionsPage onCreateTrip={onCreateTrip} />;
     case "import":
-      return (
-        <ImportPage onNavigate={onNavigate} dropped={importDrop} onDroppedUsed={onImportDropUsed} />
-      );
+      return <ImportPage dropped={importDrop} onDroppedUsed={onImportDropUsed} />;
     case "duplicates":
-      return <DuplicatesPage onNavigate={onNavigate} />;
+      return <DuplicatesPage />;
     case "history":
       return (
         <HistoryPage onNavigate={onNavigate} undoAsk={undoAsk} onUndoAskUsed={onUndoAskUsed} />
       );
     case "settings":
-      return (
-        <SettingsPage showAbout={showAbout} onAboutShown={onAboutShown} onNavigate={onNavigate} />
-      );
+      return <SettingsPage showAbout={showAbout} onAboutShown={onAboutShown} />;
     case "help":
       return <HelpPage onNavigate={onNavigate} onTour={onTour} />;
   }

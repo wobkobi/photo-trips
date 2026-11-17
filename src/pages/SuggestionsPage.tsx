@@ -1,51 +1,43 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
-import type { PageId } from "../App";
-import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
+import { MovingProgress, PlanView } from "../components/PlanPreview";
 import { SampleStrip } from "../components/SampleStrip";
 import { Button, EmptyState, PageHeader } from "../components/ui";
-import {
-  api,
-  errorText,
-  type ApplySummary,
-  type Preview,
-  type Suggestion,
-  type Suggestions,
-} from "../lib/api";
+import { api, errorText, type Preview, type Suggestion, type Suggestions } from "../lib/api";
 import { count } from "../lib/format";
 import { namingOf, tripTitle } from "../lib/naming";
 import { formFromSuggestion, howFound, reasonText, suggestionKey } from "../lib/suggestions";
 import { rangeText, toDraft, type TripForm, type TripStart } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { useSettings } from "../lib/useSettings";
+import { useToasts } from "../lib/useToasts";
 
 /** A new trip previewed and waiting for the user to confirm it. */
 interface Review {
   preview: Preview;
   action: string;
-  /** First sentence of the result banner once applied. */
+  /** First sentence of the result toast once applied. */
   done: string;
 }
 
 /**
  * Suggestions: stretches of busy days, or days away from home, that aren't a trip yet. Each
- * can become a trip, previewed as file moves first like any other, or be dismissed.
+ * can become a trip, previewed as file moves first like any other, or be dismissed. A saved
+ * trip shows as a toast with Undo.
  * @param props - Component props.
- * @param props.onNavigate - switch to another page
  * @param props.onCreateTrip - open a suggestion in the trip editor, to change it or untick photos
  * @returns the page
  */
 export function SuggestionsPage({
-  onNavigate,
   onCreateTrip,
 }: {
-  onNavigate: (page: PageId) => void;
   onCreateTrip: (start: TripStart) => void;
 }): ReactElement {
   const { running } = useJobs();
+  const { expectJob } = useToasts();
   const [data, setData] = useState<Suggestions | null>(null);
   const [review, setReview] = useState<Review | null>(null);
-  const [applying, setApplying] = useState<string | null>(null);
-  const [result, setResult] = useState<{ summary: ApplySummary; done: string } | null>(null);
+  /** The reviewed trip is being saved, so the job's end closes the review. */
+  const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   // Loads can overlap (a job finishing while the user restores dismissed ones). Only the
@@ -69,18 +61,14 @@ export function SuggestionsPage({
   useEffect(load, [load]);
   useJobDone(["index", "remove", "import", "inbox"], load);
   useJobDone("apply", (done) => {
-    if (applying !== null) {
-      if (done.ok) setResult({ summary: done.result as ApplySummary, done: applying });
-      else if (done.error) setError(done.error);
-      setApplying(null);
+    if (applying) {
+      if (!done.ok && done.error) setError(done.error);
+      setApplying(false);
       setReview(null);
     }
     load();
   });
-  useJobDone("undo", () => {
-    setResult(null);
-    load();
-  });
+  useJobDone("undo", load);
 
   /**
    * Plan a suggestion as a new trip and show the moves for review before anything changes.
@@ -89,7 +77,6 @@ export function SuggestionsPage({
   async function reviewCreate(form: TripForm): Promise<void> {
     const draft = toDraft(form);
     setError(null);
-    setResult(null);
     setChecking(true);
     try {
       const preview = await api.planTrip({ action: "create", draft });
@@ -109,29 +96,18 @@ export function SuggestionsPage({
   }
 
   /**
-   * Save the reviewed trip and start its moves; the apply job's end shows the result.
+   * Save the reviewed trip and start its moves; the apply job's end shows a toast.
    * @param current - the trip under review
    */
   async function apply(current: Review): Promise<void> {
     setError(null);
-    setApplying(current.done);
+    setApplying(true);
+    const forget = expectJob("apply", { intro: current.done, undoable: true });
     try {
       await api.applyPlan(current.preview.id);
     } catch (err) {
-      setApplying(null);
-      setError(errorText(err));
-    }
-  }
-
-  /**
-   * Undo the trip just made, showing any failure as the page error.
-   * @param batchId - the batch to undo
-   */
-  async function undo(batchId: number): Promise<void> {
-    setError(null);
-    try {
-      await api.undoBatch(batchId);
-    } catch (err) {
+      forget();
+      setApplying(false);
       setError(errorText(err));
     }
   }
@@ -142,7 +118,6 @@ export function SuggestionsPage({
    */
   async function dismiss(suggestion: Suggestion): Promise<void> {
     setError(null);
-    setResult(null);
     const key = suggestionKey(suggestion);
     try {
       await api.dismissSuggestion(suggestion.startDay, suggestion.endDay);
@@ -181,7 +156,7 @@ export function SuggestionsPage({
       <PageHeader
         title={review !== null && !moving ? "Preview" : "Suggestions"}
         // Not once the trip is confirmed, while its job is starting.
-        onBack={review !== null && !moving && applying === null ? () => setReview(null) : undefined}
+        onBack={review !== null && !moving && !applying ? () => setReview(null) : undefined}
         actions={
           review !== null &&
           !moving && (
@@ -195,16 +170,6 @@ export function SuggestionsPage({
         <p role="alert" className="mx-5 mt-3 text-danger">
           {error}
         </p>
-      )}
-      {result && listing && (
-        <ResultBanner
-          result={result.summary}
-          intro={result.done}
-          undoable
-          busy={running !== null}
-          onUndo={() => undo(result.summary.batchId)}
-          onHistory={() => onNavigate("history")}
-        />
       )}
 
       {moving && running && <MovingProgress job={running} />}
