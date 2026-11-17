@@ -2,6 +2,7 @@
 
 import {
   ArrowDownWideNarrow,
+  CalendarDays,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -75,6 +76,7 @@ const ICONS = {
   rotate: RotateCw,
   copy: Copy,
   map: MapIcon,
+  calendar: CalendarDays,
   help: CircleHelp,
 } satisfies Record<string, LucideIcon>;
 

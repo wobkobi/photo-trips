@@ -30,6 +30,7 @@ function tile(id: number, takenAt: string): Tile {
     ext: "jpg",
     name: `IMG_${id}.jpg`,
     uncertain: false,
+    dateSet: false,
     extra: 0,
     version: 0,
     trip: null,
@@ -173,7 +174,8 @@ describe("libraryFolder", () => {
 });
 
 describe("dateNote", () => {
-  it("notes only the less sure dates", () => {
+  it("notes only dates that aren't the file's own record", () => {
+    expect(dateNote("set")).toBe("Set in Pic Cabinet");
     expect(dateNote("exif")).toBeNull();
     expect(dateNote("video")).toBeNull();
     expect(dateNote("filename")).toBe("From the file name");

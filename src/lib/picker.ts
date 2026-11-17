@@ -19,6 +19,7 @@ export function importTiles(items: ImportItem[]): Tile[] {
       ext: item.ext,
       name: splitPath(item.from).name,
       uncertain: item.uncertain,
+      dateSet: false,
       extra: item.extra,
       version: item.version,
       trip: null,

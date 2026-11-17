@@ -71,6 +71,7 @@ export function formatBytes(bytes: number): string {
 }
 
 const SOURCE_TEXT: Record<DateSource, string> = {
+  set: "You set this date in Pic Cabinet. The file itself still has its own date, which other apps show.",
   exif: "From the camera's record of when the photo was taken.",
   video: "From the video's own recording date.",
   windows: "From the date Windows reads from the file.",
@@ -90,12 +91,13 @@ export function sourceText(source: DateSource): string {
 }
 
 /**
- * A short note under a date that's less sure than the file's own record of it; nothing for the
- * rest, whose source shows on hover instead.
+ * A short note under a date that isn't the file's own record of it (set in Pic Cabinet, or
+ * guessed); nothing for the rest, whose source shows on hover instead.
  * @param source - where the date came from
  * @returns the note, or null when the date came from the file's own record
  */
 export function dateNote(source: DateSource): string | null {
+  if (source === "set") return "Set in Pic Cabinet";
   if (source === "filename") return "From the file name";
   if (source === "modified") return "When the file last changed";
   return null;

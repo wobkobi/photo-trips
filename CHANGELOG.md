@@ -24,6 +24,10 @@ All notable changes to this project are documented here. The format follows
 - Zoom into a photo in the viewer with the mouse wheel, the + and - keys or the buttons under it,
   drag to look around, and turn it with R. Copy puts a photo on the clipboard to paste into a
   folder, email or chat, from the viewer or the Library's right-click menu.
+- Set the date of a photo whose own date is wrong or only a guess: Change date in the viewer, or Set
+  date from the Library's right-click menu for several at once. Pic Cabinet keeps the new date and
+  the file isn't changed, so other apps still show its own. Undo it from the banner or History, or
+  go back with Use the file's date.
 
 ### Changed
 

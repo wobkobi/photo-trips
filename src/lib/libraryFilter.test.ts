@@ -17,6 +17,7 @@ function tile(id: number, takenAt: string, extra: Partial<Tile> = {}): Tile {
     ext: "jpg",
     name: `IMG_${id}.jpg`,
     uncertain: false,
+    dateSet: false,
     extra: 0,
     version: 0,
     trip: null,

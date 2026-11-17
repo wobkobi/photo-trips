@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
 import { CodecHint } from "../components/CodecHint";
+import { DateEditor } from "../components/DateEditor";
 import { Icon } from "../components/Icon";
 import { LibraryFilterBar } from "../components/LibraryFilterBar";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
@@ -88,6 +89,13 @@ export function LibraryPage({
   /** This page started the running Recycle Bin job, so its end shows here. */
   const [binStarted, setBinStarted] = useState(false);
   const [binResult, setBinResult] = useState<ApplySummary | null>(null);
+  /** Photos waiting for a new date, picked from the menu. */
+  const [dating, setDating] = useState<Tile[] | null>(null);
+  const [savingDate, setSavingDate] = useState(false);
+  /** The last date change, for its Undo button. */
+  const [dateDone, setDateDone] = useState<{ batch: number; text: string } | null>(null);
+  // Raised after a date change or an undo, so the viewer shows the new date.
+  const [revision, setRevision] = useState(0);
   const tripReview = useTripReview();
 
   const load = useCallback(() => {
@@ -113,7 +121,11 @@ export function LibraryPage({
     if (job.ok) setBinResult(job.result as ApplySummary);
     else if (job.error) setError(job.error);
   });
-  useJobDone("undo", () => setBinResult(null));
+  useJobDone("undo", () => {
+    setBinResult(null);
+    setDateDone(null);
+    setRevision((r) => r + 1);
+  });
 
   const onThumbError = useCallback(
     (tile: Tile) => setFailedThumbs((prev) => (prev.length >= 50 ? prev : [...prev, tile])),
@@ -121,7 +133,7 @@ export function LibraryPage({
   );
   const closeViewer = useCallback(() => setOpen(null), []);
   const ids = useMemo(() => tiles?.map((t) => t.id) ?? [], [tiles]);
-  const source = useLibrarySource(ids);
+  const source = useLibrarySource(ids, revision);
   const clearSelection = useCallback(() => {
     setPicking(false);
     setSelected(new Set());
@@ -226,7 +238,17 @@ export function LibraryPage({
       { label: "Show in folder", onSelect: fileAction.bind(null, api.revealMedia, tile.id) },
       { label: "Copy", onSelect: fileAction.bind(null, api.copyMedia, tile.id) },
       { label: "Copy path", onSelect: copyPath.bind(null, tile.id) },
+      {
+        label:
+          pick.length > 1 ? `Set date for ${countOf(pick.length, "photo", "photos")}` : "Set date",
+        onSelect: setDating.bind(null, pick),
+        divided: true,
+      },
     ];
+    const set = pick.filter((t) => t.dateSet);
+    if (set.length > 0) {
+      items.push({ label: "Use the file's date", onSelect: fileDates.bind(null, set) });
+    }
     const found = pickedEdits(pick, trips, allTiles ?? []);
     const adds = nearestTrips(found.free, trips, ADD_CHOICES).map((trip) =>
       addEdit(trip, found.free, allTiles ?? []),
@@ -264,6 +286,48 @@ export function LibraryPage({
       setBinStarted(false);
       setError(errorText(err));
     });
+  }
+
+  /**
+   * Set the date of some photos in Pic Cabinet, or go back to their files' own dates, then show
+   * the change with its Undo. A photo open in the viewer stays open as it moves in the timeline.
+   * @param chosen - the photos
+   * @param date - local time, `YYYY-MM-DDTHH:MM:SS`, or null for the files' own dates
+   */
+  async function saveDates(chosen: Tile[], date: string | null): Promise<void> {
+    const openId = open !== null ? tiles?.[open]?.id : undefined;
+    setSavingDate(true);
+    try {
+      const batch = await api.setDates(
+        chosen.map((t) => t.id),
+        date,
+      );
+      const photos = countOf(chosen.length, "photo", "photos");
+      setDateDone({
+        batch,
+        text: date ? `Date set for ${photos}.` : `Back to the file's own date for ${photos}.`,
+      });
+      setDating(null);
+      const fresh = await api.libraryTiles();
+      setTiles(fresh);
+      setRevision((r) => r + 1);
+      if (openId !== undefined) {
+        const at = filterTiles(fresh, filter).findIndex((t) => t.id === openId);
+        setOpen(at >= 0 ? at : null);
+      }
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setSavingDate(false);
+    }
+  }
+
+  /**
+   * Go back to the files' own dates for photos whose date was set in Pic Cabinet.
+   * @param chosen - the photos
+   */
+  function fileDates(chosen: Tile[]): void {
+    void saveDates(chosen, null);
   }
 
   /**
@@ -477,6 +541,35 @@ export function LibraryPage({
           </Button>
         </div>
       )}
+      {dating !== null && !reviewing && (
+        <div className="mx-5 mt-3 flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface p-4">
+          <p className="min-w-0 flex-1 basis-60">
+            New date for {countOf(dating.length, "photo", "photos")}. Only Pic Cabinet uses it; the
+            files aren&apos;t changed.
+          </p>
+          <DateEditor
+            initial={dating[0].takenAt}
+            busy={savingDate}
+            onSave={(date) => void saveDates(dating, date)}
+            onCancel={() => setDating(null)}
+          />
+        </div>
+      )}
+      {dateDone && !reviewing && (
+        <div className="mx-5 mt-3 flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface p-4">
+          <p className="min-w-0 flex-1 basis-60">{dateDone.text}</p>
+          <Button
+            onClick={() => api.undoBatch(dateDone.batch).catch((err) => setError(errorText(err)))}
+            disabled={running !== null}
+          >
+            <Icon name="undo" size={16} />
+            Undo
+          </Button>
+          <Button variant="ghost" onClick={() => setDateDone(null)}>
+            Close
+          </Button>
+        </div>
+      )}
       {binResult && !reviewing && (
         <ResultBanner
           result={binResult}
@@ -544,14 +637,22 @@ export function LibraryPage({
           onClose={closeViewer}
           steps={["Newer", "Older"]}
           controls={
-            <ViewerTrip
-              tile={tiles[open]}
-              trips={trips}
-              tiles={allTiles ?? []}
-              busy={running !== null || tripReview.checking}
-              onEdit={startEdit}
-              onShow={(trip) => changeFilter({ ...filter, trip })}
-            />
+            <>
+              <ViewerTrip
+                tile={tiles[open]}
+                trips={trips}
+                tiles={allTiles ?? []}
+                busy={running !== null || tripReview.checking}
+                onEdit={startEdit}
+                onShow={(trip) => changeFilter({ ...filter, trip })}
+              />
+              <ViewerDate
+                key={tiles[open].id}
+                tile={tiles[open]}
+                busy={savingDate}
+                onSave={(date) => void saveDates([tiles[open]], date)}
+              />
+            </>
           }
         />
       )}
@@ -655,6 +756,52 @@ function ViewerTrip({
         ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * The viewer's date buttons for one photo: change its date, or go back to the file's own date
+ * once one has been set.
+ * @param props - Component props.
+ * @param props.tile - the photo on show
+ * @param props.busy - a date change is being saved
+ * @param props.onSave - set the date, `YYYY-MM-DDTHH:MM:SS`, or null for the file's own
+ * @returns the buttons, or the date box while changing it
+ */
+function ViewerDate({
+  tile,
+  busy,
+  onSave,
+}: {
+  tile: Tile;
+  busy: boolean;
+  onSave: (date: string | null) => void;
+}): ReactElement {
+  const [editing, setEditing] = useState(false);
+  if (editing) {
+    return (
+      <div className="mt-4">
+        <DateEditor
+          initial={tile.takenAt}
+          busy={busy}
+          onSave={onSave}
+          onCancel={() => setEditing(false)}
+        />
+      </div>
+    );
+  }
+  return (
+    <div className="mt-4 flex flex-wrap gap-2">
+      <Button onClick={() => setEditing(true)}>
+        <Icon name="calendar" size={16} />
+        Change date
+      </Button>
+      {tile.dateSet && (
+        <Button variant="ghost" onClick={() => onSave(null)} disabled={busy}>
+          Use the file&apos;s date
+        </Button>
+      )}
+    </div>
   );
 }
 

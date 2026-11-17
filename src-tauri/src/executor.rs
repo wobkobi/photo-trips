@@ -225,7 +225,7 @@ fn begin_removals(
                 (SELECT json_object('id', id, 'path', path, 'group_key', group_key,
                     'kind', kind, 'size', size, 'mtime', mtime, 'taken_at', taken_at,
                     'tz_offset_min', tz_offset_min, 'date_source', date_source, 'lat', lat,
-                    'lon', lon, 'hash', hash, 'indexed_at', indexed_at)
+                    'lon', lon, 'hash', hash, 'indexed_at', indexed_at, 'date_set', date_set)
                  FROM media WHERE id = ?4))",
         )?;
         let mut seq = 0_i64;
@@ -929,7 +929,7 @@ fn restore_media_row(conn: &Connection, entry_id: i64) -> Result<()> {
     )?;
     conn.execute(
         "INSERT INTO media (id, path, group_key, kind, size, mtime, taken_at, tz_offset_min,
-                            date_source, lat, lon, hash, indexed_at)
+                            date_source, lat, lon, hash, indexed_at, date_set)
          SELECT CASE WHEN EXISTS (SELECT 1 FROM media WHERE id = json_extract(r, '$.id'))
                      THEN NULL ELSE json_extract(r, '$.id') END,
                 json_extract(r, '$.path'), json_extract(r, '$.group_key'),
@@ -937,7 +937,7 @@ fn restore_media_row(conn: &Connection, entry_id: i64) -> Result<()> {
                 json_extract(r, '$.taken_at'), json_extract(r, '$.tz_offset_min'),
                 json_extract(r, '$.date_source'), json_extract(r, '$.lat'),
                 json_extract(r, '$.lon'), json_extract(r, '$.hash'),
-                json_extract(r, '$.indexed_at')
+                json_extract(r, '$.indexed_at'), json_extract(r, '$.date_set')
          FROM (SELECT media_row AS r FROM journal WHERE id = ?1 AND media_row IS NOT NULL)",
         [entry_id],
     )?;

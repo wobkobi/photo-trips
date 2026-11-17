@@ -13,6 +13,7 @@ use crate::executor::{self, Env, UndoSummary};
 use crate::jobs;
 use crate::naming;
 use crate::organise::relative;
+use crate::redate;
 use crate::trips;
 
 /// Most batches listed at once, newest first; the page asks for more as the user goes back.
@@ -198,6 +199,7 @@ pub fn undo(env: &Env, batch_id: i64) -> Result<UndoSummary> {
         if status == "undone" {
             match kind.as_str() {
                 "naming" => naming::restore(&conn, data)?,
+                "date" => redate::restore(&conn, data)?,
                 _ => trips::restore(&conn, data)?,
             }
         }
@@ -223,6 +225,7 @@ fn check(conn: &Connection, batch_id: i64) -> Result<Option<(String, String)>> {
     };
     match kind.as_str() {
         "naming" => naming::check_undo(conn, &data)?,
+        "date" => redate::check_undo(conn, &data)?,
         _ => trips::check_undo(conn, &data)?,
     }
     Ok(Some((kind, data)))

@@ -29,6 +29,8 @@ pub struct Tile {
     pub name: String,
     /// Date guessed from the file's modified time.
     pub uncertain: bool,
+    /// Date set by the user in Pic Cabinet, over the file's own.
+    pub date_set: bool,
     /// Companion files travelling with the leader (Live Photo video, RAW twin, sidecars).
     pub extra: usize,
     /// Changes whenever the file does, so thumbnail URLs bust the webview cache.
@@ -105,6 +107,7 @@ pub fn tile(group: &Group, trips: &[Trip]) -> Tile {
         ext: formats::ext_of(&leader.path),
         name: file_name(&leader.path),
         uncertain: group.date_source == DateSource::Modified,
+        date_set: group.date_source == DateSource::Set,
         extra: group.members.len() - 1,
         version: leader.mtime,
         trip: trip_of(trips, group).map(|t| TileTrip {

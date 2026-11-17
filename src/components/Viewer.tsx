@@ -193,7 +193,8 @@ export function Viewer({
   useEffect(() => {
     /**
      * Escape closes the viewer; the left and right arrows step through the source, and Home and
-     * End go to its first and last. Keys meant for a focused video's controls are left to it.
+     * End go to its first and last. Keys meant for a focused video's controls or a box in the side
+     * panel are left to them.
      * @param event - the window's keydown, caught before the page behind sees it
      */
     function onKey(event: KeyboardEvent): void {
@@ -201,6 +202,8 @@ export function Viewer({
         event.stopPropagation();
         onClose();
       }
+      // A date box in the side panel uses the arrows itself.
+      if (event.target instanceof HTMLInputElement) return;
       if (event.key === "ArrowLeft" && index > 0) onIndex(index - 1);
       if (event.key === "ArrowRight" && index < source.count - 1) onIndex(index + 1);
       if (event.target instanceof HTMLMediaElement) return;

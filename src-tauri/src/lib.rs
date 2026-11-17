@@ -26,6 +26,7 @@ mod mtp;
 mod organise;
 mod planner;
 mod recycle;
+mod redate;
 mod scan;
 mod suggest;
 mod thumbs;
@@ -160,6 +161,7 @@ pub fn run() {
             library::reveal_media,
             library::open_library,
             library::recycle_media,
+            redate::set_dates,
             library::copy_media,
             library::media_details,
             library::open_notices,

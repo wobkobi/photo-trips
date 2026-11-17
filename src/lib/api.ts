@@ -7,7 +7,8 @@ export type Settings = Record<string, string>;
 export type MediaKind = "photo" | "raw" | "video" | "companion";
 
 /** Where a file's date came from, best first. Mirrors DateSource in dates.rs. */
-export type DateSource = "exif" | "video" | "windows" | "exiftool" | "filename" | "modified";
+export type DateSource =
+  "set" | "exif" | "video" | "windows" | "exiftool" | "filename" | "modified";
 
 /** One grid tile: a photo or video plus any files that travel with it. */
 export interface Tile {
@@ -19,6 +20,8 @@ export interface Tile {
   name: string;
   /** Date guessed from the file's modified time. */
   uncertain: boolean;
+  /** Date set in Pic Cabinet, over the file's own. */
+  dateSet: boolean;
   /** Companion files (Live Photo video, RAW twin, sidecars). */
   extra: number;
   version: number;
@@ -570,6 +573,14 @@ export const api = {
    * @returns resolves once it's on the clipboard
    */
   copyMedia: (id: number) => invoke<void>("copy_media", { id }),
+  /**
+   * Set the date of photos, with the files that go with them, in Pic Cabinet only: the files
+   * aren't changed. History can undo it.
+   * @param ids - the photos' media ids
+   * @param date - local time, `YYYY-MM-DDTHH:MM:SS`, or null to go back to the files' own dates
+   * @returns the History batch id, for an Undo button
+   */
+  setDates: (ids: number[], date: string | null) => invoke<number>("set_dates", { ids, date }),
   /**
    * Send photos and the files that go with them to the Recycle Bin, in the background, as one
    * change History can undo.

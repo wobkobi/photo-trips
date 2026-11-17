@@ -115,6 +115,11 @@ const MIGRATIONS: &[&str] = &[
         PRIMARY KEY (trip_id, media_id)
     );
 "#,
+    // A date the user set, used over taken_at. A rescan rewrites taken_at from the file, so the
+    // user's date lives in its own column that only Pic Cabinet writes.
+    r#"
+    ALTER TABLE media ADD COLUMN date_set TEXT;
+"#,
 ];
 
 /// Open (or create) the database and bring it up to the latest schema.
