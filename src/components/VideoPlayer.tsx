@@ -183,7 +183,7 @@ function BarButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-raised"
+      className="flex size-8.5 shrink-0 items-center justify-center rounded-full hover:bg-raised"
     >
       {children}
     </button>

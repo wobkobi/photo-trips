@@ -455,7 +455,7 @@ function SettingsTabs({
             tabIndex={tab === t.id ? 0 : -1}
             onClick={() => onTab(t.id)}
             onKeyDown={onKey}
-            className={`flex min-h-10 items-center rounded-md px-3 text-left text-[15px] transition-colors ${
+            className={`flex min-h-8.5 items-center rounded-md px-3 text-left text-[15px] transition-colors ${
               tab === t.id
                 ? "bg-raised font-semibold text-ink"
                 : "text-muted hover:bg-raised/60 hover:text-ink"

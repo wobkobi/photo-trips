@@ -267,7 +267,7 @@ export function FolderJumpList({
   return (
     <details className="group shrink-0 border-t border-line px-3 lg:hidden">
       {/* A flex summary loses the browser's marker, so the chevron stands in for it. */}
-      <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 px-2 text-[14px] text-muted hover:text-ink">
+      <summary className="flex min-h-8.5 cursor-pointer list-none items-center gap-2 px-2 text-[14px] text-muted hover:text-ink">
         <Icon
           name="chevron"
           size={16}
@@ -323,7 +323,7 @@ function FolderEntries({
                 type="button"
                 onClick={() => onOpen(folder)}
                 aria-label={`Go to the ${count(n, "photo", "photos")} going into ${title}`}
-                className="flex min-h-10 w-full items-baseline justify-between gap-3 rounded-md px-2.5 py-1 text-left text-[14px] hover:bg-raised"
+                className="flex min-h-8.5 w-full items-baseline justify-between gap-3 rounded-md px-2.5 py-1 text-left text-[14px] hover:bg-raised"
               >
                 {body}
               </button>
