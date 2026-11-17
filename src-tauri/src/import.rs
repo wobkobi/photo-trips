@@ -322,6 +322,67 @@ pub fn plan(ctx: &Ctx, mut found: Vec<Found>, exists: &dyn Fn(&Path) -> bool) ->
     Ok(out)
 }
 
+/// A file that arrived after files of its name were filed from the same folder, with the
+/// library files those became.
+pub struct Late {
+    pub found: Found,
+    pub filed: Vec<MediaRow>,
+}
+
+/// Place files that arrived after their partners were filed, each beside its partner under the
+/// partner's name (`IMG_1 (1).MOV` beside `IMG_1 (1).HEIC`), so the two are one tile again. A
+/// late sidecar comes in this way too, where on its own it would have no photo to go with.
+/// Returns those groups, and the files that turn out to be pictures of their own (a second
+/// photo, or taken more than a few minutes apart) for [`plan`].
+pub fn plan_beside(
+    ctx: &Ctx,
+    late: Vec<Late>,
+    exists: &dyn Fn(&Path) -> bool,
+) -> Result<(Vec<IncomingGroup>, Vec<Found>)> {
+    let files: Vec<&ScannedFile> = late.iter().map(|l| &l.found.file).collect();
+    let rows = index::read_files(&files, ctx.exiftool, ctx.cancel, ctx.report)?;
+    let now = db::now();
+    let (mut groups, mut rest) = (Vec::new(), Vec::new());
+    for (late, row) in late.into_iter().zip(&rows) {
+        let mut filed = late.filed;
+        filed.sort_by_key(|m| m.kind.lead_rank());
+        let partner = filed.first().filter(|partner| {
+            let as_row = MediaRow {
+                taken_at: row.meta.taken_at,
+                date_source: row.meta.source,
+                kind: row.kind,
+                ..(*partner).clone()
+            };
+            row.kind == Kind::Companion
+                || (filed.iter().all(|m| m.kind != row.kind) && groups::belongs_with(partner, &as_row))
+        });
+        let to = partner.and_then(|partner| beside(partner, &late.found.file, ctx.table));
+        match to {
+            Some(to) if !exists(&to) => groups.push(IncomingGroup {
+                files: vec![Incoming {
+                    from: late.found.file.path.clone(),
+                    origin: late.found.origin.clone(),
+                    row: row_json(&to, row, late.found.hash.as_deref(), ctx.table, now),
+                    to,
+                }],
+                renamed: false,
+            }),
+            _ => rest.push(late.found),
+        }
+    }
+    Ok((groups, rest))
+}
+
+/// Where `file` goes beside `partner`: the partner's folder, with the partner's base name and
+/// the file's own ending (`.MOV`, `.CR2.xmp`).
+fn beside(partner: &MediaRow, file: &ScannedFile, table: &FormatTable) -> Option<PathBuf> {
+    let partner_name = partner.path.file_name()?.to_string_lossy();
+    let (base, _) = scan::split_name(&partner_name, partner.kind, table);
+    let name = file.path.file_name()?.to_string_lossy();
+    let (_, ending) = scan::split_name(&name, file.kind, table);
+    Some(partner.path.parent()?.join(format!("{base}{ending}")))
+}
+
 fn count_already<'a>(plan: &mut ImportPlan, files: impl Iterator<Item = &'a Found>) {
     for f in files {
         plan.already += 1;

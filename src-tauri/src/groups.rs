@@ -92,7 +92,9 @@ pub fn build(rows: Vec<MediaRow>) -> (Vec<Group>, Vec<MediaRow>) {
     (groups, orphans)
 }
 
-fn belongs_with(leader: &MediaRow, other: &MediaRow) -> bool {
+/// Whether `other` can join a group led by `leader`: they were taken within a few minutes, or
+/// either date is only a guess.
+pub fn belongs_with(leader: &MediaRow, other: &MediaRow) -> bool {
     // A guessed date can't prove two files unrelated, so give them the benefit of the doubt.
     if !leader.date_source.is_embedded() || !other.date_source.is_embedded() {
         return true;

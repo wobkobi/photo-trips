@@ -252,6 +252,11 @@ pub fn load_group(conn: &Connection, group_key: &str) -> Result<Vec<MediaRow>> {
     query_rows(conn, "WHERE group_key = ?1", [group_key])
 }
 
+/// One indexed file, if it is still in the library.
+pub fn load_row(conn: &Connection, id: i64) -> Result<Option<MediaRow>> {
+    Ok(query_rows(conn, "WHERE id = ?1", [id])?.pop())
+}
+
 fn query_rows(conn: &Connection, filter: &str, args: impl rusqlite::Params) -> Result<Vec<MediaRow>> {
     let mut stmt = conn.prepare(&format!(
         "SELECT id, path, group_key, kind, size, mtime, COALESCE(date_set, taken_at),

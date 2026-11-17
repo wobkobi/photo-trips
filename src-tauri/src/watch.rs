@@ -26,8 +26,10 @@ use crate::db;
 use crate::error::{Error, Result};
 use crate::executor::{self, ApplySummary, Env, NewBatch, Transfer};
 use crate::exiftool;
-use crate::formats::FormatTable;
-use crate::import::{self, Ctx, Found};
+use crate::formats::{FormatTable, Kind};
+use crate::groups::MediaRow;
+use crate::import::{self, Ctx, Found, Late};
+use crate::index;
 use crate::jobs::{self, Jobs};
 use crate::index::path_key;
 use crate::planner::is_inside;
@@ -39,6 +41,9 @@ use crate::trips;
 
 /// A file counts as arrived once its size and modified time have held still this long.
 const QUIET: Duration = Duration::from_secs(5);
+/// How long a photo or RAW holds still instead, since its Live Photo video, RAW twin or sidecar
+/// is often saved a few seconds after it, and arriving together keeps them one batch.
+const LEAD_QUIET: Duration = Duration::from_secs(20);
 /// While other files are still arriving, an arrived file waits this long at most before it
 /// goes in without them.
 const MAX_WAIT: Duration = Duration::from_secs(60);
@@ -72,6 +77,8 @@ struct Seen {
     /// When the size or modified time last changed.
     changed: Instant,
     first: Instant,
+    /// How long it must hold still: [`QUIET`] or [`LEAD_QUIET`].
+    quiet: Duration,
 }
 
 /// Files seen arriving in the inbox folders and when each last changed.
@@ -81,8 +88,9 @@ struct Arrivals {
 }
 
 impl Arrivals {
-    /// Note a file's size and modified time. A change starts its quiet period again.
-    fn see(&mut self, path: PathBuf, size: u64, mtime: i64, now: Instant) {
+    /// Note a file's size and modified time. A change starts its quiet period again. `quiet`
+    /// only counts for a file not seen before.
+    fn see(&mut self, path: PathBuf, size: u64, mtime: i64, quiet: Duration, now: Instant) {
         match self.files.get_mut(&path) {
             Some(seen) if seen.size == size && seen.mtime == mtime => {}
             Some(seen) => {
@@ -91,7 +99,7 @@ impl Arrivals {
                 seen.changed = now;
             }
             None => {
-                self.files.insert(path, Seen { size, mtime, changed: now, first: now });
+                self.files.insert(path, Seen { size, mtime, changed: now, first: now, quiet });
             }
         }
     }
@@ -104,7 +112,7 @@ impl Arrivals {
     }
 
     fn is_quiet(seen: &Seen, now: Instant) -> bool {
-        now.duration_since(seen.changed) >= QUIET
+        now.duration_since(seen.changed) >= seen.quiet
     }
 
     /// Remove and return the files ready to go in. Once every file is quiet they all go, so a
@@ -419,11 +427,13 @@ fn note_event(app: &AppHandle, event: &Event) {
             let found = scan::scan(path, &inner.table, &AtomicBool::new(false));
             for file in found.map(|r| r.files).unwrap_or_default() {
                 if inner.inbox_of(&file.path).is_some() {
-                    inner.arrivals.see(file.path, file.size, file.mtime, now);
+                    let quiet = quiet_for(&file.path, &inner.table);
+                    inner.arrivals.see(file.path, file.size, file.mtime, quiet, now);
                 }
             }
         } else if scan::file_kind(path, &inner.table).is_some() {
-            inner.arrivals.see(path.clone(), meta.len(), scan::mtime_secs(&meta), now);
+            let quiet = quiet_for(path, &inner.table);
+            inner.arrivals.see(path.clone(), meta.len(), scan::mtime_secs(&meta), quiet, now);
         }
     }
 }
@@ -455,7 +465,8 @@ fn tick(app: &AppHandle) -> Result<()> {
         let mut inner = watch.lock()?;
         for file in files {
             if inner.inbox_of(&file.path).is_some() {
-                inner.arrivals.see(file.path, file.size, file.mtime, now);
+                let quiet = quiet_for(&file.path, &inner.table);
+                inner.arrivals.see(file.path, file.size, file.mtime, quiet, now);
             }
         }
     }
@@ -467,7 +478,8 @@ fn tick(app: &AppHandle) -> Result<()> {
         for path in paths {
             match fs::metadata(&path) {
                 Ok(meta) if meta.is_file() => {
-                    inner.arrivals.see(path.clone(), meta.len(), scan::mtime_secs(&meta), now);
+                    // Already waiting, so its quiet period was set when it was first seen.
+                    inner.arrivals.see(path.clone(), meta.len(), scan::mtime_secs(&meta), QUIET, now);
                     let quiet = inner.arrivals.files.get(&path).is_some_and(|s| Arrivals::is_quiet(s, now));
                     if quiet && being_written(&path) {
                         inner.arrivals.still_changing(&path, now);
@@ -494,12 +506,21 @@ fn tick(app: &AppHandle) -> Result<()> {
         let now = Instant::now();
         for path in ready {
             if let Ok(meta) = fs::metadata(&path) {
-                inner.arrivals.see(path, meta.len(), scan::mtime_secs(&meta), now);
+                let quiet = quiet_for(&path, &inner.table);
+                inner.arrivals.see(path, meta.len(), scan::mtime_secs(&meta), quiet, now);
             }
         }
     }
     send_status(app);
     Ok(())
+}
+
+/// How long a file must hold still before it counts as arrived.
+fn quiet_for(path: &Path, table: &FormatTable) -> Duration {
+    match table.kind_of(path) {
+        Some(Kind::Photo | Kind::Raw) => LEAD_QUIET,
+        _ => QUIET,
+    }
 }
 
 /// True while another program has the file open for writing, as during a copy that pauses.
@@ -589,14 +610,17 @@ fn sort_in(ctx: &Ctx, inboxes: &[PathBuf], paths: &[PathBuf]) -> Result<Option<A
         return Ok(None);
     }
     let exists = |p: &Path| fs::symlink_metadata(p).is_ok();
-    let plan = import::plan(ctx, found, &exists)?;
-    if plan.groups.is_empty() {
+    let (late, mut found) = split_late(&*lock(ctx.db)?, found, ctx.table)?;
+    let (beside, not_late) = import::plan_beside(ctx, late, &exists)?;
+    found.extend(not_late);
+    let mut groups = import::plan(ctx, found, &exists)?.groups;
+    groups.extend(beside);
+    if groups.is_empty() {
         return Ok(None);
     }
-    let files = plan.file_count();
+    let files: usize = groups.iter().map(|g| g.files.len()).sum();
     let files = format!("{files} {}", if files == 1 { "file" } else { "files" });
-    let from: HashSet<&PathBuf> = plan
-        .groups
+    let from: HashSet<&PathBuf> = groups
         .iter()
         .flat_map(|g| &g.files)
         .filter_map(|f| inboxes.iter().find(|inbox| is_inside(&f.origin, inbox)))
@@ -617,7 +641,40 @@ fn sort_in(ctx: &Ctx, inboxes: &[PathBuf], paths: &[PathBuf]) -> Result<Option<A
         label: &label,
         on_begin: None,
     };
-    executor::import(&env, &batch, &plan.groups, Transfer::Move).map(Some)
+    executor::import(&env, &batch, &groups, Transfer::Move).map(Some)
+}
+
+/// Split arrivals into files whose name was already filed from the same folder by an earlier
+/// move-in (a Live Photo video saved after its photo), with the library files those became,
+/// and the rest.
+fn split_late(conn: &Connection, found: Vec<Found>, table: &FormatTable) -> Result<(Vec<Late>, Vec<Found>)> {
+    let key_of = |f: &Found| scan::group_key(&f.file.path, f.file.kind, table);
+    let wanted: HashSet<String> = found.iter().map(key_of).collect();
+    let mut filed: HashMap<String, Vec<MediaRow>> = HashMap::new();
+    let mut stmt = conn.prepare(
+        "SELECT src, media_id FROM journal
+         WHERE op = 'import' AND status = 'done' AND media_id IS NOT NULL",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
+    for (src, id) in rows.filter_map(|r| r.ok()) {
+        let src = Path::new(&src);
+        // The file has left the inbox, so its kind comes from its name alone.
+        let kind = table.kind_of(src).unwrap_or(Kind::Companion);
+        let key = scan::group_key(src, kind, table);
+        if wanted.contains(&key)
+            && let Some(row) = index::load_row(conn, id)?
+        {
+            filed.entry(key).or_default().push(row);
+        }
+    }
+    let (mut late, mut rest) = (Vec::new(), Vec::new());
+    for found in found {
+        match filed.get(&key_of(&found)) {
+            Some(rows) => late.push(Late { found, filed: rows.clone() }),
+            None => rest.push(found),
+        }
+    }
+    Ok((late, rest))
 }
 
 /// Files that an undone move-in put back, by path (as [`path_key`]), size and modified time.
@@ -676,7 +733,6 @@ mod tests {
     use super::*;
     use crate::executor::testing::{library, no_report, snapshot};
     use crate::import::testing::write;
-    use crate::index;
 
     #[test]
     fn the_notification_matches_the_number_of_files() {
@@ -701,10 +757,10 @@ mod tests {
         let start = Instant::now();
         let mut arrivals = Arrivals::default();
         let photo = PathBuf::from("C:\\Inbox\\IMG_0001.jpg");
-        arrivals.see(photo.clone(), 100, 1, start);
+        arrivals.see(photo.clone(), 100, 1, QUIET, start);
         assert!(arrivals.take_ready(start + Duration::from_secs(4)).is_empty());
         // Still growing: the wait starts again.
-        arrivals.see(photo.clone(), 200, 2, start + Duration::from_secs(4));
+        arrivals.see(photo.clone(), 200, 2, QUIET, start + Duration::from_secs(4));
         assert!(arrivals.take_ready(start + Duration::from_secs(8)).is_empty());
         assert_eq!(arrivals.take_ready(start + Duration::from_secs(9)), [photo]);
         assert!(arrivals.files.is_empty());
@@ -716,8 +772,8 @@ mod tests {
         let mut arrivals = Arrivals::default();
         let photo = PathBuf::from("C:\\Inbox\\IMG_0001.heic");
         let video = PathBuf::from("C:\\Inbox\\IMG_0001.mov");
-        arrivals.see(photo.clone(), 100, 1, start);
-        arrivals.see(video.clone(), 10, 1, start + Duration::from_secs(3));
+        arrivals.see(photo.clone(), 100, 1, QUIET, start);
+        arrivals.see(video.clone(), 10, 1, QUIET, start + Duration::from_secs(3));
         // The photo has settled but its video is still copying.
         assert!(arrivals.take_ready(start + Duration::from_secs(6)).is_empty());
         assert_eq!(arrivals.take_ready(start + Duration::from_secs(8)), [photo, video]);
@@ -729,13 +785,31 @@ mod tests {
         let mut arrivals = Arrivals::default();
         let photo = PathBuf::from("C:\\Inbox\\a.jpg");
         let video = PathBuf::from("C:\\Inbox\\b.mp4");
-        arrivals.see(photo.clone(), 100, 1, start);
-        arrivals.see(video.clone(), 1, 1, start);
+        arrivals.see(photo.clone(), 100, 1, QUIET, start);
+        arrivals.see(video.clone(), 1, 1, QUIET, start);
         for second in 1..=60 {
-            arrivals.see(video.clone(), 1 + second, 1, start + Duration::from_secs(second));
+            arrivals.see(video.clone(), 1 + second, 1, QUIET, start + Duration::from_secs(second));
         }
         assert_eq!(arrivals.take_ready(start + Duration::from_secs(60)), [photo]);
         assert_eq!(arrivals.files.len(), 1);
+    }
+
+    #[test]
+    fn a_photo_waits_longer_for_its_partners() {
+        let table = FormatTable::default();
+        let photo = PathBuf::from("C:\\Inbox\\IMG_0001.heic");
+        let video = PathBuf::from("C:\\Inbox\\IMG_0001.mov");
+        assert_eq!(quiet_for(&photo, &table), LEAD_QUIET);
+        assert_eq!(quiet_for(&video, &table), QUIET);
+
+        let start = Instant::now();
+        let mut arrivals = Arrivals::default();
+        arrivals.see(photo.clone(), 100, 1, LEAD_QUIET, start);
+        // Its Live Photo video starts copying ten seconds later, and both go in together.
+        assert!(arrivals.take_ready(start + Duration::from_secs(9)).is_empty());
+        arrivals.see(video.clone(), 10, 1, QUIET, start + Duration::from_secs(10));
+        assert!(arrivals.take_ready(start + Duration::from_secs(16)).is_empty());
+        assert_eq!(arrivals.take_ready(start + Duration::from_secs(20)), [photo, video]);
     }
 
     #[test]
@@ -743,7 +817,7 @@ mod tests {
         let start = Instant::now();
         let mut arrivals = Arrivals::default();
         let photo = PathBuf::from("C:\\Inbox\\IMG_0001.jpg");
-        arrivals.see(photo.clone(), 100, 1, start);
+        arrivals.see(photo.clone(), 100, 1, QUIET, start);
         arrivals.still_changing(&photo, start + Duration::from_secs(5));
         assert!(arrivals.take_ready(start + Duration::from_secs(9)).is_empty());
         assert_eq!(arrivals.take_ready(start + Duration::from_secs(10)), [photo]);
@@ -894,5 +968,52 @@ mod tests {
         assert_eq!(again.moved, 1);
         assert!(!photo.exists());
         assert!(inbox.path().join("IMG_20250413_101500.jpg").is_file());
+    }
+
+    #[test]
+    fn a_video_arriving_after_its_photo_joins_it_under_its_new_name() {
+        // A different photo already has the name, so the inbox photo comes in numbered.
+        let taken = "2025\\2025-04\\IMG_20250412_101500.jpg";
+        let (lib, db) = library(&[LIBRARY_PHOTO, taken]);
+        let root = lib.path();
+        let inbox = tempfile::tempdir().unwrap();
+        write(&inbox.path().join("IMG_20250412_101500.jpg"), "april");
+        assert_eq!(sort_all(&db, root, inbox.path()).unwrap().moved, 1);
+        let numbered = root.join("2025\\2025-04\\IMG_20250412_101500 (1).jpg");
+        assert!(numbered.is_file());
+
+        write(&inbox.path().join("IMG_20250412_101500.mov"), "april clip");
+        assert_eq!(sort_all(&db, root, inbox.path()).unwrap().moved, 1);
+        assert!(root.join("2025\\2025-04\\IMG_20250412_101500 (1).mov").is_file());
+        assert!(!root.join("2025\\2025-04\\IMG_20250412_101500.mov").exists());
+    }
+
+    #[test]
+    fn a_sidecar_arriving_after_its_photo_is_brought_in() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let inbox = tempfile::tempdir().unwrap();
+        write(&inbox.path().join("IMG_20250412_101500.jpg"), "april");
+        sort_all(&db, root, inbox.path()).unwrap();
+
+        write(&inbox.path().join("IMG_20250412_101500.aae"), "april edits");
+        assert_eq!(sort_all(&db, root, inbox.path()).unwrap().moved, 1);
+        assert!(root.join("2025\\2025-04\\IMG_20250412_101500.aae").is_file());
+        assert!(snapshot(inbox.path()).is_empty());
+    }
+
+    #[test]
+    fn a_second_photo_of_the_same_name_is_not_a_late_partner() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let inbox = tempfile::tempdir().unwrap();
+        write(&inbox.path().join("IMG_20250412_101500.jpg"), "april");
+        sort_all(&db, root, inbox.path()).unwrap();
+
+        write(&inbox.path().join("IMG_20250412_101500.png"), "a screenshot");
+        assert_eq!(sort_all(&db, root, inbox.path()).unwrap().moved, 1);
+        let rows = index::load_rows(&db.lock().unwrap()).unwrap();
+        let (groups, _) = crate::groups::build(rows);
+        assert!(groups.iter().all(|g| g.members.len() == 1));
     }
 }

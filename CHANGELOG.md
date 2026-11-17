@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.11] - 2026-11-18
+
+### Fixed
+
+- In an inbox folder, a Live Photo video, RAW or sidecar saved after its photo was already filed now
+  goes beside that photo under the photo's name, so the two show as one tile again. A late sidecar
+  used to stay in the inbox for good. Photos and RAW files also wait a little longer before they are
+  filed, so files saved a few seconds apart usually go in together.
+
 ## [0.25.10] - 2026-11-18
 
 ### Fixed
