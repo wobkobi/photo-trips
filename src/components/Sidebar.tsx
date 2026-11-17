@@ -3,7 +3,6 @@ import type { PageId } from "../App";
 import { api } from "../lib/api";
 import { folderName } from "../lib/format";
 import { useMediaQuery } from "../lib/useMediaQuery";
-import { AppIcon } from "./AppIcon";
 import { Icon, type IconName } from "./Icon";
 import { JobStatus } from "./JobStatus";
 
@@ -26,8 +25,9 @@ const NAV: { id: PageId; label: string; icon: IconName }[] = [
 const CRAMPED = "(max-width: 800px)";
 
 /**
- * The menu down the left of the window. Narrow, it shows only icons, each named in a tooltip and
- * to screen readers, so the pages get more room.
+ * The menu down the left of the window, with the button that narrows it at the top. Narrow, it
+ * shows only icons, each named in a tooltip and to screen readers, so the pages get more room.
+ * The app's name isn't repeated here; the title bar already shows it.
  *
  * The menu is narrow when the saved choice says so, or when the window is cramped. While cramped,
  * widening it lasts until the window has room again and isn't saved, since the saved choice is
@@ -88,18 +88,17 @@ export function Sidebar({
         iconsOnly ? "w-16 px-2" : "w-52 px-2"
       }`}
     >
-      <div
-        className={`flex min-h-14 shrink-0 items-center gap-2.5 ${
-          iconsOnly ? "justify-center" : "px-2.5"
-        }`}
-        title="Pic Cabinet, by To the Point Tech"
-      >
-        <AppIcon size={24} className="shrink-0" />
-        {!iconsOnly && (
-          <p className="font-brand text-[16px] leading-none font-bold tracking-tight">
-            Pic Cabinet
-          </p>
-        )}
+      <div className={`flex shrink-0 pt-2 pb-1 ${iconsOnly ? "justify-center" : ""}`}>
+        <button
+          type="button"
+          onClick={iconsOnly ? widen : narrowIt}
+          title={iconsOnly ? "Widen the menu" : "Narrow the menu"}
+          aria-label={iconsOnly ? "Widen the menu" : "Narrow the menu"}
+          aria-expanded={!iconsOnly}
+          className="flex min-h-10 items-center rounded-md px-2.5 text-faint hover:bg-raised/60 hover:text-ink"
+        >
+          <Icon name="panel" size={iconsOnly ? 20 : 18} className="shrink-0" />
+        </button>
       </div>
       {/* The side padding moves inside the scroller, so focus rings aren't clipped by it. */}
       <ul className="-mx-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-1">
@@ -141,24 +140,6 @@ export function Sidebar({
         >
           <Icon name="folder" size={iconsOnly ? 20 : 16} className="shrink-0" />
           {!iconsOnly && <span className="truncate">{folder}</span>}
-        </button>
-        <button
-          type="button"
-          onClick={iconsOnly ? widen : narrowIt}
-          title={iconsOnly ? "Widen the menu" : undefined}
-          aria-expanded={!iconsOnly}
-          className={`flex min-h-10 items-center gap-2 rounded-md text-[14px] text-faint hover:bg-raised/60 hover:text-ink ${
-            iconsOnly ? "justify-center" : "px-2.5 text-left"
-          }`}
-        >
-          <Icon
-            name={iconsOnly ? "chevron" : "back"}
-            size={iconsOnly ? 20 : 16}
-            className="shrink-0"
-          />
-          <span className={iconsOnly ? "sr-only" : undefined}>
-            {iconsOnly ? "Widen the menu" : "Narrow the menu"}
-          </span>
         </button>
       </div>
     </nav>
