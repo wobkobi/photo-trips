@@ -163,6 +163,14 @@ export function LibraryPage({
   // Closing the viewer brings the last photo it showed into view in the grid and focuses it,
   // since stepping through photos may have gone well past the one it opened on.
   const [jump, setJump] = useState<TileJump | null>(null);
+  // A new filter shows a different list, so the grid goes back to its top. Focus stays put, so
+  // typing in the name box (a new filter each key) carries on. From the prop, so a trip opened
+  // from elsewhere does the same.
+  const [shownFilter, setShownFilter] = useState(filter);
+  if (shownFilter !== filter) {
+    setShownFilter(filter);
+    setJump({ index: 0, focus: false });
+  }
   const closeViewer = useCallback(() => {
     if (open !== null) setJump({ index: open, align: "auto" });
     setOpen(null);
