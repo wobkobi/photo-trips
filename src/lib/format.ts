@@ -36,21 +36,23 @@ export function monthLabel(key: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString(LOCALE, { month: "long", year: "numeric" });
 }
 
+// Made once: every grid tile's tooltip formats a date, and a fresh formatter per call is slow.
+const DAY_FORMAT = new Intl.DateTimeFormat(LOCALE, {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+const TIME_FORMAT = new Intl.DateTimeFormat(LOCALE, { hour: "numeric", minute: "2-digit" });
+
 /**
- * Full date and time for the viewer.
+ * Full date and time, for the viewer and tile tooltips.
  * @param takenAt - timestamp from the backend
  * @returns e.g. "Monday 15 July 2024 at 9:30 am"
  */
 export function formatTaken(takenAt: string): string {
   const date = parseTaken(takenAt);
-  const day = date.toLocaleDateString(LOCALE, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  const time = date.toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" });
-  return `${day.replace(",", "")} at ${time}`;
+  return `${DAY_FORMAT.format(date).replace(",", "")} at ${TIME_FORMAT.format(date)}`;
 }
 
 /**

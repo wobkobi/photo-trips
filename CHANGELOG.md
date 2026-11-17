@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.30.0] - 2026-11-18
+
+### Added
+
+- Hovering a photo in the grid shows its file name, when it was taken and its trip, and screen
+  readers hear the file name too.
+
 ## [0.29.2] - 2026-11-18
 
 ### Fixed
