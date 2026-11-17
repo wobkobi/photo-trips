@@ -1,6 +1,6 @@
 {
   "name": "pic-cabinet",
-  "version": "0.25.6",
+  "version": "0.25.7",
   "private": true,
   "description": "Windows app that sorts photos into year, month and trip folders",
   "license": "SEE LICENSE IN LICENSE",

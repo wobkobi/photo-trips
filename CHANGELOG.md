@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.7] - 2026-11-18
+
+### Fixed
+
+- When one file of a photo can't go to the Recycle Bin (a RAW open in another program, say), the
+  files that already went come back out, so the photo stays whole with its Live Photo video, RAW and
+  sidecars. History names the file that held it back.
+
 ## [0.25.6] - 2026-11-18
 
 ### Fixed
