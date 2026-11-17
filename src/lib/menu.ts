@@ -27,19 +27,37 @@ const SHORTCUTS: Record<string, string> = {
   "Ctrl+7": "menu-page-history",
 };
 
-type KeyPress = Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "shiftKey" | "altKey" | "metaKey">;
+/** The parts of a key press that shortcuts are matched on. */
+export type KeyPress = Pick<
+  KeyboardEvent,
+  "key" | "code" | "ctrlKey" | "shiftKey" | "altKey" | "metaKey"
+>;
 
 /**
- * The menu item a key press picks. Digits go by the physical key, so Ctrl+1 works on layouts
- * where 1 needs Shift; letters go by the character, so Ctrl+Q stays on Q under AZERTY.
+ * A key press written the way a shortcut is, e.g. "Ctrl+Shift+C", "F5" or "Delete". Digits go
+ * by the physical key, so Ctrl+1 works on layouts where 1 needs Shift; letters go by the
+ * character, so Ctrl+Q stays on Q under AZERTY.
+ * @param event - the keydown
+ * @returns the keys, or null with the Windows key held, which no shortcut uses
+ */
+export function keyCombo(event: KeyPress): string | null {
+  if (event.metaKey) return null;
+  const digit = /^Digit(\d)$/.exec(event.code)?.[1];
+  const key = digit ?? (event.key.length === 1 ? event.key.toUpperCase() : event.key);
+  const ctrl = event.ctrlKey ? "Ctrl+" : "";
+  const alt = event.altKey ? "Alt+" : "";
+  const shift = event.shiftKey ? "Shift+" : "";
+  return `${ctrl}${alt}${shift}${key}`;
+}
+
+/**
+ * The menu item a key press picks.
  * @param event - the keydown
  * @returns the menu item id, or null when the keys aren't a menu shortcut
  */
 export function shortcutFor(event: KeyPress): string | null {
-  if (event.altKey || event.shiftKey || event.metaKey) return null;
-  const digit = /^Digit(\d)$/.exec(event.code)?.[1];
-  const key = digit ?? (event.key.length === 1 ? event.key.toUpperCase() : event.key);
-  return SHORTCUTS[`${event.ctrlKey ? "Ctrl+" : ""}${key}`] ?? null;
+  const combo = keyCombo(event);
+  return combo === null ? null : (SHORTCUTS[combo] ?? null);
 }
 
 /** A step through the places visited. */

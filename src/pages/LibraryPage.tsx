@@ -33,6 +33,14 @@ import {
 } from "../lib/libraryFilter";
 import { isTextEntry, modalOnScreen } from "../lib/menu";
 import {
+  ADD_CHOICES,
+  keyCommand,
+  menuItems,
+  photoCommands,
+  type CommandTarget,
+  type PhotoCommand,
+} from "../lib/photoCommands";
+import {
   addEdit,
   editDone,
   editLabel,
@@ -46,8 +54,6 @@ import { useLibrary } from "../lib/useLibrary";
 import { useSettings } from "../lib/useSettings";
 import { useTripReview } from "../lib/useTripReview";
 
-/** How many nearby trips the menus offer to add photos to. */
-const ADD_CHOICES = 4;
 /** How long after a try tiles without a thumbnail wait before asking again, in ms. */
 const THUMB_RETRY_MS = 60_000;
 
@@ -277,15 +283,20 @@ export function LibraryPage({
     return () => window.removeEventListener("keydown", onEscape, true);
   }, [selecting, gridShown, clearSelection]);
 
+  // Kept in a ref so the window listener below always runs this render's commands.
+  const runKeyCommand = useRef(keyCommandRunner);
+  useEffect(() => {
+    runKeyCommand.current = keyCommandRunner;
+  });
   useEffect(() => {
     /**
-     * Ctrl+A selects every photo shown and Delete asks to bin the selected ones, unless the key
-     * is for a text box.
+     * Ctrl+A selects every photo shown, and the photo commands' shortcuts (Delete, Ctrl+C) run,
+     * unless the key is for a text box or a dialog.
      * @param event - the key pressed
      */
     const onKey = (event: KeyboardEvent): void => {
-      if (!gridShown || isTyping(event.target)) return;
-      if (event.key === "Delete" && picked.length > 0) setBinning(picked);
+      if (!gridShown || isTyping(event.target) || modalOnScreen()) return;
+      if (runKeyCommand.current(event)) return;
       const pickAll = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a";
       if (!pickAll || ids.length === 0) return;
       event.preventDefault();
@@ -294,7 +305,54 @@ export function LibraryPage({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [gridShown, ids, picked, setSelected, setAnchorId]);
+  }, [gridShown, ids, setSelected, setAnchorId]);
+
+  /**
+   * The commands for some photos, each run by this page.
+   * @param target - the photos
+   * @param withTrips - offer trip changes, which only a menu shows
+   * @returns the commands, in menu order
+   */
+  function commandsFor(target: CommandTarget, withTrips: boolean): PhotoCommand[] {
+    return photoCommands(target, withTrips ? { trips, tiles: allTiles ?? [] } : null, {
+      view: viewPhoto,
+      open: fileAction.bind(null, api.openMedia),
+      reveal: fileAction.bind(null, api.revealMedia),
+      copy: fileAction.bind(null, api.copyMedia),
+      copyPath,
+      setDate: setDating,
+      fileDate: fileDates,
+      tripEdit: startEdit,
+      makeTrip: createTrip,
+      deselect: clearSelection,
+      bin: setBinning,
+    });
+  }
+
+  /**
+   * Run the command whose shortcut a key press in the grid is. It acts on the selection when
+   * there is one, else on the focused tile; one-photo commands need the selection to be a
+   * single photo.
+   * @param event - the window's keydown
+   * @returns true when a command ran and took the key
+   */
+  function keyCommandRunner(event: KeyboardEvent): boolean {
+    if (!tiles) return false;
+    const focused =
+      event.target instanceof Element ? event.target.closest<HTMLElement>("[data-tile]") : null;
+    const tile = focused ? tiles[Number(focused.dataset.tile)] : undefined;
+    let target: CommandTarget | null = null;
+    if (picked.length > 0) {
+      target = { photo: picked.length === 1 ? picked[0] : null, photos: picked, selection: true };
+    } else if (tile) {
+      target = { photo: tile, photos: [tile], selection: selecting };
+    }
+    const command = target && keyCommand(event, commandsFor(target, false));
+    if (!command) return false;
+    event.preventDefault();
+    command.run();
+    return true;
+  }
 
   /**
    * Explorer-style selection: Ctrl toggles, Shift extends from the last clicked tile, and a
@@ -342,44 +400,8 @@ export function LibraryPage({
       setSelected(new Set([tile.id]));
       setAnchorId(tile.id);
     }
-    const items: MenuItem[] = [
-      { label: "Open", onSelect: fileAction.bind(null, api.openMedia, tile.id) },
-      { label: "Show in folder", onSelect: fileAction.bind(null, api.revealMedia, tile.id) },
-      { label: "Copy", onSelect: fileAction.bind(null, api.copyMedia, tile.id) },
-      { label: "Copy path", onSelect: copyPath.bind(null, tile.id) },
-      {
-        label:
-          pick.length > 1 ? `Set date for ${countOf(pick.length, "item", "items")}` : "Set date",
-        onSelect: setDating.bind(null, pick),
-        divided: true,
-      },
-    ];
-    const set = pick.filter((t) => t.dateSet);
-    if (set.length > 0) {
-      items.push({ label: "Use the file's date", onSelect: fileDates.bind(null, set) });
-    }
-    const found = pickedEdits(pick, trips, allTiles ?? []);
-    const adds = nearestTrips(found.free, trips, ADD_CHOICES).map((trip) =>
-      addEdit(trip, found.free, allTiles ?? []),
-    );
-    const tripItems = [...found.remove, ...found.putBack, ...adds].map(editItem);
-    if (found.free.length > 0) {
-      tripItems.push({
-        label: `Make a trip from ${countOf(found.free.length, "photo", "photos")}`,
-        onSelect: createTrip.bind(null, found.free),
-      });
-    }
-    if (selecting) tripItems.push({ label: "Deselect", onSelect: clearSelection });
-    if (tripItems.length > 0) tripItems[0].divided = true;
-    const bin: MenuItem = {
-      label:
-        pick.length > 1
-          ? `Send ${countOf(pick.length, "item", "items")} to the Recycle Bin`
-          : "Send to the Recycle Bin",
-      onSelect: setBinning.bind(null, pick),
-      divided: true,
-    };
-    setMenu({ x: event.clientX, y: event.clientY, items: [...items, ...tripItems, bin] });
+    const commands = commandsFor({ photo: tile, photos: pick, selection: selecting }, true);
+    setMenu({ x: event.clientX, y: event.clientY, items: menuItems(commands) });
   }
 
   /** Send the photos waiting for confirmation to the Recycle Bin; the job's end shows the result. */
@@ -435,21 +457,29 @@ export function LibraryPage({
   }
 
   /**
+   * Open a photo in the viewer.
+   * @param photo - the photo
+   */
+  function viewPhoto(photo: Tile): void {
+    setOpenId(photo.id);
+  }
+
+  /**
    * Open, reveal or copy a file, showing any failure as the page error.
    * @param action - {@link api.openMedia}, {@link api.revealMedia} or {@link api.copyMedia}
-   * @param id - the file's media id
+   * @param photo - the file's photo
    */
-  function fileAction(action: (id: number) => Promise<void>, id: number): void {
-    action(id).catch((err) => setError(errorText(err)));
+  function fileAction(action: (id: number) => Promise<void>, photo: Tile): void {
+    action(photo.id).catch((err) => setError(errorText(err)));
   }
 
   /**
    * Put a file's full path on the clipboard.
-   * @param id - the file's media id
+   * @param photo - the file's photo
    */
-  function copyPath(id: number): void {
+  function copyPath(photo: Tile): void {
     api
-      .mediaDetail(id)
+      .mediaDetail(photo.id)
       .then((detail) => navigator.clipboard.writeText(detail.path))
       .catch((err) => setError(errorText(err)));
   }

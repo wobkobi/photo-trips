@@ -7,12 +7,22 @@ import {
   type ReactElement,
 } from "react";
 
+/** One entry in a {@link TileMenu}. */
 export interface MenuItem {
+  /** Stable key for the item; the label stands in when there's none. */
+  id?: string;
   label: string;
   onSelect: () => void;
+  /** The keys that do the same, shown at the right, e.g. "Ctrl+C". */
+  shortcut?: string;
+  /** Shown greyed out and skipped by the arrow keys. */
+  disabled?: boolean;
   /** Draw a line above it, to start a new group. */
   divided?: boolean;
 }
+
+/** Enabled items only, for focus and the arrow keys. */
+const ITEMS = "button:not(:disabled)";
 
 /** Keep the menu this far from the window edges. */
 const EDGE = 8;
@@ -49,7 +59,7 @@ export function TileMenu({
       left: Math.max(EDGE, Math.min(x, window.innerWidth - width - EDGE)),
       top: Math.max(EDGE, Math.min(y, window.innerHeight - height - EDGE)),
     });
-    el.querySelector<HTMLButtonElement>("button")?.focus();
+    el.querySelector<HTMLButtonElement>(ITEMS)?.focus();
   }, [x, y]);
 
   useEffect(() => {
@@ -88,7 +98,7 @@ export function TileMenu({
     }
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
-    const buttons = Array.from(ref.current?.querySelectorAll("button") ?? []);
+    const buttons = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>(ITEMS) ?? []);
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
     const step = event.key === "ArrowDown" ? 1 : -1;
     buttons[(at + step + buttons.length) % buttons.length]?.focus();
@@ -105,16 +115,19 @@ export function TileMenu({
     >
       {items.map((item) => (
         <button
-          key={item.label}
+          key={item.id ?? item.label}
           type="button"
           role="menuitem"
+          disabled={item.disabled}
+          aria-keyshortcuts={item.shortcut?.replace(/\bCtrl\b/g, "Control")}
           onClick={() => {
             onClose();
             item.onSelect();
           }}
-          className={`block min-h-8.5 w-full px-3 py-1.5 text-left text-[15px] hover:bg-raised focus-visible:bg-raised focus-visible:outline-none active:bg-line ${item.divided ? "mt-1 border-t border-line" : ""}`}
+          className={`flex min-h-8.5 w-full items-center justify-between gap-6 px-3 py-1.5 text-left text-[15px] hover:bg-raised focus-visible:bg-raised focus-visible:outline-none active:bg-line disabled:text-muted disabled:hover:bg-transparent ${item.divided ? "mt-1 border-t border-line" : ""}`}
         >
           {item.label}
+          {item.shortcut && <span className="text-[13px] text-muted">{item.shortcut}</span>}
         </button>
       ))}
     </div>

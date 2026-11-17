@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.44.0] - 2026-11-18
+
+### Added
+
+- The photo menu starts with View and shows each item's shortcut; Delete and Ctrl+C act on the
+  focused photo when nothing is selected, and no longer reach the page behind a dialog
+
 ## [0.43.0] - 2026-11-18
 
 ### Added
