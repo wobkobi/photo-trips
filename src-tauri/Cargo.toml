@@ -42,6 +42,11 @@ trash = "5.3.0"
 reverse_geocoder = "4.1.1"
 notify = "8"
 tauri-plugin-log = "2"
+# Place-name lookups (places.rs) share the HTTP client, TLS and runtime crates the updater
+# already brings in, with the same features, so they add nothing new to the build.
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider", "system-proxy"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+tokio = { version = "1", default-features = false, features = ["time"] }
 
 
 # Dev builds optimise the libraries and lightly optimise the app itself: unoptimised, the image

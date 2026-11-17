@@ -19,7 +19,7 @@ let mapOffline = false;
 /**
  * Where a photo was taken: the nearest town's name and a map around it, with buttons to zoom
  * and to open the spot in Google Maps. The map comes from OpenFreeMap and the suburb name from
- * Photon (both OpenStreetMap data), so the spot is sent to them. The built-in town list only
+ * Nominatim (both OpenStreetMap data), so the spot is sent to them. The built-in town list only
  * knows places of 1,000 people or more (a whole city like "Manukau City" for its suburbs), so
  * it's the fallback offline or in open country, as is the built-in drawn map.
  * @param props - Component props.

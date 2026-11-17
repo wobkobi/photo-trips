@@ -1,43 +1,58 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { knownPlace, lookUpPlace } from "./places";
+import { api } from "./api";
+import { knownPlace, lookUpPlace, warmPlace } from "./places";
 
-/**
- * A fetch stand-in that answers like Photon with one address.
- * @param district - the suburb Photon names
- * @returns the mock, for counting calls
- */
-function photon(district: string): ReturnType<typeof vi.fn> {
-  const answer = {
-    features: [{ properties: { district, state: "Auckland", country: "New Zealand" } }],
-  };
-  return vi.fn(() => Promise.resolve(new Response(JSON.stringify(answer))));
-}
+vi.mock("./api", () => ({ api: { placeName: vi.fn() } }));
+
+const placeName = vi.mocked(api.placeName);
 
 afterEach(() => {
-  vi.unstubAllGlobals();
+  placeName.mockReset();
 });
 
 describe("lookUpPlace", () => {
-  it("asks Photon once per spot, even when asked twice at once", async () => {
-    const fetchMock = photon("Flat Bush");
-    vi.stubGlobal("fetch", fetchMock);
-    const [a, b] = await Promise.all([lookUpPlace(-36.97, 174.91), lookUpPlace(-36.97, 174.91)]);
-    expect(a).toBe("Flat Bush, Auckland, New Zealand");
+  it("asks once per spot, even when asked twice at once", async () => {
+    placeName.mockResolvedValue("Waterview, Auckland, New Zealand");
+    const [a, b] = await Promise.all([
+      lookUpPlace(-36.87838, 174.70239),
+      lookUpPlace(-36.87838, 174.70239),
+    ]);
+    expect(a).toBe("Waterview, Auckland, New Zealand");
     expect(b).toBe(a);
-    expect(await lookUpPlace(-36.97, 174.91)).toBe(a);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(knownPlace(-36.97, 174.91)).toBe(a);
+    expect(await lookUpPlace(-36.87838, 174.70239)).toBe(a);
+    expect(placeName).toHaveBeenCalledTimes(1);
+    expect(knownPlace(-36.87838, 174.70239)).toBe(a);
   });
 
   it("forgets a failed lookup, so it's tried again", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.reject(new TypeError("offline"))),
+    placeName.mockRejectedValueOnce("Couldn't reach the place-name service.");
+    await expect(lookUpPlace(-36.88, 174.71)).rejects.toBe(
+      "Couldn't reach the place-name service.",
     );
-    await expect(lookUpPlace(-36.88, 174.71)).rejects.toThrow("offline");
     expect(knownPlace(-36.88, 174.71)).toBeUndefined();
 
-    vi.stubGlobal("fetch", photon("Point Chevalier"));
+    placeName.mockResolvedValueOnce("Point Chevalier, Auckland, New Zealand");
     expect(await lookUpPlace(-36.88, 174.71)).toBe("Point Chevalier, Auckland, New Zealand");
+  });
+});
+
+describe("warmPlace", () => {
+  it("looks ahead one spot at a time, in the order asked", async () => {
+    const answers: ((place: string | null) => void)[] = [];
+    placeName.mockImplementation(
+      () => new Promise<string | null>((resolve) => answers.push(resolve)),
+    );
+    warmPlace(-37.1, 175.1);
+    warmPlace(-37.2, 175.2);
+    warmPlace(-37.2, 175.2);
+    expect(placeName).toHaveBeenCalledTimes(1);
+
+    answers[0]("Raglan, Waikato, New Zealand");
+    await vi.waitFor(() => expect(placeName).toHaveBeenCalledTimes(2));
+    expect(placeName).toHaveBeenLastCalledWith(-37.2, 175.2);
+    answers[1](null);
+    await vi.waitFor(() => expect(knownPlace(-37.2, 175.2)).toBeNull());
+    expect(knownPlace(-37.1, 175.1)).toBe("Raglan, Waikato, New Zealand");
+    expect(placeName).toHaveBeenCalledTimes(2);
   });
 });

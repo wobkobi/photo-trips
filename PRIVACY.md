@@ -1,13 +1,14 @@
 # Privacy policy
 
-_Last updated: 15 November 2026_
+_Last updated: 18 November 2026_
 
 Pic Cabinet is a Windows app made by To the Point Tech. This policy explains what the app does with
 your information.
 
 **In short:** your photos, and everything Pic Cabinet works out about them, stay on your PC. We
 don't collect, receive, store or sell any of it. The app has no accounts, analytics, advertising or
-tracking. The only thing it does online on its own is check for updates.
+tracking. Online, it checks for updates, and when you look at a photo that has a location, it
+fetches a map and the place name for that spot (see below).
 
 ## What the app reads
 
@@ -26,8 +27,8 @@ with, its size in pixels, and the camera's settings, to show beside it. These ar
 time and not kept.
 
 Locations are used to suggest trips, to name the places in them, and to show on a map where a photo
-was taken. Place names and the map come from data built into the app, so locations are never looked
-up online and never leave your PC, unless you choose "Open in OpenStreetMap" (see below).
+was taken. Trip suggestions and their names use data built into the app, so they never send a
+location anywhere. The map and suburb name shown beside a photo are fetched online (see below).
 
 ## What the app stores
 
@@ -58,10 +59,19 @@ We don't receive this information.
 page for a Windows image extension, or this policy. Those open in the Store app or your web browser,
 and that service's own privacy policy applies.
 
-**Open in OpenStreetMap.** Beside a photo that has a location, this button opens openstreetmap.org
-in your web browser at the spot where the photo was taken, so OpenStreetMap receives that location.
-It's sent only when you click the button, and only for that one photo. The
-[OpenStreetMap privacy policy](https://osmfoundation.org/wiki/Privacy_Policy) applies.
+**Maps and place names.** When you view a photo or video that has a location, Pic Cabinet fetches a
+map of the spot from OpenFreeMap (openfreemap.org) and asks OpenStreetMap's Nominatim service
+(nominatim.openstreetmap.org) for the suburb there. So they're ready as you step through, it does
+the same for the next two files each way. These requests carry the location and nothing else about
+the photo, and like any web request they include your IP address. Each place is looked up once per
+session. Without an internet connection, the map and place names built into the app are used
+instead. The
+[OpenStreetMap Foundation privacy policy](https://osmfoundation.org/wiki/Privacy_Policy) applies to
+Nominatim.
+
+**Open in Google Maps.** Beside a photo that has a location, this button opens Google Maps in your
+web browser at the spot where the photo was taken, so Google receives that location. It's sent only
+when you click the button, and only for that one photo, and Google's privacy policy applies.
 
 Nothing else is sent anywhere.
 

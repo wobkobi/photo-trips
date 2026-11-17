@@ -1,6 +1,6 @@
 import type { TransformStyleFunction } from "maplibre-gl";
 import { describe, expect, it } from "vitest";
-import { darkenStyle, googleMapsUrl, placeFromAddress } from "./maps";
+import { darkenStyle, googleMapsUrl } from "./maps";
 
 type Style = ReturnType<TransformStyleFunction>;
 
@@ -59,54 +59,6 @@ describe("darkenStyle", () => {
 
   it("leaves the fetched style alone", () => {
     expect(paintOf(positron, "water", "fill-color")).toBe("rgb(194,200,202)");
-  });
-});
-
-describe("placeFromAddress", () => {
-  it("names the suburb, region and country, not Auckland's local board", () => {
-    expect(
-      placeFromAddress({
-        locality: "Ormiston",
-        district: "Flat Bush",
-        city: "Manukau",
-        state: "Auckland",
-        country: "New Zealand",
-      }),
-    ).toBe("Flat Bush, Auckland, New Zealand");
-  });
-
-  it("skips a region that repeats the city", () => {
-    expect(
-      placeFromAddress({
-        district: "Wellington Central",
-        city: "Wellington",
-        state: "Wellington",
-        country: "New Zealand",
-      }),
-    ).toBe("Wellington Central, Wellington, New Zealand");
-  });
-
-  it("uses the locality when the district is the city again", () => {
-    expect(
-      placeFromAddress({
-        locality: "Gros-Caillou",
-        district: "Paris",
-        city: "Paris",
-        state: "Île-de-France",
-        country: "France",
-      }),
-    ).toBe("Gros-Caillou, Île-de-France, France");
-  });
-
-  it("falls back to the city without a suburb", () => {
-    expect(placeFromAddress({ city: "Hamilton", state: "Waikato", country: "New Zealand" })).toBe(
-      "Hamilton, Waikato, New Zealand",
-    );
-  });
-
-  it("gives nothing in open country", () => {
-    expect(placeFromAddress({ state: "Taranaki", country: "New Zealand" })).toBeNull();
-    expect(placeFromAddress({})).toBeNull();
   });
 });
 

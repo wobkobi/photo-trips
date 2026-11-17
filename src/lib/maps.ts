@@ -95,46 +95,6 @@ export function darkenStyle(style: Style): Style {
   return { ...style, layers };
 }
 
-/** The address parts of a Photon reverse lookup that make up a place name. */
-export interface PhotonAddress {
-  locality?: string;
-  district?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-}
-
-/**
- * The Photon (komoot's OpenStreetMap search) lookup for the address nearest a spot, with names
- * in English.
- * @param lat - latitude in degrees
- * @param lon - longitude in degrees
- * @returns the URL to fetch
- */
-export function placeLookupUrl(lat: number, lon: number): string {
-  return `https://photon.komoot.io/reverse?lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}&limit=1&lang=en`;
-}
-
-/**
- * A place name from a Photon address: suburb, region and country, skipping any that repeat
- * the part before. The suburb is the district, unless the district is just the city again
- * (Paris in Paris), when the smaller locality is used; with neither, the city stands in. The
- * city is otherwise left out: in Auckland it's the council local board (Albert-Eden, Howick),
- * not a name anyone gives as where they were.
- * @param address - the first result's properties
- * @returns the name, or null when there's no suburb or city to name (open country)
- */
-export function placeFromAddress(address: PhotonAddress): string | null {
-  const { locality, district, city, state, country } = address;
-  const suburb = (district && district !== city ? district : (locality ?? district)) ?? city;
-  if (!suburb) return null;
-  const parts: string[] = [];
-  for (const part of [suburb, state, country]) {
-    if (part && !parts.includes(part)) parts.push(part);
-  }
-  return parts.join(", ");
-}
-
 /**
  * The spot in Google Maps, with a pin on it.
  * @param lat - latitude in degrees

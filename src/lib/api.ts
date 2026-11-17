@@ -586,6 +586,14 @@ export const api = {
   locationMap: (lat: number, lon: number, spanKm: number) =>
     invoke<MapView>("location_map", { lat, lon, spanKm }),
   /**
+   * The suburb, region and country around a location, from Nominatim (OpenStreetMap). The app
+   * spaces these a second apart, so a lookup can wait behind others.
+   * @param lat - latitude in degrees
+   * @param lon - longitude in degrees
+   * @returns the place name, or null when there's no suburb or town there to name
+   */
+  placeName: (lat: number, lon: number) => invoke<string | null>("place_name", { lat, lon }),
+  /**
    * Open an indexed file in its default Windows app.
    * @param id - media id
    * @returns resolves once opened

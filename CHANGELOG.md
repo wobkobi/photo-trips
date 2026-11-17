@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.59.4] - 2026-11-18
+
+### Fixed
+
+- Suburb names beside a photo come from OpenStreetMap's Nominatim, so they match the area the photo
+  is in; selecting a value in the details panel no longer runs on into the lines below; the viewer's
+  top bar spans the full width when the details panel is open, so it no longer jumps
+
 ## [0.59.3] - 2026-11-18
 
 ### Fixed

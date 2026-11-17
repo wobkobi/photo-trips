@@ -24,6 +24,7 @@ mod metadata;
 mod naming;
 mod mtp;
 mod organise;
+mod places;
 mod planner;
 mod recycle;
 mod redate;
@@ -227,6 +228,7 @@ pub fn run() {
             suggest::restore_dismissed,
             suggest::home_place,
             location::current_location,
+            places::place_name,
             watch::watch_status,
             watch::set_watch_paused,
             menu::menu_action,
