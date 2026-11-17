@@ -238,6 +238,11 @@ export interface DupCopy {
   inPlace: boolean;
   /** Other files that travel with this copy (a Live Photo video, a sidecar). */
   extra: number;
+  /**
+   * Id of the tile this copy belongs to. A copied Live Photo or RAW+JPEG pair makes one set
+   * per kind, and its copies share these ids across the sets.
+   */
+  group: number;
 }
 
 export interface DupReport {

@@ -70,12 +70,14 @@ export function LibraryFacts({ detail }: { detail: MediaDetail }): ReactElement 
       {detail.members.length > 1 && (
         <Fact label="Moves together with">
           <ul className="flex flex-col gap-1">
-            {detail.members.slice(1).map((m) => (
-              <li key={m.id} className="flex justify-between gap-3 text-[15px]">
-                <span className="selectable truncate">{m.name}</span>
-                <span className="shrink-0 text-faint">{KIND_NAMES[m.kind]}</span>
-              </li>
-            ))}
+            {detail.members
+              .filter((m) => m.id !== detail.id)
+              .map((m) => (
+                <li key={m.id} className="flex justify-between gap-3 text-[15px]">
+                  <span className="selectable truncate">{m.name}</span>
+                  <span className="shrink-0 text-faint">{KIND_NAMES[m.kind]}</span>
+                </li>
+              ))}
           </ul>
         </Fact>
       )}

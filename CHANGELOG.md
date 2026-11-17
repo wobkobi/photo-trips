@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.12] - 2026-11-18
+
+### Fixed
+
+- Duplicates keep a copied Live Photo or RAW+JPEG pair whole: its photo and clip sets suggest the
+  same pair, choosing a keeper in one carries over to the other, and the viewer shows the exact copy
+  being judged.
+
 ## [0.25.11] - 2026-11-18
 
 ### Fixed
