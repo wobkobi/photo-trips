@@ -21,6 +21,10 @@ export function importTiles(items: ImportItem[]): Tile[] {
       uncertain: item.uncertain,
       dateSet: false,
       extra: item.extra,
+      // A preview counts what goes with a file but doesn't say what it is.
+      live: false,
+      rawTwin: false,
+      linked: [],
       version: item.version,
       trip: null,
       // Empty files are left out of an import, so none reach the picker.

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.45.0] - 2026-11-18
+
+### Added
+
+- Each linked file in the viewer's details opens with a click, and a RAW copy can be shown in its
+  folder; a Live Photo plays its clip from the viewer bar; tiles mark Live Photos with a ring and
+  RAW pairs with RAW; the name search finds a photo by its linked files' names too
+
 ## [0.44.0] - 2026-11-18
 
 ### Added

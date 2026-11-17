@@ -424,7 +424,11 @@ function TileButton({
     }
   }
   const src = askAt ? `${thumb}${thumb.includes("?") ? "&" : "?"}retry=${askAt}` : thumb;
-  const kind = tile.kind === "video" ? "Video" : "Photo";
+  const kind = tile.kind === "video" ? "Video" : tile.live ? "Live Photo" : "Photo";
+  const raw = tile.kind === "raw" || tile.rawTwin;
+  // The Live Photo ring and the RAW mark name two of the files that go along; the count is for
+  // the rest, such as sidecars.
+  const more = tile.extra - Number(tile.live) - Number(tile.rawTwin);
   const taken = formatTaken(tile.takenAt);
   const trip = tile.trip ? `, ${tile.trip.name} trip` : "";
   const label = `${tile.name}, ${kind.toLowerCase()} taken ${taken}${trip}`;
@@ -488,18 +492,22 @@ function TileButton({
             <Icon name="warn" size={16} />
           </span>
         )}
-        {(tile.kind === "video" || tile.kind === "raw" || tile.extra > 0) && (
+        {(tile.kind === "video" || raw || tile.live || more > 0) && (
           <span className="on-dark absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-linear-to-t from-ground/80 to-transparent px-2 pt-5 pb-1.5 text-[13px] font-semibold text-ink">
             {tile.kind === "video" && <Icon name="play" size={18} />}
-            {tile.kind === "raw" && <span>raw</span>}
-            {tile.extra > 0 && (
-              <span
-                className="ml-auto"
-                title={`${count(tile.extra, "more file goes", "more files go")} with this one`}
-              >
-                +{tile.extra}
-              </span>
-            )}
+            {raw && <span title={tile.rawTwin ? "With a RAW copy" : undefined}>RAW</span>}
+            <span className="ml-auto flex items-center gap-1.5">
+              {tile.live && (
+                <span title="Live Photo">
+                  <Icon name="live" size={16} />
+                </span>
+              )}
+              {more > 0 && (
+                <span title={`${count(more, "more file goes", "more files go")} with this one`}>
+                  +{more}
+                </span>
+              )}
+            </span>
           </span>
         )}
         {tile.trip && (

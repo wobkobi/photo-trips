@@ -1,7 +1,14 @@
 // The viewer's side-panel details for library photos and for files waiting in an import preview.
 
-import { useCallback, type ReactElement } from "react";
-import { api, type ImportItem, type MediaDetail, type MediaKind } from "../lib/api";
+import { useCallback, useState, type ReactElement } from "react";
+import {
+  api,
+  errorText,
+  type ImportItem,
+  type MediaDetail,
+  type MediaKind,
+  type MediaMember,
+} from "../lib/api";
 import { importKey, libraryKey } from "../lib/factsAhead";
 import {
   count,
@@ -15,6 +22,7 @@ import {
 import { located, useFileDetails } from "../lib/useFileDetails";
 import { useSettings } from "../lib/useSettings";
 import { CameraFact, Measures } from "./FileFacts";
+import { Icon } from "./Icon";
 import { LocationFact } from "./LocationFact";
 import { Fact } from "./Viewer";
 
@@ -68,20 +76,62 @@ export function LibraryFacts({ detail }: { detail: MediaDetail }): ReactElement 
       {spot && <LocationFact lat={spot.lat} lon={spot.lon} />}
 
       {detail.members.length > 1 && (
-        <Fact label="Moves together with">
-          <ul className="flex flex-col gap-1">
-            {detail.members
-              .filter((m) => m.id !== detail.id)
-              .map((m) => (
-                <li key={m.id} className="flex justify-between gap-3 text-[15px]">
-                  <span className="selectable truncate">{m.name}</span>
-                  <span className="shrink-0 text-faint">{KIND_NAMES[m.kind]}</span>
-                </li>
-              ))}
-          </ul>
-        </Fact>
+        <LinkedFiles key={detail.id} members={detail.members.filter((m) => m.id !== detail.id)} />
       )}
     </>
+  );
+}
+
+/**
+ * The files that move with the one on show, each a button that opens it in its own app. A RAW
+ * copy can be shown in its folder too, for editing in another app. A failure shows under the
+ * list; callers key it by the file on show, so the failure goes with it.
+ * @param props - Component props.
+ * @param props.members - the other files in the tile
+ * @returns the "Moves together with" block
+ */
+function LinkedFiles({ members }: { members: MediaMember[] }): ReactElement {
+  const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Run an open or show-in-folder call, keeping any failure on show.
+   * @param action - the call
+   */
+  function run(action: Promise<void>): void {
+    setError(null);
+    action.catch((err: unknown) => setError(errorText(err)));
+  }
+
+  return (
+    <Fact label="Moves together with">
+      <ul className="-mx-2 flex flex-col">
+        {members.map((m) => (
+          <li key={m.id} className="flex items-center gap-1">
+            <button
+              type="button"
+              title={`Open ${m.name}`}
+              onClick={() => run(api.openMedia(m.id))}
+              className="flex min-w-0 flex-1 justify-between gap-3 rounded-md px-2 py-1 text-left text-[15px] transition-colors hover:bg-raised active:bg-line"
+            >
+              <span className="truncate">{m.name}</span>
+              <span className="shrink-0 text-faint">{KIND_NAMES[m.kind]}</span>
+            </button>
+            {m.kind === "raw" && (
+              <button
+                type="button"
+                title="Show in folder"
+                aria-label={`Show ${m.name} in folder`}
+                onClick={() => run(api.revealMedia(m.id))}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line"
+              >
+                <Icon name="folder" size={18} />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {error && <p className="mt-1 text-[14px] text-danger">{error}</p>}
+    </Fact>
   );
 }
 

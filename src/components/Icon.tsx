@@ -51,6 +51,18 @@ const MemoryCard = createLucideIcon("memory-card", [
   ["path", { d: "M16 6v4", key: "pin3" }],
 ]);
 
+/**
+ * A Live Photo: a dot inside a ring inside a dotted ring, as on a phone. Lucide has none, so this
+ * is drawn on its grid in its style.
+ */
+const LivePhoto = createLucideIcon("live-photo", [
+  ["circle", { cx: "12", cy: "12", r: "2.5", key: "core" }],
+  ["circle", { cx: "12", cy: "12", r: "6", key: "ring" }],
+  // Zero-length dashes draw as dots under the round line caps; 5.236 is a twelfth of the
+  // circumference (2 x pi x 10), so the twelve dots meet evenly at the seam.
+  ["circle", { cx: "12", cy: "12", r: "10", strokeDasharray: "0 5.236", key: "dots" }],
+]);
+
 const ICONS = {
   library: LayoutGrid,
   trips: Luggage,
@@ -63,6 +75,7 @@ const ICONS = {
   close: X,
   play: Play,
   pause: Pause,
+  live: LivePhoto,
   sound: Volume2,
   soundOff: VolumeX,
   warn: TriangleAlert,

@@ -33,6 +33,12 @@ pub struct Tile {
     pub date_set: bool,
     /// Companion files travelling with the leader (Live Photo video, RAW twin, sidecars).
     pub extra: usize,
+    /// A photo with its Live Photo clip.
+    pub live: bool,
+    /// A photo with a RAW copy of itself.
+    pub raw_twin: bool,
+    /// Names of the files travelling with the leader, so a name search finds the tile by them.
+    pub linked: Vec<String>,
     /// Changes whenever the file does, so thumbnail URLs bust the webview cache.
     pub version: i64,
     /// Trip the photo was taken during, if any.
@@ -55,9 +61,12 @@ pub struct TileTrip {
 #[serde(rename_all = "camelCase")]
 pub struct Member {
     pub id: i64,
+    pub path: String,
     pub name: String,
     pub kind: &'static str,
     pub size: u64,
+    /// A video the built-in player should try, as for [`Detail::playable`].
+    pub playable: bool,
 }
 
 /// Everything the viewer shows about one file and the tile it belongs to.
@@ -104,6 +113,8 @@ pub fn library_tiles(state: State<'_, AppState>) -> Result<Vec<Tile>> {
 /// A group as a grid tile, with the band of the trip it belongs in.
 pub fn tile(group: &Group, trips: &[Trip]) -> Tile {
     let leader = group.leader();
+    let others = &group.members[1..];
+    let has = |kind: Kind| others.iter().any(|m| m.kind == kind);
     Tile {
         id: leader.id,
         taken_at: dates::format(&group.taken_at),
@@ -112,7 +123,10 @@ pub fn tile(group: &Group, trips: &[Trip]) -> Tile {
         name: file_name(&leader.path),
         uncertain: group.date_source == DateSource::Modified,
         date_set: group.date_source == DateSource::Set,
-        extra: group.members.len() - 1,
+        extra: others.len(),
+        live: matches!(leader.kind, Kind::Photo | Kind::Raw) && has(Kind::Video),
+        raw_twin: leader.kind == Kind::Photo && has(Kind::Raw),
+        linked: others.iter().map(|m| file_name(&m.path)).collect(),
         version: leader.mtime,
         trip: trip_of(trips, group).map(|t| TileTrip {
             id: t.id,
@@ -173,9 +187,11 @@ pub fn media_detail(state: State<'_, AppState>, id: i64) -> Result<Detail> {
             .iter()
             .map(|m| Member {
                 id: m.id,
+                path: m.path.to_string_lossy().into_owned(),
                 name: file_name(&m.path),
                 kind: m.kind.as_str(),
                 size: m.size,
+                playable: m.kind == Kind::Video && formats::web_playable(&m.path),
             })
             .collect(),
     })
@@ -334,5 +350,37 @@ mod tests {
         assert_eq!(ids, [1, 2]);
         assert!(removals[0].keeper.is_none());
         assert!(bin_removals(&groups, &[99]).is_empty());
+    }
+
+    #[test]
+    fn a_tile_knows_its_live_clip_raw_twin_and_linked_names() {
+        let when = "2025-03-12T10:00:00";
+        let (groups, _) = groups::build(vec![
+            row(1, "2025", "IMG_1.HEIC", Kind::Photo, when, DateSource::Exif),
+            row(2, "2025", "IMG_1.MOV", Kind::Video, when, DateSource::Exif),
+            row(3, "2025", "IMG_1.DNG", Kind::Raw, when, DateSource::Exif),
+            row(4, "2025", "IMG_2.CR2", Kind::Raw, when, DateSource::Exif),
+            row(5, "2025", "IMG_2.MOV", Kind::Video, when, DateSource::Exif),
+            row(6, "2025", "IMG_3.MP4", Kind::Video, when, DateSource::Exif),
+            row(7, "2025", "IMG_3.THM", Kind::Companion, when, DateSource::Exif),
+        ]);
+        let by_id = |id: i64| {
+            let group = groups.iter().find(|g| g.leader().id == id).unwrap();
+            tile(group, &[])
+        };
+
+        let pair = by_id(1);
+        assert!(pair.live && pair.raw_twin);
+        assert_eq!(pair.extra, 2);
+        assert_eq!(pair.linked, ["IMG_1.DNG", "IMG_1.MOV"]);
+
+        // A RAW can lead a Live Photo, but it is the RAW, not a twin of one.
+        let raw = by_id(4);
+        assert!(raw.live && !raw.raw_twin);
+
+        // A video's sidecar is no clip.
+        let video = by_id(6);
+        assert!(!video.live && !video.raw_twin);
+        assert_eq!(video.linked, ["IMG_3.THM"]);
     }
 }

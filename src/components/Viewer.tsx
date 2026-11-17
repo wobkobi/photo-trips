@@ -49,6 +49,8 @@ export interface ViewItem {
   preview: string;
   /** The grid tile, usually cached already: shown scaled up until the full picture is ready. */
   thumb: string;
+  /** A Live Photo's clip, when the built-in player can try it. */
+  live?: string;
   /** Details shown beside the photo, made with {@link Fact}. */
   facts: ReactNode;
 }
@@ -140,9 +142,9 @@ export interface ViewSource {
  * Full-window view of one file with its details. Arrow keys step through the source.
  *
  * A slim bar over the top of the stage carries Back, the file's name and date, its place in the
- * source and an icon row: the photo's zoom and rotate, then Show in folder, Copy and Open, built
- * from the source so every caller gets them, then Info, Fullscreen and, where the caller passes
- * one, Bin. The bar and side arrows fade once the pointer has rested for {@link REST_MS}, and stay
+ * source and an icon row: the photo's zoom and rotate and a Live Photo's Play, then Show in
+ * folder, Copy and Open, built from the source so every caller gets them, then Info, Fullscreen
+ * and, where the caller passes one, Bin. The bar and side arrows fade once the pointer has rested for {@link REST_MS}, and stay
  * while the pointer is over them or keyboard focus is inside them. Fullscreen is left when the
  * viewer closes.
  * @param props - Component props.
@@ -384,6 +386,12 @@ export function Viewer({
     setFocused(inChrome(event.target) && event.target.matches(":focus-visible"));
   }
 
+  // The Live Photo's clip plays in place of the still. Stepping away stops it, so coming back
+  // shows the still again.
+  const [liveKey, setLiveKey] = useState<string | null>(null);
+  if (liveKey !== null && liveKey !== key) setLiveKey(null);
+  const live = item?.live !== undefined && liveKey === key ? item.live : null;
+
   const usable = item !== null && !item.missing;
   return createPortal(
     <div
@@ -399,7 +407,20 @@ export function Viewer({
       className="fixed inset-0 z-40 flex bg-ground outline-none"
     >
       <div className="on-dark relative flex min-w-0 flex-1 items-center justify-center overflow-hidden bg-ground">
-        {item && (
+        {item && live && (
+          <VideoPlayer
+            key={`${key}-live`}
+            src={live}
+            poster={item.preview}
+            label={item.name}
+            onEnded={() => setLiveKey(null)}
+            onError={() => {
+              setLiveKey(null);
+              setFailure({ key, message: "This Live Photo's clip can't play inside Pic Cabinet" });
+            }}
+          />
+        )}
+        {item && !live && (
           <Media
             key={key}
             item={item}
@@ -443,6 +464,14 @@ export function Viewer({
           </span>
           <div className="flex shrink-0 items-center gap-0.5">
             <span ref={setPhotoTools} className="contents" />
+            {usable && item.live && (
+              <ToolButton
+                icon="live"
+                label={live ? "Show photo" : "Play Live Photo"}
+                pressed={live !== null}
+                onClick={() => setLiveKey(live ? null : key)}
+              />
+            )}
             {usable && reveal && (
               <ToolButton
                 icon="folder"

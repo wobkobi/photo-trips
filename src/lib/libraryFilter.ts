@@ -17,7 +17,10 @@ export interface LibraryFilter {
   kind: "all" | "photos" | "videos";
   /** Only photos whose date was guessed from when the file was last changed. */
   uncertain: boolean;
-  /** Only files whose name holds this text, in any case; "" for all. */
+  /**
+   * Only tiles whose file, or a file that goes with it, has a name holding this text, in any
+   * case; "" for all.
+   */
   name: string;
 }
 
@@ -85,7 +88,9 @@ function matches(tile: Tile, filter: LibraryFilter): boolean {
   if (filter.kind === "photos" && tile.kind === "video") return false;
   if (filter.kind === "videos" && tile.kind !== "video") return false;
   const name = filter.name.trim().toLowerCase();
-  if (name !== "" && !tile.name.toLowerCase().includes(name)) return false;
+  if (name !== "" && ![tile.name, ...tile.linked].some((n) => n.toLowerCase().includes(name))) {
+    return false;
+  }
   return !filter.uncertain || tile.uncertain;
 }
 
