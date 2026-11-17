@@ -130,3 +130,25 @@ export function spreadPick<T>(items: T[], count: number): T[] {
     (_, i) => items[Math.round((i * (items.length - 1)) / (count - 1))],
   );
 }
+
+/**
+ * The trips the sidebar lists under Trips: the newest by start date, at most `cap` of them, so a
+ * long list can't push the tools below it off a short window. The trip on show in the Library
+ * keeps its row even when older, taking the last place, so the sidebar always marks where you
+ * are.
+ * @param trips - every trip, in any order
+ * @param shownId - id of the trip the Library is showing, or null
+ * @param cap - most rows to list
+ * @returns the trips to list, newest first, and how many are left out
+ */
+export function sidebarTrips(
+  trips: TripInfo[],
+  shownId: number | null,
+  cap: number,
+): { rows: TripInfo[]; hidden: number } {
+  const newest = [...trips].sort((a, b) => b.startAt.localeCompare(a.startAt) || b.id - a.id);
+  const rows = newest.slice(0, Math.max(0, cap));
+  const shown = newest.find((trip) => trip.id === shownId);
+  if (shown && cap > 0 && !rows.includes(shown)) rows[rows.length - 1] = shown;
+  return { rows, hidden: trips.length - rows.length };
+}

@@ -36,13 +36,13 @@ const HELP: &str = "menu-help";
 /// View items are this prefix plus the page id the frontend uses.
 const PAGE_PREFIX: &str = "menu-page-";
 
-/// View menu: page id, label (`&` marks the Alt key letter) and shortcut.
+/// View menu: page id, label (`&` marks the Alt key letter) and shortcut, in the sidebar's order.
 const PAGES: &[(&str, &str, &str)] = &[
     ("library", "&Library", "Ctrl+1"),
-    ("sort", "&Sort", "Ctrl+2"),
-    ("trips", "&Trips", "Ctrl+3"),
-    ("suggestions", "Su&ggestions", "Ctrl+4"),
-    ("import", "&Import", "Ctrl+5"),
+    ("trips", "&Trips", "Ctrl+2"),
+    ("import", "&Import", "Ctrl+3"),
+    ("sort", "&Sort", "Ctrl+4"),
+    ("suggestions", "Su&ggestions", "Ctrl+5"),
     ("duplicates", "&Duplicates", "Ctrl+6"),
     ("history", "&History", "Ctrl+7"),
 ];
@@ -350,7 +350,7 @@ mod tests {
 
     #[test]
     fn shortcuts_follow_a_tab() {
-        assert_eq!(label("&Sort", Some("Ctrl+2")), "&Sort\tCtrl+2");
+        assert_eq!(label("&Trips", Some("Ctrl+2")), "&Trips\tCtrl+2");
         assert_eq!(label("Open &log folder", None), "Open &log folder");
     }
 
