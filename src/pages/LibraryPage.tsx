@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
+import { BinDialog } from "../components/BinDialog";
 import { CodecHint } from "../components/CodecHint";
 import { DateEditor } from "../components/DateEditor";
 import { Icon } from "../components/Icon";
@@ -18,7 +19,7 @@ import {
   type Tile,
   type TripInfo,
 } from "../lib/api";
-import { binQuestion } from "../lib/binText";
+
 import { tileSizeOf } from "../lib/display";
 import { count as countOf } from "../lib/format";
 import {
@@ -132,8 +133,7 @@ export function LibraryPage({
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   /** Photos waiting for the user to confirm sending them to the Recycle Bin. */
   const [binning, setBinning] = useState<Tile[] | null>(null);
-  /** Names of the files that go with a single photo waiting to be binned, once read. */
-  const [binPartners, setBinPartners] = useState<{ id: number; names: string[] } | null>(null);
+
   /** This page started the running Recycle Bin job, so its end shows here. */
   const [binStarted, setBinStarted] = useState(false);
   const [binResult, setBinResult] = useState<ApplySummary | null>(null);
@@ -146,24 +146,6 @@ export function LibraryPage({
   const [revision, setRevision] = useState(0);
   const tripReview = useTripReview();
   const searchBox = useRef<HTMLInputElement>(null);
-
-  // A single photo with linked files: read their names so the question can list them.
-  const binOne = binning?.length === 1 && binning[0].extra > 0 ? binning[0].id : null;
-  useEffect(() => {
-    if (binOne === null) return;
-    let live = true;
-    api.mediaDetail(binOne).then(
-      (detail) => {
-        if (!live) return;
-        const names = detail.members.filter((m) => m.id !== detail.id).map((m) => m.name);
-        setBinPartners({ id: binOne, names });
-      },
-      () => {},
-    );
-    return () => {
-      live = false;
-    };
-  }, [binOne]);
 
   useJobDone("remove", (job) => {
     if (!binStarted) return;
@@ -660,34 +642,7 @@ export function LibraryPage({
           onHistory={() => onNavigate("history")}
         />
       )}
-      {binning !== null && !reviewing && (
-        <div className="mx-5 mt-3 flex flex-wrap items-center gap-3 rounded-md border border-warn-line bg-warn-soft p-4">
-          <p className="min-w-0 flex-1 basis-60">
-            {binQuestion(binning, binPartners?.id === binOne ? binPartners.names : null)} You can
-            undo this from History.
-          </p>
-          <Button variant="primary" onClick={confirmBin} busy={running !== null}>
-            Send to the Recycle Bin
-          </Button>
-          <Button variant="ghost" onClick={() => setBinning(null)}>
-            Cancel
-          </Button>
-        </div>
-      )}
-      {dating !== null && !reviewing && (
-        <div className="mx-5 mt-3 flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface p-4">
-          <p className="min-w-0 flex-1 basis-60">
-            New date for {countOf(dating.length, "item", "items")}. Only Pic Cabinet uses it; the
-            files aren&apos;t changed.
-          </p>
-          <DateEditor
-            initial={dating[0].takenAt}
-            busy={savingDate}
-            onSave={(date) => void saveDates(dating, date)}
-            onCancel={() => setDating(null)}
-          />
-        </div>
-      )}
+
       {dateDone && !reviewing && (
         <div className="mx-5 mt-3 flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface p-4">
           <p className="min-w-0 flex-1 basis-60">{dateDone.text}</p>
@@ -804,13 +759,32 @@ export function LibraryPage({
                 onShow={onShowTrip}
               />
               <ViewerDate
-                key={tiles[open].id}
                 tile={tiles[open]}
                 busy={savingDate}
-                onSave={(date) => void saveDates([tiles[open]], date)}
+                onChange={() => setDating([tiles[open]])}
+                onFileDate={() => void saveDates([tiles[open]], null)}
               />
             </>
           }
+        />
+      )}
+      {/* After the viewer, though either dialog would show over it from anywhere in the page:
+          a modal dialog is drawn in the top layer, above the viewer's portal. */}
+      {binning !== null && !reviewing && (
+        <BinDialog
+          tiles={binning}
+          busy={running !== null}
+          onConfirm={confirmBin}
+          onCancel={() => setBinning(null)}
+        />
+      )}
+      {dating !== null && !reviewing && (
+        <DateEditor
+          items={dating.length}
+          initial={dating[0].takenAt}
+          busy={savingDate}
+          onSave={(date) => void saveDates(dating, date)}
+          onCancel={() => setDating(null)}
         />
       )}
     </div>
@@ -938,44 +912,34 @@ function ViewerTrip({
 }
 
 /**
- * The viewer's date buttons for one photo: change its date, or go back to the file's own date
- * once one has been set.
+ * The viewer's date buttons for one photo: change its date in the Set date dialog, or go back to
+ * the file's own date once one has been set.
  * @param props - Component props.
  * @param props.tile - the photo on show
  * @param props.busy - a date change is being saved
- * @param props.onSave - set the date, `YYYY-MM-DDTHH:MM:SS`, or null for the file's own
- * @returns the buttons, or the date box while changing it
+ * @param props.onChange - open the Set date dialog for this photo
+ * @param props.onFileDate - go back to the file's own date
+ * @returns the buttons
  */
 function ViewerDate({
   tile,
   busy,
-  onSave,
+  onChange,
+  onFileDate,
 }: {
   tile: Tile;
   busy: boolean;
-  onSave: (date: string | null) => void;
+  onChange: () => void;
+  onFileDate: () => void;
 }): ReactElement {
-  const [editing, setEditing] = useState(false);
-  if (editing) {
-    return (
-      <div className="mt-4">
-        <DateEditor
-          initial={tile.takenAt}
-          busy={busy}
-          onSave={onSave}
-          onCancel={() => setEditing(false)}
-        />
-      </div>
-    );
-  }
   return (
     <div className="mt-4 flex flex-wrap gap-2">
-      <Button onClick={() => setEditing(true)}>
+      <Button onClick={onChange}>
         <Icon name="calendar" size={16} />
         Change date
       </Button>
       {tile.dateSet && (
-        <Button variant="ghost" onClick={() => onSave(null)} busy={busy}>
+        <Button variant="ghost" onClick={onFileDate} busy={busy}>
           Use the file&apos;s date
         </Button>
       )}

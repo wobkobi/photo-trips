@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.42.0] - 2026-11-18
+
+### Added
+
+- The Recycle Bin question and Set date open as dialogs above the photo viewer and menus; Enter
+  answers, Esc cancels, and keys no longer act on the page behind
+
 ## [0.41.0] - 2026-11-18
 
 ### Added

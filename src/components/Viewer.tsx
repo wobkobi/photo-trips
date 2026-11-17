@@ -12,6 +12,7 @@ import {
 import { createPortal } from "react-dom";
 import { api, errorText, type MediaKind } from "../lib/api";
 import { formatTaken } from "../lib/format";
+import { useLayer } from "../lib/layers";
 import { savedPanel, savePanel } from "../lib/viewerPanel";
 import {
   MAX_SCALE,
@@ -242,6 +243,9 @@ export function Viewer({
   }, []);
 
   // Capture phase, so Escape closes only the viewer, not the selection or menu of the page behind.
+  // That also runs before a dialog over the viewer sees the key, so while one is open (the viewer
+  // is no longer the top layer) every key is left to the dialog.
+  const onTop = useLayer();
   useEffect(() => {
     /**
      * Escape closes the viewer; the left and right arrows step through the source, and Home and
@@ -250,11 +254,12 @@ export function Viewer({
      * @param event - the window's keydown, caught before the page behind sees it
      */
     function onKey(event: KeyboardEvent): void {
+      if (!onTop()) return;
       if (event.key === "Escape") {
         event.stopPropagation();
         onClose();
       }
-      // A date box in the side panel uses the arrows itself.
+      // A box being typed in uses the arrows itself.
       if (event.target instanceof HTMLInputElement) return;
       if (event.key === "ArrowLeft" && index > 0) onIndex(index - 1);
       if (event.key === "ArrowRight" && index < source.count - 1) onIndex(index + 1);
@@ -270,7 +275,7 @@ export function Viewer({
     }
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [index, source.count, onIndex, onClose, toggleInfo]);
+  }, [index, source.count, onIndex, onClose, toggleInfo, onTop]);
 
   // Focus moves into the viewer, and back to whatever opened it on closing. That return doesn't
   // scroll: after stepping through photos the page may bring the last one shown into view
