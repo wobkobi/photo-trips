@@ -22,6 +22,10 @@ All notable changes to this project are documented here. The format follows
 - Photos can go to the Recycle Bin from the Library's right-click menu or the Delete key, with the
   files that go with them, after a confirm. History can undo it.
 
+### Changed
+
+- Smoother, more consistent icons throughout the app.
+
 ### Fixed
 
 - Small or transparent photos no longer flash up stretched across the viewer before shrinking to
