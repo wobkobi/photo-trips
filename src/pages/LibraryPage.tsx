@@ -21,7 +21,15 @@ import {
 import { binQuestion } from "../lib/binText";
 import { tileSizeOf } from "../lib/display";
 import { count as countOf } from "../lib/format";
-import { filterTiles, isFiltered, NO_FILTER, type LibraryFilter } from "../lib/libraryFilter";
+import {
+  clearFilters,
+  filterTiles,
+  isFilteredBesidesTrip,
+  NO_FILTER,
+  tripOf,
+  type FilterTrip,
+  type LibraryFilter,
+} from "../lib/libraryFilter";
 import {
   addEdit,
   editDone,
@@ -30,7 +38,7 @@ import {
   pickedEdits,
   type TripEdit,
 } from "../lib/tripEdits";
-import { EMPTY_FORM, rangeOfTiles, type TripStart } from "../lib/trips";
+import { EMPTY_FORM, rangeOfTiles, rangeText, type TripStart } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { useLibrary } from "../lib/useLibrary";
 import { useSettings } from "../lib/useSettings";
@@ -46,11 +54,18 @@ const THUMB_RETRY_MS = 60_000;
  * filter, selection and open photo live in the library store, so they are as they were on
  * coming back. "Make a trip" turns clicks into selecting, so the photos to make a trip from can
  * be chosen without knowing any shortcuts; Ctrl-click, Shift-click and right-click select too.
+ *
+ * A trip in the filter makes the page that trip's: its name as the title, its dates and count
+ * beside it, Edit, and a back arrow to where it was opened from. Its other filters narrow within
+ * the trip, and Clear filters keeps the trip.
  * @param props - Component props.
  * @param props.onCreateTrip - start a new trip over the picked photos' days, with only those
  *   photos ticked
  * @param props.onImport - open the Import page
  * @param props.onNavigate - switch to another page, for History from the result banner
+ * @param props.onShowTrip - show one trip, from the viewer's trip name
+ * @param props.onLeaveTrip - leave the trip on show for the page it was opened from
+ * @param props.onEditTrip - open the trip on show in the Trips page's editor
  * @param props.refreshRequested - File > Refresh (F5) was picked; refresh on opening
  * @param props.onRefreshStarted - called once that refresh has been asked for
  * @param props.findRequested - View > Find (Ctrl+F) was picked; focus the file name box
@@ -61,6 +76,9 @@ export function LibraryPage({
   onCreateTrip,
   onImport,
   onNavigate,
+  onShowTrip,
+  onLeaveTrip,
+  onEditTrip,
   refreshRequested,
   onRefreshStarted,
   findRequested,
@@ -69,6 +87,9 @@ export function LibraryPage({
   onCreateTrip: (start: TripStart) => void;
   onImport: () => void;
   onNavigate: (page: PageId) => void;
+  onShowTrip: (trip: FilterTrip) => void;
+  onLeaveTrip: () => void;
+  onEditTrip: (trip: TripInfo) => void;
   refreshRequested: boolean;
   onRefreshStarted: () => void;
   findRequested: boolean;
@@ -96,6 +117,15 @@ export function LibraryPage({
     reload,
   } = useLibrary();
   const tiles = useMemo(() => allTiles && filterTiles(allTiles, filter), [allTiles, filter]);
+  // The trip on show, read from the store by id so a rename shows; its name in the filter is
+  // kept for a trip deleted since.
+  const trip = tripOf(filter);
+  const tripInfo = trip && trips.find((t) => t.id === trip.id);
+  // Every photo in the place on show, before its other filters: the trip's, or the library's.
+  const placeTiles = useMemo(
+    () => (allTiles && trip ? filterTiles(allTiles, { ...NO_FILTER, trip }) : allTiles),
+    [allTiles, trip],
+  );
   const [error, setError] = useState<string | null>(null);
   const [failedThumbs, setFailedThumbs] = useState<Tile[]>([]);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
@@ -241,16 +271,33 @@ export function LibraryPage({
   // Ctrl+A only while the grid is what's on screen, not over the viewer or a trip review.
   const reviewOpen = tripReview.review !== null;
   const gridShown = open === null && !reviewOpen;
+  // Capture phase, so Escape deselects before the header's back arrow sees it: inside a trip the
+  // first Escape clears the selection and the second leaves the trip. A menu, the viewer or a
+  // modal on screen keeps its own Escape.
+  useEffect(() => {
+    if (!selecting || !gridShown) return;
+    /**
+     * Escape stops selecting and marks the key handled.
+     * @param event - the window's keydown, caught before the page sees it
+     */
+    function onEscape(event: KeyboardEvent): void {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.target instanceof Element && event.target.closest('[role="menu"]')) return;
+      if (document.querySelector('dialog[open], [aria-modal="true"]')) return;
+      event.preventDefault();
+      clearSelection();
+    }
+    window.addEventListener("keydown", onEscape, true);
+    return () => window.removeEventListener("keydown", onEscape, true);
+  }, [selecting, gridShown, clearSelection]);
+
   useEffect(() => {
     /**
-     * Escape stops picking; Ctrl+A picks every photo shown and Delete asks to bin the picked
-     * ones, unless the key is for a text box. Over a trip review, Escape belongs to the header's
-     * back arrow, which marks it handled, so it steps back once and leaves the selection be.
+     * Ctrl+A selects every photo shown and Delete asks to bin the selected ones, unless the key
+     * is for a text box.
      * @param event - the key pressed
      */
     const onKey = (event: KeyboardEvent): void => {
-      const escape = event.key === "Escape" && !event.defaultPrevented;
-      if (escape && selecting && !reviewOpen) clearSelection();
       if (!gridShown || isTyping(event.target)) return;
       if (event.key === "Delete" && picked.length > 0) setBinning(picked);
       const pickAll = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a";
@@ -261,7 +308,7 @@ export function LibraryPage({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selecting, clearSelection, reviewOpen, gridShown, ids, picked, setSelected, setAnchorId]);
+  }, [gridShown, ids, picked, setSelected, setAnchorId]);
 
   /**
    * Explorer-style selection: Ctrl toggles, Shift extends from the last clicked tile, and a
@@ -479,29 +526,37 @@ export function LibraryPage({
 
   const indexing = running?.kind === "index";
   const total = allTiles?.length ?? 0;
+  const placeTotal = placeTiles?.length ?? 0;
   const count = tiles?.length ?? 0;
-  const filtered = isFiltered(filter);
   const { review } = tripReview;
   const moving = tripReview.applying && (running?.kind === "apply" || running?.kind === "undo");
   // A trip change under review or being made takes the grid's place.
   const reviewing = review !== null || moving;
+  let title = "Library";
+  if (review !== null && !moving) title = "Preview";
+  else if (trip) title = tripInfo?.name ?? trip.name;
+  // One back arrow at a time: a review's own steps back to the grid.
+  let onBack: (() => void) | undefined;
+  if (review !== null && !tripReview.applying) onBack = tripReview.back;
+  else if (trip && !reviewing) onBack = onLeaveTrip;
 
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title={review !== null && !moving ? "Preview" : "Library"}
+        title={title}
         detail={
           // The Library's counts don't describe a trip change under review.
           review !== null && !moving ? undefined : (
             <Detail
               count={count}
-              total={total}
+              total={placeTotal}
+              dates={tripInfo ? rangeText(tripInfo.startAt, tripInfo.endAt) : undefined}
               summary={summary}
               indexing={indexing && total === 0}
             />
           )
         }
-        onBack={review !== null && !tripReview.applying ? tripReview.back : undefined}
+        onBack={onBack}
         actions={
           reviewing ? (
             review !== null &&
@@ -562,6 +617,11 @@ export function LibraryPage({
                 <Button onClick={() => setPicking(true)}>
                   <Icon name="check" size={18} />
                   Make a trip
+                </Button>
+              )}
+              {tripInfo && (
+                <Button onClick={() => onEditTrip(tripInfo)} busy={running !== null}>
+                  Edit
                 </Button>
               )}
               <Button
@@ -657,19 +717,28 @@ export function LibraryPage({
         />
       )}
 
-      {!reviewing && allTiles !== null && total > 0 && (
+      {!reviewing && placeTiles !== null && placeTotal > 0 && (
         <LibraryFilterBar
-          tiles={allTiles}
+          tiles={placeTiles}
           filter={filter}
           onChange={changeFilter}
           searchBox={searchBox}
         />
       )}
 
-      {total > 0 && count === 0 && filtered && (
+      {!reviewing && total > 0 && trip && placeTotal === 0 && (
+        <EmptyState title="No photos in this trip">
+          {tripInfo && (
+            <Button variant="primary" onClick={() => onEditTrip(tripInfo)} busy={running !== null}>
+              Edit trip
+            </Button>
+          )}
+        </EmptyState>
+      )}
+      {placeTotal > 0 && count === 0 && isFilteredBesidesTrip(filter) && (
         <EmptyState title="Nothing matches">
           <p>Try fewer filters.</p>
-          <Button variant="primary" onClick={() => changeFilter(NO_FILTER)}>
+          <Button variant="primary" onClick={() => changeFilter(clearFilters(filter))}>
             Clear filters
           </Button>
         </EmptyState>
@@ -727,7 +796,7 @@ export function LibraryPage({
                 tiles={allTiles ?? []}
                 busy={running !== null || tripReview.checking}
                 onEdit={startEdit}
-                onShow={(trip) => changeFilter({ ...filter, trip })}
+                onShow={onShowTrip}
               />
               <ViewerDate
                 key={tiles[open].id}
@@ -744,10 +813,12 @@ export function LibraryPage({
 }
 
 /**
- * The count beside the title, with how many other files are left alone in its tooltip.
+ * The count beside the title, after a trip's dates when one is on show, with how many other
+ * files are left alone in its tooltip.
  * @param props - Component props.
  * @param props.count - photos and videos the filter shows
- * @param props.total - photos and videos in the library
+ * @param props.total - photos and videos in the library, or in the trip on show
+ * @param props.dates - the trip's dates, when one is on show
  * @param props.summary - the last library read, for its count of other files
  * @param props.indexing - the first read is still running
  * @returns the detail text
@@ -755,11 +826,13 @@ export function LibraryPage({
 function Detail({
   count,
   total,
+  dates,
   summary,
   indexing,
 }: {
   count: number;
   total: number;
+  dates?: string;
   summary: IndexSummary | null;
   indexing: boolean;
 }): ReactElement {
@@ -775,6 +848,7 @@ function Detail({
   const unreadable = summary?.unreadable ?? 0;
   return (
     <>
+      {dates && `${dates} · `}
       <span title={others}>{items}</span>
       {unreadable > 0 && (
         <span

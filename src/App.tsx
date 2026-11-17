@@ -2,10 +2,11 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState, type ReactElement } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { Tour } from "./components/Tour";
+import type { TripInfo } from "./lib/api";
 import { themeOf } from "./lib/display";
 import { JobsProvider } from "./lib/jobs";
 import { LibraryProvider } from "./lib/library";
-import { NO_FILTER, type FilterTrip } from "./lib/libraryFilter";
+import { NO_FILTER, tripOf, type FilterTrip } from "./lib/libraryFilter";
 import { useMenuBar, type MenuRequest } from "./lib/menu";
 import { SettingsProvider } from "./lib/settings";
 import type { TripStart } from "./lib/trips";
@@ -90,14 +91,32 @@ function Shell(): ReactElement | null {
   // A trip started in the Library or Suggestions, until the Trips page opens it.
   const [tripDraft, setTripDraft] = useState<TripStart | null>(null);
   const clearTripDraft = useCallback(() => setTripDraft(null), []);
-  const { setFilter } = useLibrary();
+  // A trip the Library's Edit asked for, until the Trips page opens it in its editor.
+  const [tripEdit, setTripEdit] = useState<TripInfo | null>(null);
+  const clearTripEdit = useCallback(() => setTripEdit(null), []);
+  // The trip on show is the one in the Library's filter; all Shell keeps is the page its Back
+  // returns to.
+  const [tripFrom, setTripFrom] = useState<PageId>("library");
+  const { filter, setFilter } = useLibrary();
   const showTrip = useCallback(
     (trip: FilterTrip) => {
+      // The viewer's link to the trip already on show keeps where Back goes.
+      if (page !== "library" || tripOf(filter)?.id !== trip.id) setTripFrom(page);
       setFilter({ ...NO_FILTER, trip });
       setPage("library");
     },
-    [setFilter],
+    [page, filter, setFilter],
   );
+  // Leaving takes the trip out of the filter wherever Back goes, so the Library next opens on
+  // everything rather than on the trip just left.
+  const leaveTrip = useCallback(() => {
+    setFilter({ ...filter, trip: "any" });
+    setPage(tripFrom);
+  }, [filter, setFilter, tripFrom]);
+  const editTrip = useCallback((trip: TripInfo) => {
+    setTripEdit(trip);
+    setPage("trips");
+  }, []);
   const createTrip = useCallback((start: TripStart) => {
     setTripDraft(start);
     setPage("trips");
@@ -165,6 +184,10 @@ function Shell(): ReactElement | null {
             page={page}
             onNavigate={setPage}
             onShowTrip={showTrip}
+            onLeaveTrip={leaveTrip}
+            onEditTrip={editTrip}
+            tripEdit={tripEdit}
+            onTripEditUsed={clearTripEdit}
             tripDraft={tripDraft}
             onTripDraftUsed={clearTripDraft}
             onCreateTrip={createTrip}
@@ -198,6 +221,10 @@ function Shell(): ReactElement | null {
  * @param props.page - which page to show
  * @param props.onNavigate - open another page
  * @param props.onShowTrip - show one trip in the Library
+ * @param props.onLeaveTrip - leave the trip on show for the page it was opened from
+ * @param props.onEditTrip - open a trip in the Trips page's editor
+ * @param props.tripEdit - a trip to edit, for the Trips page to open
+ * @param props.onTripEditUsed - called once the Trips page has opened that trip
  * @param props.tripDraft - a trip started elsewhere, for the Trips page to open
  * @param props.onTripDraftUsed - called once the Trips page has opened the draft
  * @param props.onCreateTrip - start a trip and open the Trips page
@@ -214,6 +241,10 @@ function CurrentPage({
   page,
   onNavigate,
   onShowTrip,
+  onLeaveTrip,
+  onEditTrip,
+  tripEdit,
+  onTripEditUsed,
   tripDraft,
   onTripDraftUsed,
   onCreateTrip,
@@ -228,6 +259,10 @@ function CurrentPage({
   page: PageId;
   onNavigate: (page: PageId) => void;
   onShowTrip: (trip: FilterTrip) => void;
+  onLeaveTrip: () => void;
+  onEditTrip: (trip: TripInfo) => void;
+  tripEdit: TripInfo | null;
+  onTripEditUsed: () => void;
   tripDraft: TripStart | null;
   onTripDraftUsed: () => void;
   onCreateTrip: (start: TripStart) => void;
@@ -246,6 +281,9 @@ function CurrentPage({
           onCreateTrip={onCreateTrip}
           onImport={() => onNavigate("import")}
           onNavigate={onNavigate}
+          onShowTrip={onShowTrip}
+          onLeaveTrip={onLeaveTrip}
+          onEditTrip={onEditTrip}
           refreshRequested={refresh}
           onRefreshStarted={onRefreshStarted}
           findRequested={find}
@@ -259,6 +297,8 @@ function CurrentPage({
         <TripsPage
           draft={tripDraft}
           onDraftUsed={onTripDraftUsed}
+          edit={tripEdit}
+          onEditUsed={onTripEditUsed}
           onNavigate={onNavigate}
           onShowTrip={onShowTrip}
         />

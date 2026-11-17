@@ -1,6 +1,12 @@
 import { useMemo, type ReactElement, type ReactNode, type RefObject } from "react";
 import type { Tile } from "../lib/api";
-import { filterChoices, isFiltered, NO_FILTER, type LibraryFilter } from "../lib/libraryFilter";
+import {
+  clearFilters,
+  filterChoices,
+  isFilteredBesidesTrip,
+  tripOf,
+  type LibraryFilter,
+} from "../lib/libraryFilter";
 import { Icon } from "./Icon";
 import { Button } from "./ui";
 
@@ -25,11 +31,12 @@ function Inline({ label, children }: { label: string; children: ReactNode }): Re
 }
 
 /**
- * The menus above the Library timeline that narrow it to a trip, a year, photos or videos, or
- * dates that may be wrong, and a box for finding files by name. Menus with only one sensible
- * choice are left out.
+ * The menus above the Library timeline that narrow it to a year, photos or videos, photos on no
+ * trip, or dates that may be wrong, and a box for finding files by name. Menus with only one
+ * sensible choice are left out. A trip is a place rather than a filter here: Clear filters keeps
+ * it, and "Not on a trip" isn't offered inside one.
  * @param props - Component props.
- * @param props.tiles - every tile in the library, newest first
+ * @param props.tiles - every tile on show (the library's, or the open trip's), newest first
  * @param props.filter - the current filter
  * @param props.onChange - called with the new filter
  * @param props.searchBox - set to the file name box, so Find (Ctrl+F) can focus it
@@ -47,16 +54,6 @@ export function LibraryFilterBar({
   searchBox?: RefObject<HTMLInputElement | null>;
 }): ReactElement {
   const choices = useMemo(() => filterChoices(tiles, filter), [tiles, filter]);
-  const tripValue = typeof filter.trip === "object" ? String(filter.trip.id) : filter.trip;
-
-  /**
-   * Apply the trip menu's choice. A trip id that no longer matches a trip falls back to "any".
-   * @param value - "any", "none", or a trip's id as a string
-   */
-  function chooseTrip(value: string): void {
-    if (value === "any" || value === "none") onChange({ ...filter, trip: value });
-    else onChange({ ...filter, trip: choices.trips.find((t) => String(t.id) === value) ?? "any" });
-  }
 
   return (
     <div
@@ -74,23 +71,6 @@ export function LibraryFilterBar({
         spellCheck={false}
         className={`${SELECT} w-40 placeholder:text-faint`}
       />
-      {(choices.trips.length > 0 || filter.trip !== "any") && (
-        <Inline label="Trip">
-          <select
-            value={tripValue}
-            onChange={(e) => chooseTrip(e.target.value)}
-            className={`${SELECT} max-w-60`}
-          >
-            <option value="any">All</option>
-            <option value="none">No trip</option>
-            {choices.trips.map((trip) => (
-              <option key={trip.id} value={trip.id}>
-                {trip.name}
-              </option>
-            ))}
-          </select>
-        </Inline>
-      )}
       {(choices.years.length > 1 || filter.year !== "any") && (
         <Inline label="Year">
           <select
@@ -131,8 +111,19 @@ export function LibraryFilterBar({
           Uncertain dates
         </label>
       )}
-      {isFiltered(filter) && (
-        <Button variant="ghost" className="ml-auto" onClick={() => onChange(NO_FILTER)}>
+      {tripOf(filter) === null && (choices.onTrip || filter.trip === "none") && (
+        <label className="flex min-h-8.5 cursor-pointer items-center gap-2 text-[14px] text-muted">
+          <input
+            type="checkbox"
+            checked={filter.trip === "none"}
+            onChange={(e) => onChange({ ...filter, trip: e.target.checked ? "none" : "any" })}
+            className="size-4 accent-accent"
+          />
+          Not on a trip
+        </label>
+      )}
+      {isFilteredBesidesTrip(filter) && (
+        <Button variant="ghost" className="ml-auto" onClick={() => onChange(clearFilters(filter))}>
           <Icon name="close" size={16} />
           Clear filters
         </Button>
