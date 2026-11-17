@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.30.4] - 2026-11-18
+
+### Fixed
+
+- Photos and videos Windows couldn't preview get their thumbnails as soon as the missing Store
+  extension is installed, and are tried again when you come back to the window a minute or more
+  later, instead of staying blank until Pic Cabinet restarts.
+
 ## [0.30.3] - 2026-11-18
 
 ### Changed

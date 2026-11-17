@@ -75,6 +75,7 @@ function libraryThumb(tile: Tile): string {
  * one when this is given
  * @param props.onThumbError - called when Windows has no thumbnail for a tile
  * @param props.thumbOf - a tile's thumbnail URL (default: the library thumbnail for its id)
+ * @param props.thumbRetry - raise to have tiles without a thumbnail ask for one again
  * @param props.monthAction - something to show at the right of a month heading
  * @param props.fadeUnselected - fade tiles that aren't selected, for when most are
  * @param props.showUncertain - mark every tile with an uncertain date, not just the one hovered,
@@ -95,6 +96,7 @@ export function TimelineGrid({
   onTileZoom,
   onThumbError,
   thumbOf = libraryThumb,
+  thumbRetry = 0,
   monthAction,
   fadeUnselected = false,
   showUncertain = false,
@@ -110,6 +112,7 @@ export function TimelineGrid({
   onTileZoom?: (index: number) => void;
   onThumbError: (tile: Tile) => void;
   thumbOf?: (tile: Tile) => string;
+  thumbRetry?: number;
   monthAction?: (month: MonthRow) => ReactNode;
   fadeUnselected?: boolean;
   showUncertain?: boolean;
@@ -277,6 +280,7 @@ export function TimelineGrid({
                           size={tileSize}
                           selecting={selecting}
                           thumb={thumbOf(tile)}
+                          retry={thumbRetry}
                           selected={selected.has(tile.id)}
                           faded={fadeUnselected && !selected.has(tile.id)}
                           showUncertain={showUncertain}
@@ -306,6 +310,7 @@ export function TimelineGrid({
  * @param props.index - position in the grid, for finding the tile to focus after a jump
  * @param props.tile - the photo or video
  * @param props.thumb - thumbnail URL
+ * @param props.retry - a count that, when raised, has a tile without a thumbnail ask again
  * @param props.size - tile edge in CSS pixels
  * @param props.selecting - picking photos, so a plain click picks instead of opening
  * @param props.selected - the tile is picked
@@ -321,6 +326,7 @@ function TileButton({
   index,
   tile,
   thumb,
+  retry,
   size,
   selecting,
   selected,
@@ -335,6 +341,7 @@ function TileButton({
   index: number;
   tile: Tile;
   thumb: string;
+  retry: number;
   size: number;
   /** Picking photos, so a plain click picks instead of opening. */
   selecting: boolean;
@@ -348,6 +355,13 @@ function TileButton({
   onThumbError: (tile: Tile) => void;
 }): ReactElement {
   const [failed, setFailed] = useState(false);
+  // A retry asks under a new URL, since the webview remembers an image that failed to load.
+  const [triedAt, setTriedAt] = useState(retry);
+  if (triedAt !== retry) {
+    setTriedAt(retry);
+    setFailed(false);
+  }
+  const src = retry ? `${thumb}${thumb.includes("?") ? "&" : "?"}retry=${retry}` : thumb;
   const kind = tile.kind === "video" ? "Video" : "Photo";
   const taken = formatTaken(tile.takenAt);
   const trip = tile.trip ? `, ${tile.trip.name} trip` : "";
@@ -381,7 +395,7 @@ function TileButton({
           </span>
         ) : (
           <img
-            src={thumb}
+            src={src}
             alt=""
             decoding="async"
             draggable={false}

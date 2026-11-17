@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { api, type Codec, type StoreProduct, type Tile } from "../lib/api";
 import { missingCodecs } from "../lib/codecs";
 import { Icon } from "./Icon";
@@ -33,23 +33,40 @@ const LISTINGS: Record<Codec, Listing> = {
  * @param props - Component props.
  * @param props.failed - tiles whose thumbnails failed this session
  * @param props.onDismiss - hide the hint for good
+ * @param props.onChange - an extension came or went since the last check, so tiles without a
+ *   thumbnail are worth asking again
  * @returns the banner, or nothing when no missing extension is implicated
  */
 export function CodecHint({
   failed,
   onDismiss,
+  onChange,
 }: {
   failed: Tile[];
   onDismiss: () => void;
+  onChange?: () => void;
 }): ReactElement | null {
   const [installed, setInstalled] = useState<Codec[] | null>(null);
   const anyFailed = failed.length > 0;
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
 
   useEffect(() => {
     if (!anyFailed) return;
+    let last: string | null = null;
     /** Ask which Store extensions are installed; a failed check counts as none. */
     const check = (): void => {
-      api.installedExtensions().then(setInstalled, () => setInstalled([]));
+      api.installedExtensions().then(
+        (found) => {
+          const now = [...found].sort().join(",");
+          if (last !== null && now !== last) onChangeRef.current?.();
+          last = now;
+          setInstalled(found);
+        },
+        () => setInstalled([]),
+      );
     };
     check();
     // Checking again on return from the Store makes the hint go once the extension is in.
