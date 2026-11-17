@@ -7,7 +7,6 @@ const japan: Suggestion = {
   startDay: "2025-03-12",
   endDay: "2025-03-17",
   name: "Kyoto and Tokyo",
-  namedByPlace: true,
   files: 184,
   awayDays: 0,
   awayKm: null,
@@ -45,12 +44,23 @@ describe("reasonText", () => {
       "184 photos and videos over 6 days. All 6 days were about 8,800 km from home.",
     );
   });
+
+  it("says a day trip in one go", () => {
+    const day = { ...japan, startDay: "2026-08-28", endDay: "2026-08-28", files: 142 };
+    expect(reasonText({ ...day, awayDays: 1, awayKm: 108 })).toBe(
+      "142 photos and videos in one day, about 108 km from home.",
+    );
+    expect(reasonText({ ...day, awayDays: 0, awayKm: null })).toBe(
+      "142 photos and videos in one day.",
+    );
+  });
 });
 
 describe("howFound", () => {
   const busy =
     "A day with 15 or more photos and videos counts as busy. Two or more busy days in a row make a suggestion, even with a quiet day between them.";
-  const away = "A day spent more than 50 km from home counts as well, however few photos it has.";
+  const away =
+    "A day spent more than 50 km from home counts as well, however few photos it has, and a busy one makes a suggestion on its own as a day trip. Busy days at home don't count.";
 
   it("names a home worked out from the photos", () => {
     expect(howFound({ minPhotos: 15, located: 900, home: { place: "Auckland", set: false } })).toBe(

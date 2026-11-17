@@ -51,7 +51,7 @@ export function SuggestionSettings(): ReactElement {
     <Section title="Trip suggestions" error={error}>
       <Row
         title="Busy day"
-        detail="A day with at least this many photos and videos counts as busy, and two or more busy days in a row are suggested as a trip. Lower it if trips are missed, raise it if ordinary weekends turn up."
+        detail="A day with at least this many photos and videos counts as busy, and two or more busy days in a row, or one away from home, are suggested as a trip. Lower it if trips are missed, raise it if ordinary weekends turn up."
       >
         <select
           aria-label="Photos and videos for a busy day"

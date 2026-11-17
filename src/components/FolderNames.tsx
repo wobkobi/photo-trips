@@ -9,6 +9,9 @@ import { Button } from "./ui";
 /** Every example uses a photo from 12 March of this year, and a trip to Japan starting then. */
 const EXAMPLE_YEAR = new Date().getFullYear();
 const EXAMPLE_DAY = `${EXAMPLE_YEAR}-03-12`;
+/** A trip over New Year, which a year-named folder gives both years. */
+const NEW_YEAR_START = `${EXAMPLE_YEAR}-12-28`;
+const NEW_YEAR_END = `${EXAMPLE_YEAR + 1}-01-03`;
 
 /**
  * Settings section for how month and trip folders are named. Each drop-down lists its presets
@@ -105,6 +108,13 @@ export function FolderNames({
             {tripFolder(naming.trips, EXAMPLE_DAY, "Japan")}
           </span>
           . If two trips would get the same folder name, the later one has (2) added.
+        </p>
+        <p>
+          One called Tairua from 28 December to 3 January goes in{" "}
+          <span className="selectable font-semibold">
+            {tripFolder(naming.trips, NEW_YEAR_START, "Tairua", NEW_YEAR_END)}
+          </span>
+          .
         </p>
       </div>
       {changed && (

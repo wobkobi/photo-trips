@@ -1,33 +1,56 @@
-import { useCallback, useMemo, useState, type ReactElement } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { thumbUrl, type SampleTile } from "../lib/api";
+import { spreadPick } from "../lib/trips";
 import { Viewer } from "./Viewer";
 import { useLibrarySource } from "./viewSources";
 
+/** Smallest a preview gets, in CSS pixels; a wider strip fits more of them rather than larger. */
+const MIN_TILE = 160;
+const GAP = 4;
+
 /**
- * A row of small thumbnails from a trip or a suggested one. Each opens in the viewer, which
- * steps through the rest of the row.
+ * One row of photo previews from a trip or a suggested one, as many as fit across at a size
+ * that can be made out, picked evenly through the trip. Each opens in the viewer, which steps
+ * through the ones shown.
  * @param props - Component props.
- * @param props.sample - photos to show, already spread through the trip
+ * @param props.sample - photos to choose from, already spread through the trip
  * @returns the strip
  */
 export function SampleStrip({ sample }: { sample: SampleTile[] }): ReactElement {
+  const stripRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
   const [viewing, setViewing] = useState<number | null>(null);
   const closeViewer = useCallback(() => setViewing(null), []);
-  const ids = useMemo(() => sample.map((tile) => tile.id), [sample]);
+
+  useLayoutEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, []);
+
+  const fits = Math.max(1, Math.floor((width + GAP) / (MIN_TILE + GAP)));
+  const shown = useMemo(() => spreadPick(sample, fits), [sample, fits]);
+  // Tiles stretch to fill the row, up to the room that the full set of `fits` would take.
+  const size = width > 0 ? Math.floor((width - GAP * (fits - 1)) / fits) : MIN_TILE;
+  const ids = useMemo(() => shown.map((tile) => tile.id), [shown]);
   const source = useLibrarySource(ids);
 
   // The padding keeps the focus outline inside the clipped row; the margin cancels it out.
   return (
-    <div className="-m-1 flex gap-1 overflow-hidden p-1">
-      {sample.map((tile, index) => (
-        <SampleThumb
-          key={tile.id}
-          tile={tile}
-          label={`Look at photo ${index + 1} of ${sample.length}`}
-          onOpen={() => setViewing(index)}
-        />
-      ))}
-      {viewing !== null && viewing < sample.length && (
+    <div ref={stripRef} className="-m-1 flex overflow-hidden p-1" style={{ gap: GAP }}>
+      {width > 0 &&
+        shown.map((tile, index) => (
+          <SampleThumb
+            key={tile.id}
+            tile={tile}
+            size={size}
+            label={`Look at photo ${index + 1} of ${shown.length}`}
+            onOpen={() => setViewing(index)}
+          />
+        ))}
+      {viewing !== null && viewing < shown.length && (
         <Viewer source={source} index={viewing} onIndex={setViewing} onClose={closeViewer} />
       )}
     </div>
@@ -35,19 +58,22 @@ export function SampleStrip({ sample }: { sample: SampleTile[] }): ReactElement 
 }
 
 /**
- * One thumbnail in the strip, left as an empty tile if it fails to load.
+ * One preview in the strip, left as an empty tile if it fails to load.
  * @param props - Component props.
  * @param props.tile - the photo to show
+ * @param props.size - edge length in CSS pixels
  * @param props.label - accessible name, giving its place in the strip
  * @param props.onOpen - open it in the viewer
- * @returns the thumbnail button
+ * @returns the preview button
  */
 function SampleThumb({
   tile,
+  size,
   label,
   onOpen,
 }: {
   tile: SampleTile;
+  size: number;
   label: string;
   onOpen: () => void;
 }): ReactElement {
@@ -57,7 +83,9 @@ function SampleThumb({
       type="button"
       onClick={onOpen}
       aria-label={label}
-      className="h-16 w-16 shrink-0 overflow-hidden rounded-[3px] bg-raised hover:opacity-85"
+      title="Look at this one bigger"
+      className="shrink-0 overflow-hidden rounded-xs bg-raised hover:opacity-90"
+      style={{ width: size, height: size }}
     >
       {!failed && (
         <img

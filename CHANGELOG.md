@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.24.0] - 2026-11-16
+
+### Added
+
+- One busy day away from home is suggested as a day trip.
+- Suggestion previews are much bigger, filling the card with photos spread through the trip; the
+  buttons drop under the words in a narrow window.
+- A trip over New Year gets both years in its folder, such as Tairua 2025-26, and each suggestion is
+  titled the way its trip folder will be.
+- The trip editor shows the folder a trip will get, Settings shows how a trip over New Year is
+  named, and a suggestion with no place is called Trip so its folder doesn't repeat the dates.
+
 ## [0.23.0] - 2026-11-16
 
 ### Added

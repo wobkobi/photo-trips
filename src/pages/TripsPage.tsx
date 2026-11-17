@@ -28,12 +28,13 @@ import {
 import { tileSizeOf } from "../lib/display";
 import { count } from "../lib/format";
 import type { FilterTrip } from "../lib/libraryFilter";
-import { namingOf, tripFolder } from "../lib/naming";
+import { cleanName, namingOf, tripFolder } from "../lib/naming";
 import {
   EMPTY_FORM,
   formFromTrip,
   hasValidRange,
   rangeText,
+  spreadPick,
   toDraft,
   tripBg,
   type TripForm,
@@ -413,7 +414,7 @@ function TripRow({
  */
 function Cover({ sample }: { sample: SampleTile[] }): ReactElement | null {
   if (sample.length === 0) return null;
-  const shown = sample.length >= 4 ? sample.slice(0, 4) : sample.slice(0, 1);
+  const shown = sample.length >= 4 ? spreadPick(sample, 4) : sample.slice(0, 1);
   return (
     <span
       className={`grid h-full w-full gap-0.5 ${shown.length === 4 ? "grid-cols-2 grid-rows-2" : ""}`}
@@ -555,6 +556,14 @@ function TripEditor({
             />
           </Field>
         </div>
+        {cleanName(form.name) !== "" && hasValidRange(form) && (
+          <p className="text-[14px] text-faint">
+            Folder:{" "}
+            <span className="selectable break-all">
+              {tripFolder(namingOf(settings).trips, form.startDate, form.name, form.endDate)}
+            </span>
+          </p>
+        )}
 
         <MatchSummary form={form} matches={matches} />
 

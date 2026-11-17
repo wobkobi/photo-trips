@@ -1,6 +1,30 @@
 import { describe, expect, it } from "vitest";
 import type { Tile, TripInfo } from "./api";
-import { EMPTY_FORM, formFromTrip, hasValidRange, rangeOfTiles, rangeText, toDraft } from "./trips";
+import {
+  EMPTY_FORM,
+  formFromTrip,
+  hasValidRange,
+  rangeOfTiles,
+  rangeText,
+  spreadPick,
+  toDraft,
+} from "./trips";
+
+describe("spreadPick", () => {
+  const twelve = Array.from({ length: 12 }, (_, i) => i);
+
+  it("keeps the ends and spreads the rest evenly", () => {
+    expect(spreadPick(twelve, 4)).toEqual([0, 4, 7, 11]);
+    expect(spreadPick(twelve, 2)).toEqual([0, 11]);
+  });
+
+  it("keeps everything when there's room, and copes with one or none", () => {
+    expect(spreadPick(twelve, 20)).toEqual(twelve);
+    expect(spreadPick(twelve, 1)).toEqual([0]);
+    expect(spreadPick(twelve, 0)).toEqual([]);
+    expect(spreadPick([], 3)).toEqual([]);
+  });
+});
 
 describe("rangeText", () => {
   it("words ranges the same way as the backend", () => {

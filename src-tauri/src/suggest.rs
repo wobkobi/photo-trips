@@ -5,7 +5,7 @@
 //    and mark days whose middle photo location is more than 50 km from it as away.
 // 3. Join busy and away days into runs, bridging one quiet day. With a home, a run whose located
 //    days are all at home is everyday life, not a trip, and home days at either end come off.
-//    A run of 2+ days is a suggestion.
+//    A run of 2+ days is a suggestion, and so is one busy day away (a day trip).
 // 4. Name it after the area, region or country its located photos fit (see `place_name`), or its
 //    dates.
 // 5. Leave out runs that overlap a trip or a dismissed suggestion.
@@ -34,7 +34,8 @@ pub const DEFAULT_MIN_PHOTOS: usize = 15;
 const AWAY_KM: f64 = 50.0;
 /// Quiet days a run can bridge: a rest day mid-trip doesn't split it in two.
 const MAX_GAP_DAYS: i64 = 1;
-/// Shortest run worth suggesting, counted from its first to its last day.
+/// Shortest run worth suggesting, counted from its first to its last day. One busy day away
+/// from home (a day trip) is suggested too.
 const MIN_RUN_DAYS: i64 = 2;
 /// Grid used to find home, in degrees: about 28 km north to south.
 const HOME_CELL_DEG: f64 = 0.25;
@@ -130,7 +131,10 @@ pub fn find(shots: &[Shot], min_photos: usize, home: Option<Point>) -> Found {
             while end > start && at_home(&end) {
                 end = end.pred_opt()?;
             }
-            ((end - start).num_days() + 1 >= MIN_RUN_DAYS).then_some((start, end))
+            let day_trip = start == end
+                && away.contains_key(&start)
+                && days.get(&start).is_some_and(|(photos, _)| *photos >= min_photos);
+            ((end - start).num_days() + 1 >= MIN_RUN_DAYS || day_trip).then_some((start, end))
         })
         .map(|(start, end)| {
             let mut kms: Vec<f64> = away.range(start..=end).map(|(_, km)| *km).collect();
@@ -145,8 +149,8 @@ pub fn find(shots: &[Shot], min_photos: usize, home: Option<Point>) -> Found {
     Found { runs, home }
 }
 
-/// Join sorted days into runs, bridging up to `MAX_GAP_DAYS` missing days, and keep the runs
-/// that last at least `MIN_RUN_DAYS`.
+/// Join sorted days into runs, bridging up to `MAX_GAP_DAYS` missing days. Single days come
+/// back as one-day runs; [`find`] decides which are long enough.
 fn join_runs(days: impl Iterator<Item = NaiveDate>) -> Vec<(NaiveDate, NaiveDate)> {
     let mut runs = Vec::new();
     let mut current: Option<(NaiveDate, NaiveDate)> = None;
@@ -161,7 +165,6 @@ fn join_runs(days: impl Iterator<Item = NaiveDate>) -> Vec<(NaiveDate, NaiveDate
         };
     }
     runs.extend(current);
-    runs.retain(|(start, end)| (*end - *start).num_days() + 1 >= MIN_RUN_DAYS);
     runs
 }
 
@@ -478,10 +481,9 @@ pub struct Suggestion {
     /// First and last day, "YYYY-MM-DD".
     pub start_day: String,
     pub end_day: String,
-    /// The place name, or "Trip 12-18 Mar 2025".
+    /// The place name, or just "Trip" when there isn't one: the folder name setting adds the
+    /// dates, so a name made from them would say them twice.
     pub name: String,
-    /// The name came from where the photos were taken.
-    pub named_by_place: bool,
     /// Photos and videos (groups) taken during the run.
     pub files: usize,
     pub away_days: usize,
@@ -642,8 +644,7 @@ fn describe(run: &Run, groups: &[Group]) -> Suggestion {
     Suggestion {
         start_day: run.start.format("%Y-%m-%d").to_string(),
         end_day: run.end.format("%Y-%m-%d").to_string(),
-        named_by_place: place.is_some(),
-        name: place.unwrap_or_else(|| format!("Trip {}", trips::range_text(&start, &end))),
+        name: place.unwrap_or_else(|| "Trip".to_string()),
         files: inside.len(),
         away_days: run.away_days,
         away_km: run.away_km.map(|km| km.round() as u32),
@@ -795,6 +796,23 @@ mod tests {
             "2025-03-08".into(),
             "2025-03-09".into()
         )]);
+    }
+
+    #[test]
+    fn one_busy_day_away_is_a_day_trip() {
+        let mut all = everyday_life(10, AUCKLAND);
+        // A big day out far from home, then a few photos away on another day.
+        all.extend(shots("2025-02-10", 30, Some(WELLINGTON)));
+        all.extend(shots("2025-02-20", 3, Some(WELLINGTON)));
+        // A big day at home, and a big day with no locations.
+        all.extend(shots("2025-03-01", 30, Some(AUCKLAND)));
+        all.extend(shots("2025-03-10", 30, None));
+        let found = find(&all, 15, None);
+        assert_eq!(found.runs.iter().map(range).collect::<Vec<_>>(), vec![(
+            "2025-02-10".into(),
+            "2025-02-10".into()
+        )]);
+        assert_eq!(found.runs[0].away_days, 1);
     }
 
     #[test]
