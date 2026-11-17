@@ -505,6 +505,8 @@ const WHEEL_STEP = 60;
 const CLICK_ZOOM = 2;
 /** How far a press can move, in px, and still count as a click rather than a drag. */
 const CLICK_SLOP = 4;
+/** How long the full picture can take, in ms, before a busy mark shows. */
+const SLOW_MS = 300;
 
 /**
  * The next zoom step in or out, stopping at either end of {@link ZOOMS}.
@@ -538,6 +540,9 @@ function Photo({
   onBroken: () => void;
 }): ReactElement {
   const [sharp, setSharp] = useState(false);
+  // Whether the full picture's size is known yet; until then its box is empty.
+  const [sized, setSized] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [turns, setTurns] = useState(0);
   const [pan, setPan] = useState<Offset>({ x: 0, y: 0 });
@@ -553,6 +558,24 @@ function Photo({
   const dragged = useRef(false);
   const wheel = useRef(0);
   const sideways = turns % 2 === 1;
+
+  // A HEIC, RAW or TIFF is drawn by Windows first, so its size isn't known until that's done,
+  // and its own box (and the tile drawn in it) stays empty meanwhile. Watch for the box to open.
+  useEffect(() => {
+    const img = photo.current;
+    if (!img) return;
+    const observer = new ResizeObserver(() => {
+      if (img.offsetWidth > 0 && img.offsetHeight > 0) setSized(true);
+    });
+    observer.observe(img);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (sharp) return;
+    const timer = window.setTimeout(() => setSlow(true), SLOW_MS);
+    return () => window.clearTimeout(timer);
+  }, [sharp]);
 
   // The photo is laid out unturned, fitted to the stage. A quarter turn swaps its width and
   // height, so it's scaled to fit again, but never past its real size.
@@ -734,13 +757,32 @@ function Photo({
   // a little soft, then sharpens. As a background it fills the photo's own box, which is known as
   // soon as the file's header is read, so a picture smaller than the screen never flashes up
   // stretched. It goes once the photo is in: the tile is flattened onto grey, which would show
-  // through a transparent picture.
+  // through a transparent picture. A picture Windows draws has no box until it's done, so its
+  // tile is its own layer filling the stage until then. A file the webview shows itself skips
+  // that: its box comes within moments, and a small picture would flash up stretched.
   return (
     <div
       ref={stage}
       onWheel={onWheel}
       className="group relative flex size-full items-center justify-center"
     >
+      {!sized && !item.original && (
+        <img
+          src={item.thumb}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          style={{ transform: `rotate(${turns * 90}deg)` }}
+          className="pointer-events-none absolute inset-0 size-full object-contain select-none"
+        />
+      )}
+      {slow && !sharp && (
+        <Icon
+          name="busy"
+          size={18}
+          className="pointer-events-none absolute top-0 right-0 animate-spin text-faint"
+        />
+      )}
       <img
         ref={photo}
         src={item.original ?? item.preview}

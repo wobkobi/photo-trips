@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.26.1] - 2026-11-18
+
+### Fixed
+
+- HEIC, RAW and TIFF photos open in the viewer showing their thumbnail straight away instead of a
+  blank screen, with a small busy mark if the full picture takes a moment.
+
 ## [0.26.0] - 2026-11-18
 
 ### Added
