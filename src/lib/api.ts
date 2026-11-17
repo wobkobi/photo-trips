@@ -565,6 +565,12 @@ export const api = {
    */
   revealMedia: (id: number) => invoke<void>("reveal_media", { id }),
   /**
+   * Put an indexed file on the clipboard, to paste into a folder, an email or a chat.
+   * @param id - media id
+   * @returns resolves once it's on the clipboard
+   */
+  copyMedia: (id: number) => invoke<void>("copy_media", { id }),
+  /**
    * Send photos and the files that go with them to the Recycle Bin, in the background, as one
    * change History can undo.
    * @param ids - the photos' media ids

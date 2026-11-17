@@ -160,6 +160,7 @@ pub fn run() {
             library::reveal_media,
             library::open_library,
             library::recycle_media,
+            library::copy_media,
             library::media_details,
             library::open_notices,
             extensions::installed_extensions,

@@ -48,6 +48,12 @@ export function useLibrarySource(ids: number[]): ViewSource {
        * @returns resolves once Explorer has been asked to show it
        */
       reveal: (index) => api.revealMedia(ids[index]),
+      /**
+       * Put the file on the clipboard.
+       * @param index - position in `ids`
+       * @returns resolves once it's on the clipboard
+       */
+      copy: (index) => api.copyMedia(ids[index]),
       gone: "Look for new photos to bring the library up to date.",
       refresh: { label: "Look for new photos", run: api.indexLibrary },
     }),

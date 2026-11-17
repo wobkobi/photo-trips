@@ -21,6 +21,9 @@ All notable changes to this project are documented here. The format follows
 - Sort can leave photos where they are: untick them in the list before moving.
 - Photos can go to the Recycle Bin from the Library's right-click menu or the Delete key, with the
   files that go with them, after a confirm. History can undo it.
+- Zoom into a photo in the viewer with the mouse wheel, the + and - keys or the buttons under it,
+  drag to look around, and turn it with R. Copy puts a photo on the clipboard to paste into a
+  folder, email or chat, from the viewer or the Library's right-click menu.
 
 ### Changed
 

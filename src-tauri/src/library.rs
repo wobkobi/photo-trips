@@ -191,6 +191,20 @@ pub fn open_media(state: State<'_, AppState>, id: i64) -> Result<()> {
     tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| Error::msg(e.to_string()))
 }
 
+/// Put an indexed file on the clipboard, to paste into a folder, an email or a chat. Only the
+/// photo itself: its Live Photo video or sidecars would just clutter wherever it's pasted.
+#[tauri::command(async)]
+pub fn copy_media(state: State<'_, AppState>, id: i64) -> Result<()> {
+    let path = media_path(&state, id)?;
+    #[cfg(windows)]
+    return crate::win::copy_files(&[path]);
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        Err(Error::msg("Copying files is only on Windows"))
+    }
+}
+
 /// Open the library folder in Explorer.
 #[tauri::command(async)]
 pub fn open_library(state: State<'_, AppState>) -> Result<()> {

@@ -224,6 +224,7 @@ export function LibraryPage({
     const items: MenuItem[] = [
       { label: "Open", onSelect: fileAction.bind(null, api.openMedia, tile.id) },
       { label: "Show in folder", onSelect: fileAction.bind(null, api.revealMedia, tile.id) },
+      { label: "Copy", onSelect: fileAction.bind(null, api.copyMedia, tile.id) },
       { label: "Copy path", onSelect: copyPath.bind(null, tile.id) },
     ];
     const found = pickedEdits(pick, trips, allTiles ?? []);
@@ -266,8 +267,8 @@ export function LibraryPage({
   }
 
   /**
-   * Open or reveal a file, showing any failure as the page error.
-   * @param action - {@link api.openMedia} or {@link api.revealMedia}
+   * Open, reveal or copy a file, showing any failure as the page error.
+   * @param action - {@link api.openMedia}, {@link api.revealMedia} or {@link api.copyMedia}
    * @param id - the file's media id
    */
   function fileAction(action: (id: number) => Promise<void>, id: number): void {

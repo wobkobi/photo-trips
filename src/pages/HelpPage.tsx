@@ -67,6 +67,9 @@ const SHORTCUTS: [keys: string, does: string][] = [
   ["Delete", "Send the picked photos to the Recycle Bin"],
   ["Left and Right", "Previous and next photo, full size"],
   ["Home and End", "First and last photo, full size"],
+  ["+ and -", "Zoom in and out on a photo, full size"],
+  ["0", "Fit the photo to the window again"],
+  ["R", "Turn a photo, full size"],
   ["Esc", "Close a photo, or stop picking"],
 ];
 
