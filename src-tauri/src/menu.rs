@@ -21,6 +21,7 @@ use crate::watch;
 // handler), so none of these ids may match a tray item's.
 const IMPORT: &str = "menu-import";
 const REFRESH: &str = "menu-refresh";
+const FIND: &str = "menu-find";
 const OPEN_LIBRARY: &str = "menu-open-library";
 const CLOSE: &str = "menu-close";
 const QUIT: &str = "menu-quit";
@@ -46,7 +47,8 @@ const PAGES: &[(&str, &str, &str)] = &[
     ("history", "&History", "Ctrl+7"),
 ];
 
-/// Asks the page to do something only it can show: `"refresh"`, `"about"` or `"updates"`.
+/// Asks the page to do something only it can show: `"refresh"`, `"find"`, `"about"` or
+/// `"updates"`.
 pub const ACTION_EVENT: &str = "menu://action";
 /// Sent with a [`SettingChanged`] when the menu changes a stored setting.
 pub const SETTING_EVENT: &str = "settings://changed";
@@ -105,6 +107,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         let id = format!("{PAGE_PREFIX}{page}");
         view.append(&item(&id, text, Some(shortcut))?)?;
     }
+    view.append(&PredefinedMenuItem::separator(app)?)?;
+    view.append(&item(FIND, "&Find", Some("Ctrl+F"))?)?;
 
     // Disabled until the watcher reports inbox folders to watch.
     let pause = MenuItem::with_id(app, PAUSE, pause_text(false), false, None::<&str>)?;
@@ -198,6 +202,7 @@ fn run(app: &AppHandle, id: &str) -> bool {
     match id {
         IMPORT => tray::open_import(app),
         REFRESH => ask_page(app, "refresh"),
+        FIND => ask_page(app, "find"),
         OPEN_LIBRARY => {
             let root = {
                 let state = app.state::<AppState>();
@@ -363,6 +368,7 @@ mod tests {
         let fixed = [
             IMPORT,
             REFRESH,
+            FIND,
             OPEN_LIBRARY,
             CLOSE,
             QUIT,
@@ -387,7 +393,7 @@ mod tests {
             .split('"')
             .filter(|part| part.starts_with("menu-") && !part.contains(' '))
             .collect();
-        assert!(ids.len() >= 12, "only found {ids:?}");
+        assert!(ids.len() >= 14, "only found {ids:?}");
         for id in ids {
             assert!(known(id), "{id}");
         }

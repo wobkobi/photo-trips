@@ -1,4 +1,4 @@
-import { useMemo, type ReactElement, type ReactNode } from "react";
+import { useMemo, type ReactElement, type ReactNode, type RefObject } from "react";
 import type { Tile } from "../lib/api";
 import { filterChoices, isFiltered, NO_FILTER, type LibraryFilter } from "../lib/libraryFilter";
 import { Icon } from "./Icon";
@@ -32,16 +32,19 @@ function Inline({ label, children }: { label: string; children: ReactNode }): Re
  * @param props.tiles - every tile in the library, newest first
  * @param props.filter - the current filter
  * @param props.onChange - called with the new filter
+ * @param props.searchBox - set to the file name box, so Find (Ctrl+F) can focus it
  * @returns the bar
  */
 export function LibraryFilterBar({
   tiles,
   filter,
   onChange,
+  searchBox,
 }: {
   tiles: Tile[];
   filter: LibraryFilter;
   onChange: (filter: LibraryFilter) => void;
+  searchBox?: RefObject<HTMLInputElement | null>;
 }): ReactElement {
   const choices = useMemo(() => filterChoices(tiles, filter), [tiles, filter]);
   const tripValue = typeof filter.trip === "object" ? String(filter.trip.id) : filter.trip;
@@ -62,6 +65,7 @@ export function LibraryFilterBar({
       className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-line bg-surface px-5 py-1.5"
     >
       <input
+        ref={searchBox}
         type="search"
         value={filter.name}
         onChange={(e) => onChange({ ...filter, name: e.target.value })}

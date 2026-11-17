@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
 import { CodecHint } from "../components/CodecHint";
 import { DateEditor } from "../components/DateEditor";
@@ -52,6 +52,8 @@ const ADD_CHOICES = 4;
  * @param props.onNavigate - switch to another page, for History from the result banner
  * @param props.refreshRequested - File > Look for new photos (F5) was picked; refresh on opening
  * @param props.onRefreshStarted - called once that refresh has been asked for
+ * @param props.findRequested - View > Find (Ctrl+F) was picked; focus the file name box
+ * @param props.onFindStarted - called once that box has been focused, or can't be
  * @returns the page
  */
 export function LibraryPage({
@@ -62,6 +64,8 @@ export function LibraryPage({
   onNavigate,
   refreshRequested,
   onRefreshStarted,
+  findRequested,
+  onFindStarted,
 }: {
   filter: LibraryFilter;
   onFilter: (filter: LibraryFilter) => void;
@@ -70,6 +74,8 @@ export function LibraryPage({
   onNavigate: (page: PageId) => void;
   refreshRequested: boolean;
   onRefreshStarted: () => void;
+  findRequested: boolean;
+  onFindStarted: () => void;
 }): ReactElement {
   const { settings, save } = useSettings();
   const { running } = useJobs();
@@ -100,6 +106,7 @@ export function LibraryPage({
   // Raised after a date change or an undo, so the viewer shows the new date.
   const [revision, setRevision] = useState(0);
   const tripReview = useTripReview();
+  const searchBox = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
     api.libraryTiles().then(
@@ -173,6 +180,18 @@ export function LibraryPage({
     onRefreshStarted();
     api.indexLibrary().catch((err) => setError(errorText(err)));
   }, [refreshRequested, onRefreshStarted]);
+
+  // Find closes the viewer, which covers the file name box. Closed here during render, so the
+  // focus below runs in the commit that unmounts the viewer, after its cleanup hands focus back
+  // to the tile.
+  if (findRequested && open !== null) setOpen(null);
+  // The box only shows once the list has loaded, so Find waits for that.
+  const loaded = allTiles !== null;
+  useEffect(() => {
+    if (!findRequested || open !== null || !loaded) return;
+    onFindStarted();
+    searchBox.current?.focus();
+  }, [findRequested, onFindStarted, open, loaded]);
 
   const selecting = picking || selected.size > 0;
   const picked = useMemo(
@@ -606,7 +625,12 @@ export function LibraryPage({
       )}
 
       {!reviewing && allTiles !== null && total > 0 && (
-        <LibraryFilterBar tiles={allTiles} filter={filter} onChange={changeFilter} />
+        <LibraryFilterBar
+          tiles={allTiles}
+          filter={filter}
+          onChange={changeFilter}
+          searchBox={searchBox}
+        />
       )}
 
       {total > 0 && count === 0 && filtered && (

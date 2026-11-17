@@ -84,6 +84,9 @@ pub fn run() {
         // On the builder, because the window (and its page) exists before setup runs.
         .manage(watchdog::PageReady::default())
         .setup(|app| {
+            // First, so the change lands before the page's one navigation gets under way.
+            #[cfg(all(windows, not(debug_assertions)))]
+            win::disable_browser_keys(app.handle());
             log::info!("Pic Cabinet {} started", app.package_info().version);
             let data_dir = app.path().app_local_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
