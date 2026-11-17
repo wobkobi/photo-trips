@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.6] - 2026-11-18
+
+### Fixed
+
+- When a folder in the library can't be read during a refresh (a drive that dropped out, a
+  permission problem), its photos stay listed with their set dates and trips instead of dropping out
+  of the library. If the whole library folder has gone, nothing is dropped. The Library says how
+  many folders couldn't be read.
+
 ## [0.25.5] - 2026-11-18
 
 ### Fixed

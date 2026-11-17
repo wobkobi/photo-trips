@@ -21,6 +21,9 @@ pub struct ScanResult {
     pub files: Vec<ScannedFile>,
     /// Files with an unrecognised type. They are never moved, only counted so the UI can say so.
     pub other_files: u64,
+    /// Folders and files that couldn't be read (a drive that dropped out, no permission). What
+    /// is inside them is unknown, not gone.
+    pub unreadable: Vec<PathBuf>,
 }
 
 /// Folder names never descended into: app data, version control, code dependencies, Windows
@@ -54,8 +57,8 @@ pub fn skip_folder(path: &Path) -> bool {
     in_m4root && (name.eq_ignore_ascii_case("THMBNL") || name.eq_ignore_ascii_case("SUB"))
 }
 
-/// List every recognised file under `root`. Unreadable entries are skipped rather than failing
-/// the whole scan.
+/// List every recognised file under `root`. Unreadable entries are listed in
+/// [`ScanResult::unreadable`] rather than failing the whole scan.
 pub fn scan(root: &Path, table: &FormatTable, cancel: &AtomicBool) -> Result<ScanResult> {
     scan_excluding(root, None, table, cancel)
 }
@@ -79,7 +82,13 @@ pub fn scan_excluding(
         if cancel.load(Ordering::Relaxed) {
             return Err(Error::msg("Cancelled"));
         }
-        let Ok(entry) = entry else { continue };
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) => {
+                result.unreadable.extend(err.path().map(Path::to_path_buf));
+                continue;
+            }
+        };
         if !entry.file_type().is_file() {
             continue;
         }
@@ -87,7 +96,10 @@ pub fn scan_excluding(
             result.other_files += 1;
             continue;
         };
-        let Ok(meta) = entry.metadata() else { continue };
+        let Ok(meta) = entry.metadata() else {
+            result.unreadable.push(entry.into_path());
+            continue;
+        };
         result.files.push(ScannedFile {
             path: entry.into_path(),
             kind,

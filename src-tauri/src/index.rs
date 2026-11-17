@@ -18,6 +18,7 @@ use crate::exiftool::ExifTool;
 use crate::formats::{FormatTable, Kind};
 use crate::groups::MediaRow;
 use crate::metadata::{self, Embedded, MediaMeta};
+use crate::planner;
 use crate::scan::{self, ScannedFile};
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -28,6 +29,8 @@ pub struct IndexSummary {
     pub updated: usize,
     pub removed: usize,
     pub other_files: u64,
+    /// Folders (or files) that couldn't be read. Their photos stay in the index until they can.
+    pub unreadable: usize,
 }
 
 /// Progress callback: (what is happening, done, total). Total 0 means "unknown yet".
@@ -78,8 +81,11 @@ pub fn run(
     let mut summary = IndexSummary {
         files: scanned.files.len(),
         other_files: scanned.other_files,
+        unreadable: scanned.unreadable.len(),
         ..Default::default()
     };
+    // A library folder that vanished mid-scan (a drive unplugged) says nothing about its files.
+    let root_gone = !root.is_dir();
     let mut conn = lock(db)?;
     let tx = conn.transaction()?;
     {
@@ -118,11 +124,15 @@ pub fn run(
         }
 
         // Anything indexed earlier that is no longer on disk (deleted, moved outside the app,
-        // or under a previous library folder) drops out of the index.
+        // or under a previous library folder) drops out of the index. Rows the scan couldn't
+        // see into are kept, so a folder that fails to open once doesn't lose its set dates.
         let present: HashSet<String> = scanned.files.iter().map(|f| path_key(&f.path)).collect();
         let mut delete = tx.prepare("DELETE FROM media WHERE path = ?1")?;
         for (path, _) in known_paths(&tx)? {
-            if !present.contains(&path_key(Path::new(&path))) {
+            let path_ref = Path::new(&path);
+            if !present.contains(&path_key(path_ref))
+                && !unseen(path_ref, root, root_gone, &scanned.unreadable)
+            {
                 delete.execute([&path])?;
                 summary.removed += 1;
             }
@@ -130,6 +140,13 @@ pub fn run(
     }
     tx.commit()?;
     Ok(summary)
+}
+
+/// True when the scan couldn't see `path`: it sits in a folder that failed to open, or in the
+/// library folder when that has gone altogether. Such a file may still be there.
+fn unseen(path: &Path, root: &Path, root_gone: bool, unreadable: &[PathBuf]) -> bool {
+    (root_gone && planner::is_inside(path, root))
+        || unreadable.iter().any(|dir| planner::is_inside(path, dir))
 }
 
 /// Work out when and where each file was taken: the in-process readers in parallel, ExifTool
@@ -314,6 +331,35 @@ mod tests {
     }
 
     fn no_report(_: &str, _: usize, _: usize) {}
+
+    #[test]
+    fn files_the_scan_could_not_see_are_kept() {
+        let root = Path::new(r"C:\L");
+        let unreadable = [PathBuf::from(r"C:\L\2024\2024-05")];
+        let photo = Path::new(r"C:\L\2024\2024-05\IMG_1.JPG");
+        let other = Path::new(r"C:\L\2024\2024-06\IMG_2.JPG");
+        let old_library = Path::new(r"D:\Old\IMG_3.JPG");
+        assert!(unseen(photo, root, false, &unreadable));
+        assert!(!unseen(other, root, false, &unreadable));
+        assert!(unseen(other, root, true, &[]));
+        assert!(!unseen(old_library, root, true, &[]));
+    }
+
+    #[test]
+    fn a_library_folder_that_has_gone_keeps_its_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Photos");
+        fs::create_dir(&root).unwrap();
+        fs::copy(fixtures().join("exif_gps.jpg"), root.join("a.jpg")).unwrap();
+        let db = Mutex::new(db::open_in_memory().unwrap());
+        let (table, cancel) = (FormatTable::default(), AtomicBool::new(false));
+        run(&db, &root, &table, None, &cancel, &no_report).unwrap();
+
+        fs::rename(&root, dir.path().join("Unplugged")).unwrap();
+        let summary = run(&db, &root, &table, None, &cancel, &no_report).unwrap();
+        assert_eq!(summary.removed, 0);
+        assert_eq!(load_rows(&db.lock().unwrap()).unwrap().len(), 1);
+    }
 
     #[test]
     fn indexes_fixtures_without_touching_disk_and_refreshes_incrementally() {

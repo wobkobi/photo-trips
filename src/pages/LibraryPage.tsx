@@ -711,7 +711,21 @@ function Detail({
     summary && summary.otherFiles > 0
       ? `${summary.otherFiles.toLocaleString()} other ${summary.otherFiles === 1 ? "file is" : "files are"} left alone.`
       : undefined;
-  return <span title={others}>{items}</span>;
+  const unreadable = summary?.unreadable ?? 0;
+  return (
+    <>
+      <span title={others}>{items}</span>
+      {unreadable > 0 && (
+        <span
+          className="text-warn"
+          title="Their photos stay listed. Check the drive is connected, then refresh."
+        >
+          {" "}
+          - {countOf(unreadable, "folder", "folders")} couldn&apos;t be read
+        </span>
+      )}
+    </>
+  );
 }
 
 /**

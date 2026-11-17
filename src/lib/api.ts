@@ -85,6 +85,8 @@ export interface IndexSummary {
   updated: number;
   removed: number;
   otherFiles: number;
+  /** Folders that couldn't be read; their photos stay listed until they can be. */
+  unreadable: number;
 }
 
 /** A previewed set of moves, waiting to be applied. Mirrors Preview in organise.rs. */
