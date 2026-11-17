@@ -8,7 +8,6 @@ import {
 } from "react";
 import type { PageId } from "../App";
 import { Field, INPUT } from "../components/Field";
-import { Icon } from "../components/Icon";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
 import { Button, EmptyState, HOVER_RING, LIST_FILL, PageHeader } from "../components/ui";
@@ -234,14 +233,29 @@ export function TripsPage({
   const moving = running?.kind === "apply" || running?.kind === "undo";
   const busy = running !== null || checking;
   const listing = !moving && review === null && editor === null;
+  // The step on screen: a change under review, else the trip form, else the list of trips.
+  const reviewing = !moving && review !== null;
+  const editing = !moving && review === null && editor !== null;
+  let title = "Trips";
+  if (reviewing) title = "Preview";
+  else if (editing) title = editor.trip ? `Edit ${editor.trip.name}` : "New trip";
+  // Back from a review returns to the form it came from, or the list for a delete. Not once the
+  // change is confirmed, while its job is starting.
+  const onBack =
+    reviewing && applying === null
+      ? () => setReview(null)
+      : editing
+        ? () => setEditor(null)
+        : undefined;
 
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Trips"
+        title={title}
         detail={
           listing && trips !== null && trips.length > 0 ? trips.length.toLocaleString() : undefined
         }
+        onBack={onBack}
         actions={
           listing ? (
             <Button
@@ -256,19 +270,13 @@ export function TripsPage({
           ) : (
             review !== null &&
             !moving && (
-              <>
-                <Button variant="ghost" onClick={() => setReview(null)} busy={busy}>
-                  <Icon name="back" size={16} />
-                  {editor ? "Back to the trip" : "Back"}
-                </Button>
-                <Button
-                  variant={review.danger ? "danger" : "primary"}
-                  onClick={() => apply(review)}
-                  busy={busy}
-                >
-                  {review.action}
-                </Button>
-              </>
+              <Button
+                variant={review.danger ? "danger" : "primary"}
+                onClick={() => apply(review)}
+                busy={busy}
+              >
+                {review.action}
+              </Button>
             )
           )
         }
@@ -524,7 +532,6 @@ function TripEditor({
   return (
     <div className="flex flex-1 flex-col">
       <form onSubmit={submit} className="flex flex-col gap-3 px-5 pt-4 pb-3">
-        <h2 className="text-[18px] font-semibold">{trip ? `Edit ${trip.name}` : "New trip"}</h2>
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
           <Field label="Name">
             <input

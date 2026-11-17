@@ -1,6 +1,13 @@
 // Small shared building blocks: buttons, page header, empty state.
 
-import { useContext, type ComponentProps, type ReactElement, type ReactNode } from "react";
+import {
+  useContext,
+  useEffect,
+  useRef,
+  type ComponentProps,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { JOB_NAMES, JobsContext } from "../lib/useJobs";
 import { Icon } from "./Icon";
 
@@ -74,27 +81,101 @@ export function Button({
   );
 }
 
+/** Input types that take no typing, so Escape on one still steps back. */
+const NOT_TEXT_INPUTS = new Set([
+  "checkbox",
+  "radio",
+  "button",
+  "submit",
+  "reset",
+  "range",
+  "color",
+]);
+
+/**
+ * A key press aimed at a box that takes typing, where Escape belongs to the box.
+ * @param target - the key press's target
+ * @returns true for a text-like input, a textarea, a select or editable text
+ */
+function isTextEntry(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable || target.tagName === "TEXTAREA" || target.tagName === "SELECT") {
+    return true;
+  }
+  return target instanceof HTMLInputElement && !NOT_TEXT_INPUTS.has(target.type);
+}
+
 /**
  * The toolbar along the top of a page: its name, a short note beside it (a count, say), and
  * actions on the right. It stays in view while the page scrolls.
+ *
+ * A sub-step of a page (a review, a form) passes `onBack`, which puts a back arrow before the
+ * title and makes Escape and Alt+Left step back too. The keys are left alone when something else
+ * has already handled them, when Escape is for a box being typed in, and while a modal (the photo
+ * viewer, the tour, an open dialog) is on screen, since it handles its own keys.
  * @param props - Component props.
- * @param props.title - page title
+ * @param props.title - page title, or the step's name on a sub-step
  * @param props.detail - a short note after the title
  * @param props.actions - buttons for the right side
+ * @param props.onBack - leave the sub-step for the screen it came from; omit on a top-level page
  * @returns the header element
  */
 export function PageHeader({
   title,
   detail,
   actions,
+  onBack,
 }: {
   title: string;
   detail?: ReactNode;
   actions?: ReactNode;
+  onBack?: () => void;
 }): ReactElement {
+  // The listener reads the latest handler from the ref, so it's only added and removed when the
+  // back arrow comes and goes, not on every render that passes a new function.
+  const back = useRef(onBack);
+  useEffect(() => {
+    back.current = onBack;
+  });
+  const hasBack = onBack !== undefined;
+  useEffect(() => {
+    if (!hasBack) return;
+    /**
+     * Escape or Alt+Left steps back. A held key steps back once, not through every step.
+     * @param event - the window's keydown
+     */
+    function onKey(event: KeyboardEvent): void {
+      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey) return;
+      if (event.shiftKey) return;
+      const escape = event.key === "Escape" && !event.altKey && !isTextEntry(event.target);
+      const altLeft = event.key === "ArrowLeft" && event.altKey;
+      if (!escape && !altLeft) return;
+      // The viewer and the tour mark themselves aria-modal; a native dialog is open when shown.
+      if (document.querySelector('dialog[open], [aria-modal="true"]')) return;
+      // Marks the key as used, so a page's own Escape handler (clearing a selection) skips it.
+      event.preventDefault();
+      back.current?.();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hasBack]);
+
   return (
     <header className="sticky top-0 z-20 flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-5 py-2">
       <div className="flex min-w-0 flex-1 basis-60 flex-wrap items-baseline gap-x-3">
+        {hasBack && (
+          // Negative margins keep the button within the title's line height, so centring it on
+          // that line lines its arrow up with the title's letters rather than pushing them down.
+          <button
+            type="button"
+            onClick={() => back.current?.()}
+            aria-label="Back"
+            title="Back (Esc)"
+            className="-my-1 -mr-1 -ml-1.5 inline-flex size-8 shrink-0 items-center justify-center self-center rounded-md text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line"
+          >
+            <Icon name="back" size={20} />
+          </button>
+        )}
         <h1 className="text-[20px] font-semibold">{title}</h1>
         {detail && <p className="text-[14px] text-muted">{detail}</p>}
       </div>

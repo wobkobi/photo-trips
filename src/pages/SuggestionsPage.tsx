@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
-import { Icon } from "../components/Icon";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
 import { SampleStrip } from "../components/SampleStrip";
 import { Button, EmptyState, PageHeader } from "../components/ui";
@@ -180,19 +179,15 @@ export function SuggestionsPage({
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Suggestions"
+        title={review !== null && !moving ? "Preview" : "Suggestions"}
+        // Not once the trip is confirmed, while its job is starting.
+        onBack={review !== null && !moving && applying === null ? () => setReview(null) : undefined}
         actions={
           review !== null &&
           !moving && (
-            <>
-              <Button variant="ghost" onClick={() => setReview(null)} busy={busy}>
-                <Icon name="back" size={16} />
-                Back
-              </Button>
-              <Button variant="primary" onClick={() => apply(review)} busy={busy}>
-                {review.action}
-              </Button>
-            </>
+            <Button variant="primary" onClick={() => apply(review)} busy={busy}>
+              {review.action}
+            </Button>
           )
         }
       />

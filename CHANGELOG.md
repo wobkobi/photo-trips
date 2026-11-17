@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.33.0] - 2026-11-18
+
+### Added
+
+- A trip review, a trip being edited, an import preview and the other in-between steps have a back
+  arrow before their name, and Esc or Alt+Left steps back. Each step names itself in the title, such
+  as "Edit Japan" or "Preview".
+
 ## [0.32.0] - 2026-11-18
 
 ### Added
