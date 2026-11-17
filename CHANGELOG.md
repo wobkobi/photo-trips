@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.18] - 2026-11-18
+
+### Fixed
+
+- A job that finishes after an earlier result was dismissed is always noticed, so pages that refresh
+  when a job ends no longer miss it.
+
 ## [0.25.17] - 2026-11-18
 
 ### Fixed

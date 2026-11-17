@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { api, type JobDone, type JobProgress } from "./api";
 import { JobsContext, type FinishedJob } from "./useJobs";
 
@@ -12,6 +12,9 @@ import { JobsContext, type FinishedJob } from "./useJobs";
 export function JobsProvider({ children }: { children: ReactNode }): ReactElement {
   const [running, setRunning] = useState<JobProgress | null>(null);
   const [lastDone, setLastDone] = useState<FinishedJob | null>(null);
+  // Kept apart from lastDone so clearing a result never lets a later job reuse its number: a
+  // listener that saw job 3 would otherwise ignore the next job if it came out as 1 again.
+  const seqRef = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -23,7 +26,8 @@ export function JobsProvider({ children }: { children: ReactNode }): ReactElemen
       listen<JobProgress>("job://progress", (event) => setRunning(event.payload)),
       listen<JobDone>("job://done", (event) => {
         setRunning(null);
-        setLastDone((prev) => ({ seq: (prev?.seq ?? 0) + 1, done: event.payload }));
+        seqRef.current += 1;
+        setLastDone({ seq: seqRef.current, done: event.payload });
       }),
     ];
     return () => {
