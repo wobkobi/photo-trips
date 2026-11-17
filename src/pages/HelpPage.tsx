@@ -60,6 +60,7 @@ const SHORTCUTS: [keys: string, does: string][] = [
   ["Ctrl+1 to Ctrl+7", "Library to History"],
   ["Ctrl+I", "Import"],
   ["F5", "Look for new photos"],
+  ["Ctrl+F", "Find"],
   ["Ctrl+,", "Settings"],
   ["F1", "Help"],
   ["Arrow keys", "Move between photos in the Library"],

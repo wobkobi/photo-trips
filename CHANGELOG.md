@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.28.0] - 2026-11-18
+
+### Added
+
+- The browser's own keys (print, reload, find bar, view source) no longer do anything in the app.
+  Ctrl+F, also View > Find, opens the Library and puts the cursor in its search box.
+
 ## [0.27.0] - 2026-11-18
 
 ### Added
