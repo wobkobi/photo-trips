@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.38.0] - 2026-11-18
+
+### Added
+
+- The details panel is shorter: "4032 × 3024 · 12 MP", a video's length as a clock time such as
+  2:14, and the camera settings on one line with no "More details" to open.
+
 ## [0.37.0] - 2026-11-18
 
 ### Added

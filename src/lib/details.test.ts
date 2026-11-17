@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FileDetails } from "./api";
-import { cameraName, cameraSettings, durationText, sizeText } from "./details";
+import { cameraName, cameraSettings, sizeText } from "./details";
 
 const NONE: FileDetails = {
   make: null,
@@ -47,35 +47,25 @@ describe("cameraName", () => {
 });
 
 describe("sizeText", () => {
-  it("gives a photo's megapixels", () => {
-    expect(sizeText({ ...NONE, width: 3024, height: 4032 }, false)).toBe(
-      "3024 × 4032 pixels (12 megapixels)",
-    );
-    expect(sizeText({ ...NONE, width: 2048, height: 1536 }, false)).toBe(
-      "2048 × 1536 pixels (3.1 megapixels)",
-    );
+  it("gives a photo's megapixels, whole from 10 up", () => {
+    expect(sizeText({ ...NONE, width: 3024, height: 4032 }, false)).toBe("3024 × 4032 · 12 MP");
+    expect(sizeText({ ...NONE, width: 2048, height: 1536 }, false)).toBe("2048 × 1536 · 3.1 MP");
+    expect(sizeText({ ...NONE, width: 1000, height: 1000 }, false)).toBe("1000 × 1000 · 1 MP");
   });
 
-  it("leaves megapixels off videos and tiny pictures", () => {
-    expect(sizeText({ ...NONE, width: 1920, height: 1080 }, true)).toBe("1920 × 1080 pixels");
-    expect(sizeText({ ...NONE, width: 640, height: 480 }, false)).toBe("640 × 480 pixels");
+  it("keeps one decimal for small pictures", () => {
+    expect(sizeText({ ...NONE, width: 640, height: 480 }, false)).toBe("640 × 480 · 0.3 MP");
+  });
+
+  it("leaves megapixels off videos and pictures too small to count", () => {
+    expect(sizeText({ ...NONE, width: 1920, height: 1080 }, true)).toBe("1920 × 1080");
+    expect(sizeText({ ...NONE, width: 160, height: 120 }, false)).toBe("160 × 120");
     expect(sizeText({ ...NONE, width: 640 }, false)).toBeNull();
   });
 });
 
-describe("durationText", () => {
-  it("reads like speech", () => {
-    expect(durationText(0.4)).toBe("Under a second");
-    expect(durationText(1)).toBe("1 second");
-    expect(durationText(45.4)).toBe("45 seconds");
-    expect(durationText(134.5)).toBe("2 minutes 15 seconds");
-    expect(durationText(120)).toBe("2 minutes");
-    expect(durationText(3900)).toBe("1 hour 5 minutes");
-  });
-});
-
 describe("cameraSettings", () => {
-  it("lists what the file records, in order", () => {
+  it("lists what the file records, in order, leaving the lens out", () => {
     const details = {
       ...NONE,
       lens: "iPhone 13 back camera",
@@ -86,20 +76,20 @@ describe("cameraSettings", () => {
       focal35: 26,
     };
     expect(cameraSettings(details)).toEqual([
-      ["Lens", "iPhone 13 back camera"],
       ["Aperture", "f/1.6"],
-      ["Shutter speed", "1/120 second"],
-      ["ISO", "50"],
+      ["Shutter speed", "1/120 s"],
+      ["ISO", "ISO 50"],
       ["Focal length", "26 mm"],
     ]);
   });
 
   it("handles long exposures and a missing full-frame figure", () => {
     expect(cameraSettings({ ...NONE, exposure: 2.5, focalLength: 50 })).toEqual([
-      ["Shutter speed", "2.5 seconds"],
+      ["Shutter speed", "2.5 s"],
       ["Focal length", "50 mm"],
     ]);
-    expect(cameraSettings({ ...NONE, exposure: 1 })[0][1]).toBe("1 second");
+    expect(cameraSettings({ ...NONE, exposure: 1 })[0][1]).toBe("1 s");
+    expect(cameraSettings({ ...NONE, lens: "EF 50mm" })).toEqual([]);
     expect(cameraSettings(NONE)).toEqual([]);
   });
 });
