@@ -38,15 +38,22 @@ export const LIST_FILL = "min-h-[max(18rem,60vh)] flex-1 contain-size";
 export const HOVER_RING =
   "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:opacity-0 after:ring-2 after:ring-ink/40 after:transition-opacity after:ring-inset hover:after:opacity-100";
 
+/**
+ * A small uppercase label over a group, in the accent teal, like the section labels on the
+ * To the Point Tech site.
+ */
+export const LABEL = "text-[12px] font-semibold tracking-wider text-accent uppercase";
+
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 const VARIANTS: Record<Variant, string> = {
-  // Violet for the main action, filled grey for the rest, and no fill at all for minor ones.
-  // Each gets a deeper fill while pressed, so a click is seen to land.
+  // Violet for the main action, an outline for the rest, and no fill at all for minor ones.
+  // Square, like the buttons on the To the Point Tech site. Each gets a deeper fill while
+  // pressed, so a click is seen to land.
   primary:
     "bg-brand text-white hover:bg-brand-hover enabled:active:brightness-90 disabled:bg-raised disabled:text-faint",
   secondary:
-    "border border-line-strong/60 bg-raised text-ink hover:border-line-strong hover:bg-line enabled:active:bg-line-strong/50 disabled:text-faint disabled:hover:border-line-strong/60 disabled:hover:bg-raised",
+    "border border-line-strong text-ink hover:bg-raised enabled:active:bg-line disabled:border-line disabled:text-faint disabled:hover:bg-transparent",
   ghost:
     "text-muted hover:bg-raised hover:text-ink enabled:active:bg-line disabled:text-faint disabled:hover:bg-transparent",
   danger:
@@ -81,7 +88,7 @@ export function Button({
       type="button"
       title={waiting}
       disabled={busy || disabled}
-      className={`inline-flex min-h-8.5 items-center justify-center gap-2 rounded-md px-3.5 py-1.5 text-[15px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
+      className={`inline-flex min-h-8.5 items-center justify-center gap-2 px-3.5 py-1.5 text-[15px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
       {...rest}
     />
   );
@@ -210,7 +217,7 @@ export function PageHeader({
             onClick={goBack}
             aria-label="Back"
             title={backKeys ? "Back (Esc)" : "Back"}
-            className="-my-1 -mr-1 -ml-1.5 inline-flex size-8 shrink-0 items-center justify-center self-center rounded-md text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line"
+            className="-my-1 -mr-1 -ml-1.5 inline-flex size-8 shrink-0 items-center justify-center self-center text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line"
           >
             <Icon name="back" size={20} />
           </button>

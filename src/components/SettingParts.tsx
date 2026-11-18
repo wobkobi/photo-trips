@@ -3,6 +3,7 @@
 import { useState, type KeyboardEvent, type ReactElement, type ReactNode } from "react";
 import { INPUT } from "./Field";
 import { Icon } from "./Icon";
+import { LABEL } from "./ui";
 
 /**
  * A group of related settings under a heading.
@@ -26,7 +27,7 @@ export function Section({
 }): ReactElement {
   return (
     <section className="mt-10 first:mt-0">
-      <h2 className="text-[18px] font-semibold">{title}</h2>
+      <h2 className={LABEL}>{title}</h2>
       {detail && <div className="mt-1 space-y-2 text-[14px] text-muted">{detail}</div>}
       {error && (
         <p role="alert" className="mt-3 text-[15px] text-danger">
@@ -244,7 +245,7 @@ export function Choices({
               aria-checked={chosen}
               tabIndex={chosen ? 0 : -1}
               onClick={() => onChange(option.value)}
-              className={`flex min-h-8.5 min-w-24 flex-col items-center justify-end gap-1.5 rounded-md border px-3 py-1.5 text-[14px] transition-colors ${
+              className={`flex min-h-8.5 min-w-24 flex-col items-center justify-end gap-1.5 border px-3 py-1.5 text-[14px] transition-colors ${
                 chosen
                   ? "border-accent bg-accent/10 font-semibold text-ink ring-1 ring-accent"
                   : "border-line bg-raised/50 text-muted hover:border-line-strong hover:text-ink"

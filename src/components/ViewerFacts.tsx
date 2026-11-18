@@ -113,7 +113,7 @@ function LinkedFiles({ members }: { members: MediaMember[] }): ReactElement {
               type="button"
               title={`Open ${m.name}`}
               onClick={() => run(api.openMedia(m.id))}
-              className="flex min-w-0 flex-1 justify-between gap-3 rounded-md px-2 py-1 text-left text-[15px] transition-colors hover:bg-raised active:bg-line"
+              className="flex min-w-0 flex-1 justify-between gap-3 px-2 py-1 text-left text-[15px] transition-colors hover:bg-raised active:bg-line"
             >
               <span className="truncate">{m.name}</span>
               <span className="shrink-0 text-faint">{KIND_NAMES[m.kind]}</span>
@@ -124,7 +124,7 @@ function LinkedFiles({ members }: { members: MediaMember[] }): ReactElement {
                 title="Show in folder"
                 aria-label={`Show ${m.name} in folder`}
                 onClick={() => run(api.revealMedia(m.id))}
-                className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line"
+                className="inline-flex size-8 shrink-0 items-center justify-center text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line"
               >
                 <Icon name="folder" size={18} />
               </button>

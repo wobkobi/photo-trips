@@ -586,7 +586,7 @@ export function Viewer({
             onClick={onClose}
             aria-label="Back"
             title="Back (Esc)"
-            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line"
+            className="inline-flex size-8 shrink-0 items-center justify-center text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line"
           >
             <Icon name="back" size={20} />
           </button>
@@ -1210,7 +1210,7 @@ function Photo({
               title={fitted ? "100% (1)" : "Fit (0)"}
               aria-disabled={(fitted && !canZoomIn) || undefined}
               onClick={() => toggleZoom()}
-              className="h-8 min-w-17 rounded-md px-1.5 text-[13px] text-muted tabular-nums transition-colors hover:bg-raised hover:text-ink active:bg-line aria-disabled:pointer-events-none"
+              className="h-8 min-w-17 px-1.5 text-[13px] text-muted tabular-nums transition-colors hover:bg-raised hover:text-ink active:bg-line aria-disabled:pointer-events-none"
             >
               {zoomLabel(now, fitted)}
             </button>
@@ -1265,7 +1265,7 @@ function ToolButton({
       aria-pressed={pressed}
       aria-disabled={disabled || undefined}
       onClick={disabled ? undefined : onClick}
-      className="inline-flex size-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line aria-disabled:pointer-events-none aria-disabled:opacity-35 aria-pressed:bg-raised aria-pressed:text-ink"
+      className="inline-flex size-8 items-center justify-center text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line aria-disabled:pointer-events-none aria-disabled:opacity-35 aria-pressed:bg-raised aria-pressed:text-ink"
     >
       <Icon name={icon} size={18} />
     </button>

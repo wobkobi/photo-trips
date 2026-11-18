@@ -257,7 +257,7 @@ function FilterPopover({
                       type="button"
                       aria-pressed={chosen}
                       onClick={() => pick({ ...filter, year })}
-                      className={`min-h-8 rounded-md px-2.5 text-[15px] transition-colors ${
+                      className={`min-h-8 px-2.5 text-[15px] transition-colors ${
                         chosen
                           ? "bg-line font-semibold text-ink"
                           : "text-muted hover:bg-raised hover:text-ink"

@@ -20,6 +20,12 @@ All notable changes to this project are documented here. The format follows
   in to charge doesn't bring a notification each time. Settings > Window can change it to every
   time, once a week or never.
 
+### Changed
+
+- **Display:** Buttons are square, with an outline for the less important ones, and Settings
+  sections and folder lists are headed by small uppercase labels, matching the To the Point Tech
+  site.
+
 ### Fixed
 
 - **Duplicates:** Copies removed in Duplicates no longer come back with the next import from the
