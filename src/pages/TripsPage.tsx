@@ -11,7 +11,7 @@ import { Field, INPUT } from "../components/Field";
 import { Icon } from "../components/Icon";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
-import { Button, EmptyState, LIST_FILL, PageHeader } from "../components/ui";
+import { Button, EmptyState, HOVER_RING, LIST_FILL, PageHeader } from "../components/ui";
 import { useLibrarySource } from "../components/viewSources";
 import {
   api,
@@ -257,14 +257,14 @@ export function TripsPage({
             review !== null &&
             !moving && (
               <>
-                <Button variant="ghost" onClick={() => setReview(null)} disabled={busy}>
+                <Button variant="ghost" onClick={() => setReview(null)} busy={busy}>
                   <Icon name="back" size={16} />
                   {editor ? "Back to the trip" : "Back"}
                 </Button>
                 <Button
                   variant={review.danger ? "danger" : "primary"}
                   onClick={() => apply(review)}
-                  disabled={busy}
+                  busy={busy}
                 >
                   {review.action}
                 </Button>
@@ -304,7 +304,7 @@ export function TripsPage({
         <EmptyState title="No trips yet">
           <p>
             Add the dates you were away, and the photos from those days get their own folder, like{" "}
-            {tripFolder(namingOf(settings).trips, "2025-03-12", "Japan")}. Or pick photos in the
+            {tripFolder(namingOf(settings).trips, "2025-03-12", "Japan")}. Or select photos in the
             Library with Make a trip.
           </p>
           <Button variant="primary" onClick={() => setEditor(newEditor(null))}>
@@ -370,7 +370,7 @@ function TripRow({
         type="button"
         onClick={onShow}
         aria-label={`See ${trip.name} in the Library`}
-        className="group relative aspect-3/2 w-full overflow-hidden bg-raised focus-visible:outline-offset-[-3px]"
+        className={`group relative aspect-3/2 w-full overflow-hidden bg-raised focus-visible:outline-offset-[-3px] ${HOVER_RING}`}
       >
         <Cover sample={trip.sample} />
         <span
@@ -394,10 +394,10 @@ function TripRow({
           Trips\{trip.folder}
         </p>
         <div className="mt-1 -ml-2 flex flex-wrap gap-1">
-          <Button variant="ghost" onClick={onEdit} disabled={busy}>
+          <Button variant="ghost" onClick={onEdit} busy={busy}>
             Edit
           </Button>
-          <Button variant="ghost" onClick={onDelete} disabled={busy}>
+          <Button variant="ghost" onClick={onDelete} busy={busy}>
             Delete
           </Button>
         </div>
@@ -444,7 +444,7 @@ function CoverImage({ tile }: { tile: SampleTile }): ReactElement {
           decoding="async"
           draggable={false}
           onError={() => setFailed(true)}
-          className="h-full w-full object-cover transition-opacity group-hover:opacity-90"
+          className="h-full w-full object-cover"
         />
       )}
     </span>
@@ -568,7 +568,7 @@ function TripEditor({
         <MatchSummary form={form} matches={matches} />
 
         <div className="flex items-center gap-2">
-          <Button type="submit" variant="primary" disabled={!ready || busy}>
+          <Button type="submit" variant="primary" disabled={!ready} busy={busy}>
             Check the moves
           </Button>
           <Button variant="ghost" onClick={onCancel}>
@@ -581,7 +581,7 @@ function TripEditor({
           <PickBar
             ticked={ticked}
             total={tiles.length}
-            hint="Unticked ones stay in their month folders."
+            hint="Deselected ones stay in their month folders."
             onAll={(pick) => setLeft(pick ? NONE_LEFT : new Set(tiles.map((t) => t.id)))}
           />
           <div className={`flex border-t border-line ${LIST_FILL}`}>

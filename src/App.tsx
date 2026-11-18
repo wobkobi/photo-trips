@@ -12,6 +12,7 @@ import { UpdatesProvider } from "./lib/updates";
 import { useJobDone } from "./lib/useJobs";
 import { useSettings } from "./lib/useSettings";
 import { useUpdates } from "./lib/useUpdates";
+import { keepsWebviewMenu } from "./lib/webviewMenu";
 import { DuplicatesPage } from "./pages/DuplicatesPage";
 import { HelpPage } from "./pages/HelpPage";
 import { HistoryPage } from "./pages/HistoryPage";
@@ -35,10 +36,25 @@ export type PageId =
   | "help";
 
 /**
- * Root component: settings and job providers around the shell.
+ * Root component: settings and job providers around the shell. Right-clicks get no browser menu
+ * except on text, so the app never offers Back, Reload or Print.
  * @returns the app
  */
 export default function App(): ReactElement {
+  useEffect(() => {
+    /**
+     * Stop the webview's own menu unless the click was on text.
+     * @param event - the right-click
+     */
+    const onMenu = (event: MouseEvent): void => {
+      if (!keepsWebviewMenu(event.target, event.shiftKey, import.meta.env.DEV)) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("contextmenu", onMenu);
+    return () => window.removeEventListener("contextmenu", onMenu);
+  }, []);
+
   return (
     <SettingsProvider>
       <JobsProvider>
@@ -80,11 +96,13 @@ function Shell(): ReactElement | null {
     setTripDraft(start);
     setPage("trips");
   }, []);
-  // Menu requests waiting for their page to open: File > Look for new photos, and Help > About or
-  // Check for updates (from Help or the tray), which both open Settings at About.
+  // Menu requests waiting for their page to open: File > Refresh, View > Find, and
+  // Help > About or Check for updates (from Help or the tray), which both open Settings at About.
   const [refresh, setRefresh] = useState(false);
+  const [find, setFind] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const refreshStarted = useCallback(() => setRefresh(false), []);
+  const findStarted = useCallback(() => setFind(false), []);
   const aboutShown = useCallback(() => setShowAbout(false), []);
   // The tour shows once, after setup, until finished or skipped; Help can start it again.
   // Closing it also hides it here, so a failed save can't bring it straight back.
@@ -100,6 +118,9 @@ function Shell(): ReactElement | null {
   useMenuBar((request: MenuRequest) => {
     if (request === "refresh") {
       setRefresh(true);
+      setPage("library");
+    } else if (request === "find") {
+      setFind(true);
       setPage("library");
     } else {
       if (request === "updates") void runCheck();
@@ -145,6 +166,8 @@ function Shell(): ReactElement | null {
             onCreateTrip={createTrip}
             refresh={refresh}
             onRefreshStarted={refreshStarted}
+            find={find}
+            onFindStarted={findStarted}
             showAbout={showAbout}
             onAboutShown={aboutShown}
             onTour={() => setTourAsked(true)}
@@ -176,8 +199,10 @@ function Shell(): ReactElement | null {
  * @param props.tripDraft - a trip started elsewhere, for the Trips page to open
  * @param props.onTripDraftUsed - called once the Trips page has opened the draft
  * @param props.onCreateTrip - start a trip and open the Trips page
- * @param props.refresh - File > Look for new photos is waiting for the Library
+ * @param props.refresh - File > Refresh is waiting for the Library
  * @param props.onRefreshStarted - called once the Library has started looking
+ * @param props.find - View > Find is waiting for the Library's file name box
+ * @param props.onFindStarted - called once the Library has taken the find request
  * @param props.showAbout - Settings should open at About
  * @param props.onAboutShown - called once Settings has shown About
  * @param props.onTour - start the tour, from Help
@@ -194,6 +219,8 @@ function CurrentPage({
   onCreateTrip,
   refresh,
   onRefreshStarted,
+  find,
+  onFindStarted,
   showAbout,
   onAboutShown,
   onTour,
@@ -208,6 +235,8 @@ function CurrentPage({
   onCreateTrip: (start: TripStart) => void;
   refresh: boolean;
   onRefreshStarted: () => void;
+  find: boolean;
+  onFindStarted: () => void;
   showAbout: boolean;
   onAboutShown: () => void;
   onTour: () => void;
@@ -223,6 +252,8 @@ function CurrentPage({
           onNavigate={onNavigate}
           refreshRequested={refresh}
           onRefreshStarted={onRefreshStarted}
+          findRequested={find}
+          onFindStarted={onFindStarted}
         />
       );
     case "sort":

@@ -2,7 +2,7 @@ import type { ReactElement, ReactNode } from "react";
 
 /** Classes shared by the text, date and time inputs on trip forms. */
 export const INPUT =
-  "min-h-11 rounded-lg border border-line-strong bg-surface px-3 py-2 text-ink placeholder:text-faint focus:border-brand-hover focus:outline-none focus:ring-2 focus:ring-brand-hover/30";
+  "min-h-8.5 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-ink placeholder:text-faint focus:border-brand-hover focus:outline-none focus:ring-2 focus:ring-brand-hover/30";
 
 /**
  * A form control with its label above it.

@@ -32,7 +32,7 @@ const STEPS: Step[] = [
   },
   {
     title: "Import",
-    text: "Bring photos in from a memory card, a phone or a folder. Ones you already have are skipped.",
+    text: "Import photos from a memory card, a phone or a folder. Ones you already have are skipped.",
     page: "import",
   },
   {

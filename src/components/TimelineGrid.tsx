@@ -11,11 +11,19 @@ import {
   type ReactNode,
 } from "react";
 import { thumbUrl, type Tile } from "../lib/api";
-import { count, jumpRow, stepTile, timelineRows, type TimelineRow } from "../lib/format";
+import {
+  count,
+  formatTaken,
+  jumpRow,
+  stepTile,
+  tileRow,
+  timelineRows,
+  type TimelineRow,
+} from "../lib/format";
 import { tripBg } from "../lib/trips";
 import { DateRail, type RailMonth } from "./DateRail";
 import { Icon } from "./Icon";
-import { LIST_FILL } from "./ui";
+import { HOVER_RING, LIST_FILL } from "./ui";
 
 // Tight gutters, so the grid reads as one wall of photos rather than a page of cards.
 const GAP = 3;
@@ -35,6 +43,14 @@ export type MonthRow = Extract<TimelineRow, { type: "month" }>;
 /** A request to bring one tile into view. A new object each time, so a repeat click scrolls again. */
 export interface TileJump {
   index: number;
+  /**
+   * "start" (the default) puts the tile's row, or its month heading when the tile is in the
+   * month's first row, at the top. "auto" scrolls only as far as needed to show the tile's row,
+   * so a tile already on screen doesn't move.
+   */
+  align?: "start" | "auto";
+  /** Move keyboard focus to the tile once it's drawn (default true). */
+  focus?: boolean;
 }
 
 /**
@@ -59,10 +75,13 @@ function libraryThumb(tile: Tile): string {
  * one when this is given
  * @param props.onThumbError - called when Windows has no thumbnail for a tile
  * @param props.thumbOf - a tile's thumbnail URL (default: the library thumbnail for its id)
+ * @param props.thumbRetry - raise to have tiles without a thumbnail ask for one again
  * @param props.monthAction - something to show at the right of a month heading
  * @param props.fadeUnselected - fade tiles that aren't selected, for when most are
- * @param props.jump - scroll to this tile, with its month heading when it's in the month's first
- *   row, and move keyboard focus to it
+ * @param props.showUncertain - mark every tile with an uncertain date, not just the one hovered,
+ *   for when those are what's being looked for
+ * @param props.jump - scroll to this tile ({@link TileJump} says how far) and move keyboard focus
+ *   to it unless asked not to
  * @param props.ownsHeight - the grid sits straight in a page column, so it keeps its own minimum
  *   height ({@link LIST_FILL}); otherwise its parent row does
  * @returns the scrolling grid
@@ -77,8 +96,10 @@ export function TimelineGrid({
   onTileZoom,
   onThumbError,
   thumbOf = libraryThumb,
+  thumbRetry = 0,
   monthAction,
   fadeUnselected = false,
+  showUncertain = false,
   jump,
   ownsHeight = false,
 }: {
@@ -91,8 +112,10 @@ export function TimelineGrid({
   onTileZoom?: (index: number) => void;
   onThumbError: (tile: Tile) => void;
   thumbOf?: (tile: Tile) => string;
+  thumbRetry?: number;
   monthAction?: (month: MonthRow) => ReactNode;
   fadeUnselected?: boolean;
+  showUncertain?: boolean;
   jump?: TileJump | null;
   ownsHeight?: boolean;
 }): ReactElement {
@@ -163,9 +186,11 @@ export function TimelineGrid({
   useEffect(() => {
     if (!jump || !laidOut || handledJump.current === jump) return;
     handledJump.current = jump;
-    const row = jumpRow(rows, jump.index);
+    const align = jump.align ?? "start";
+    const row = align === "auto" ? tileRow(rows, jump.index) : jumpRow(rows, jump.index);
     if (row < 0) return;
-    virtualizer.scrollToIndex(row, { align: "start" });
+    virtualizer.scrollToIndex(row, { align });
+    if (jump.focus === false) return;
     let tries = 0;
     let done = false;
     /** Focus the jumped-to tile once it's drawn, retrying each frame up to JUMP_FRAMES. */
@@ -199,8 +224,7 @@ export function TimelineGrid({
     const to = stepTile(rows, Number(from), event.key, tiles.length);
     if (to === null) return;
     event.preventDefault();
-    const row = rows.findIndex((r) => r.type === "tiles" && to >= r.start && to < r.end);
-    virtualizer.scrollToIndex(row, { align: "auto" });
+    virtualizer.scrollToIndex(tileRow(rows, to), { align: "auto" });
     let tries = 0;
     /** Focus the tile once it's drawn, retrying each frame up to JUMP_FRAMES. */
     const focusTile = (): void => {
@@ -256,8 +280,10 @@ export function TimelineGrid({
                           size={tileSize}
                           selecting={selecting}
                           thumb={thumbOf(tile)}
+                          retry={thumbRetry}
                           selected={selected.has(tile.id)}
                           faded={fadeUnselected && !selected.has(tile.id)}
+                          showUncertain={showUncertain}
                           onClick={(event) => onTileClick(row.start + offset, event)}
                           onMenu={(event) => onTileMenu(row.start + offset, event)}
                           onZoom={onTileZoom && (() => onTileZoom(row.start + offset))}
@@ -284,10 +310,12 @@ export function TimelineGrid({
  * @param props.index - position in the grid, for finding the tile to focus after a jump
  * @param props.tile - the photo or video
  * @param props.thumb - thumbnail URL
+ * @param props.retry - a count that, when raised, has a tile without a thumbnail ask again
  * @param props.size - tile edge in CSS pixels
  * @param props.selecting - picking photos, so a plain click picks instead of opening
  * @param props.selected - the tile is picked
  * @param props.faded - dim the tile, for an unpicked one when most are picked
+ * @param props.showUncertain - show the uncertain-date mark without a hover
  * @param props.onClick - called with the click
  * @param props.onMenu - called with the right-click
  * @param props.onZoom - open the tile in the viewer from a magnifier button; no magnifier without it
@@ -298,10 +326,12 @@ function TileButton({
   index,
   tile,
   thumb,
+  retry,
   size,
   selecting,
   selected,
   faded,
+  showUncertain,
   onClick,
   onMenu,
   onZoom,
@@ -311,11 +341,13 @@ function TileButton({
   index: number;
   tile: Tile;
   thumb: string;
+  retry: number;
   size: number;
   /** Picking photos, so a plain click picks instead of opening. */
   selecting: boolean;
   selected: boolean;
   faded: boolean;
+  showUncertain: boolean;
   onClick: (event: TileEvent) => void;
   onMenu: (event: TileEvent) => void;
   /** Open the tile in the viewer from a magnifier button, for when a click picks instead. */
@@ -323,9 +355,31 @@ function TileButton({
   onThumbError: (tile: Tile) => void;
 }): ReactElement {
   const [failed, setFailed] = useState(false);
+  // A retry asks under a new URL, since the webview remembers an image that failed to load.
+  // Only a tile that failed changes URL, so tiles that loaded keep their cached image. askAt is
+  // the retry count this tile's URL carries (0 for the plain URL).
+  const [askAt, setAskAt] = useState(0);
+  const [triedAt, setTriedAt] = useState(retry);
+  if (triedAt !== retry) {
+    setTriedAt(retry);
+    if (failed) {
+      setFailed(false);
+      setAskAt(retry);
+    }
+  }
+  const src = askAt ? `${thumb}${thumb.includes("?") ? "&" : "?"}retry=${askAt}` : thumb;
   const kind = tile.kind === "video" ? "Video" : "Photo";
+  const taken = formatTaken(tile.takenAt);
   const trip = tile.trip ? `, ${tile.trip.name} trip` : "";
-  const label = `${kind} taken ${tile.takenAt.replace("T", " ")}${trip}`;
+  const label = `${tile.name}, ${kind.toLowerCase()} taken ${taken}${trip}`;
+  const tip = [
+    tile.name,
+    taken,
+    tile.uncertain && "Date uncertain",
+    tile.trip && `${tile.trip.name} trip`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   // The magnifier sits beside the tile's button rather than in it, since a button can't hold
   // another button.
@@ -337,8 +391,9 @@ function TileButton({
         onContextMenu={onMenu}
         data-tile={index}
         aria-label={label}
+        title={tip}
         aria-pressed={selecting ? selected : undefined}
-        className="relative h-full w-full overflow-hidden rounded-xs bg-raised focus-visible:outline-offset-0"
+        className={`relative h-full w-full overflow-hidden rounded-xs bg-raised focus-visible:outline-offset-0 ${HOVER_RING}`}
       >
         {failed ? (
           <span className="flex h-full w-full items-center justify-center text-[20px] font-bold text-faint">
@@ -346,25 +401,33 @@ function TileButton({
           </span>
         ) : (
           <img
-            src={thumb}
+            src={src}
             alt=""
             decoding="async"
             draggable={false}
             onError={() => {
+              // A tile scrolled in after a retry may hit the plain URL's remembered failure;
+              // it gets one fresh ask under the current count before it counts as failed.
+              if (askAt !== retry) {
+                setAskAt(retry);
+                return;
+              }
               setFailed(true);
               onThumbError(tile);
             }}
             className={`h-full w-full object-cover transition-opacity ${
-              faded ? "opacity-35 grayscale group-hover:opacity-60" : "group-hover:opacity-90"
+              faded ? "opacity-35 grayscale group-hover:opacity-60" : ""
             }`}
           />
         )}
+        {/* A guessed date is worth a mark only on the tile being looked at, or on all of them
+            while they're what the filter shows; on every tile it's noise. */}
         {tile.uncertain && (
           <span
             title="Date uncertain: guessed from when the file was last changed"
             className={`on-dark absolute top-2 rounded-full bg-ground/80 p-1.5 text-warn ${
               onZoom ? "right-11" : "right-2"
-            }`}
+            } ${showUncertain ? "" : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"}`}
           >
             <Icon name="warn" size={16} />
           </span>
@@ -406,8 +469,8 @@ function TileButton({
         <button
           type="button"
           onClick={onZoom}
-          aria-label={`Look at ${kind.toLowerCase()} taken ${tile.takenAt.replace("T", " ")}`}
-          title="Look at this one bigger"
+          aria-label={`Open ${tile.name}`}
+          title="Open"
           className="on-dark absolute top-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-ground/70 text-ink opacity-0 group-hover:opacity-100 hover:bg-ground focus-visible:bg-ground focus-visible:opacity-100"
         >
           <Icon name="zoom" size={18} />

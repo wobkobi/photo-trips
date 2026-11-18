@@ -19,8 +19,10 @@ import { Viewer, type ViewSource } from "./Viewer";
  * @param props.tileSize - preferred tile edge in CSS pixels
  * @param props.thumbOf - a tile's thumbnail URL
  * @param props.source - the viewer's files, in the same order as `tiles`
- * @param props.tickLabel - what ticking means, for the viewer's tick, e.g. "Bring this one in"
+ * @param props.tickLabel - what ticking means, for the viewer's tick, e.g. "Import this one"
  * @param props.jump - scroll to this tile and focus it
+ * @param props.onThumbError - called when Windows has no thumbnail for a tile
+ * @param props.thumbRetry - a count that, when raised, has tiles without a thumbnail ask again
  * @returns the scrolling grid
  */
 export function PhotoPicker({
@@ -32,6 +34,8 @@ export function PhotoPicker({
   source,
   tickLabel,
   jump,
+  onThumbError,
+  thumbRetry,
 }: {
   tiles: Tile[];
   left: ReadonlySet<number>;
@@ -41,6 +45,8 @@ export function PhotoPicker({
   source: ViewSource;
   tickLabel: string;
   jump?: TileJump | null;
+  onThumbError?: (tile: Tile) => void;
+  thumbRetry?: number;
 }): ReactElement {
   const [anchor, setAnchor] = useState<number | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
@@ -81,10 +87,10 @@ export function PhotoPicker({
       <Button
         variant="ghost"
         className="ml-auto shrink-0 whitespace-nowrap"
-        aria-label={allPicked ? `Untick all of ${month.label}` : `Tick all of ${month.label}`}
+        aria-label={allPicked ? `Deselect all of ${month.label}` : `Select all of ${month.label}`}
         onClick={() => onChange(setPicked(left, ids, !allPicked))}
       >
-        {allPicked ? "Untick month" : "Tick month"}
+        {allPicked ? "Deselect month" : "Select month"}
       </Button>
     );
   }
@@ -103,7 +109,8 @@ export function PhotoPicker({
         onTileClick={onTileClick}
         onTileMenu={(_, event) => event.preventDefault()}
         onTileZoom={setViewing}
-        onThumbError={() => undefined}
+        onThumbError={onThumbError ?? (() => undefined)}
+        thumbRetry={thumbRetry}
         thumbOf={thumbOf}
         monthAction={monthAction}
         jump={jump}
@@ -195,17 +202,17 @@ export function PickBar({
     <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-line bg-surface px-5 py-1.5">
       <p className="min-w-0 flex-1 basis-80">
         <strong className="font-semibold">
-          {ticked.toLocaleString()} of {count(total, "photo", "photos")} ticked
+          {ticked.toLocaleString()} of {count(total, "item", "items")} selected
         </strong>
         {extra && <> {extra}</>}
         <span className="ml-3 text-[14px] text-faint">{hint}</span>
       </p>
       <div className="ml-auto flex gap-1">
         <Button variant="ghost" onClick={() => onAll(true)} disabled={ticked === total}>
-          Tick all
+          Select all
         </Button>
         <Button variant="ghost" onClick={() => onAll(false)} disabled={ticked === 0}>
-          Untick all
+          Select none
         </Button>
       </div>
     </div>

@@ -185,11 +185,11 @@ export function SuggestionsPage({
           review !== null &&
           !moving && (
             <>
-              <Button variant="ghost" onClick={() => setReview(null)} disabled={busy}>
+              <Button variant="ghost" onClick={() => setReview(null)} busy={busy}>
                 <Icon name="back" size={16} />
                 Back
               </Button>
-              <Button variant="primary" onClick={() => apply(review)} disabled={busy}>
+              <Button variant="primary" onClick={() => apply(review)} busy={busy}>
                 {review.action}
               </Button>
             </>
@@ -227,7 +227,7 @@ export function SuggestionsPage({
           </p>
           <p className="mt-3 text-[15px]">{howFound(data)}</p>
           {data.dismissed > 0 && (
-            <Button onClick={restore} disabled={busy}>
+            <Button onClick={restore} busy={busy}>
               Show {count(data.dismissed, "dismissed suggestion", "dismissed suggestions")} again
             </Button>
           )}
@@ -255,7 +255,7 @@ export function SuggestionsPage({
           </ul>
           {data.dismissed > 0 && (
             <div>
-              <Button variant="ghost" onClick={restore} disabled={busy}>
+              <Button variant="ghost" onClick={restore} busy={busy}>
                 Show {count(data.dismissed, "dismissed suggestion", "dismissed suggestions")} again
               </Button>
             </div>
@@ -307,13 +307,13 @@ function SuggestionCard({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1">
-          <Button variant="ghost" onClick={onDismiss} disabled={busy}>
+          <Button variant="ghost" onClick={onDismiss} busy={busy}>
             Not a trip
           </Button>
-          <Button variant="ghost" onClick={onChange} disabled={busy}>
-            Change or pick photos
+          <Button variant="ghost" onClick={onChange} busy={busy}>
+            Change or select photos
           </Button>
-          <Button variant="primary" onClick={onCreate} disabled={busy}>
+          <Button variant="primary" onClick={onCreate} busy={busy}>
             Create trip
           </Button>
         </div>

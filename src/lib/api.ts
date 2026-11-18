@@ -27,6 +27,8 @@ export interface Tile {
   version: number;
   /** Trip the photo was taken during. */
   trip: TileTrip | null;
+  /** The file is 0 bytes, so it has no picture whatever codecs are installed. */
+  empty: boolean;
 }
 
 /** Enough of a trip to draw its band on a tile. */

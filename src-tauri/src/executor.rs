@@ -553,7 +553,7 @@ fn copy_in(from: &Path, to: &Path, expected: Option<&str>) -> Result<String> {
         }
         if expected.is_some_and(|e| e != hash) {
             return Err(Error::msg(format!(
-                "{} changed since the check, so it wasn't copied. Check again to bring it in.",
+                "{} changed since the check, so it wasn't copied. Check again to import it.",
                 file_name(from)
             )));
         }
@@ -575,7 +575,7 @@ fn take_back(
     transfer: Transfer,
     blocked: &Path,
 ) -> Result<()> {
-    let reason = format!("Not brought in because {} couldn't be", file_name(blocked));
+    let reason = format!("Not imported because {} couldn't be", file_name(blocked));
     for (file, &id) in landed.iter().zip(ids).rev() {
         set_entry(&*lock(env.db)?, id, "undoing", None)?;
         let outcome = match transfer {

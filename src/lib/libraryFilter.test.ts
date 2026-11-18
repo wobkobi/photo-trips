@@ -21,6 +21,7 @@ function tile(id: number, takenAt: string, extra: Partial<Tile> = {}): Tile {
     extra: 0,
     version: 0,
     trip: null,
+    empty: false,
     ...extra,
   };
 }

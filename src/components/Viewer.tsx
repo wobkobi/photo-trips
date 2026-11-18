@@ -2,6 +2,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type MouseEvent,
   type PointerEvent,
   type ReactElement,
   type ReactNode,
@@ -9,6 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { api, errorText, type MediaKind } from "../lib/api";
+import { MissingExtensions } from "./CodecHint";
 import { Icon, type IconName } from "./Icon";
 import { Button } from "./ui";
 import { VideoPlayer } from "./VideoPlayer";
@@ -216,11 +218,13 @@ export function Viewer({
     return () => window.removeEventListener("keydown", onKey, true);
   }, [index, source.count, onIndex, onClose]);
 
-  // Focus moves into the viewer, and back to whatever opened it on closing.
+  // Focus moves into the viewer, and back to whatever opened it on closing. That return doesn't
+  // scroll: after stepping through photos the page may bring the last one shown into view
+  // instead, and the opener mustn't pull the view back to where the viewer started.
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     dialog.current?.focus();
-    return () => opener?.focus();
+    return () => opener?.focus({ preventScroll: true });
   }, []);
 
   /**
@@ -459,6 +463,12 @@ function Media({
           <Icon name={video ? "play" : "open"} size={16} />
           {openLabel}
         </Button>
+        {failed && (
+          <MissingExtensions
+            ext={item.name.slice(item.name.lastIndexOf(".") + 1).toLowerCase()}
+            kind={item.kind}
+          />
+        )}
       </div>
     );
   }
@@ -477,8 +487,6 @@ function Media({
   return (
     <Photo
       item={item}
-      openLabel={openLabel}
-      onOpen={onOpen}
       onShown={onShown}
       onBroken={() => {
         onShown();
@@ -502,6 +510,13 @@ const ZOOMS = [1, 1.5, 2, 3, 4, 6, 8];
  */
 const WHEEL_STEP = 60;
 
+/** Where a click on the photo at fit size zooms to. */
+const CLICK_ZOOM = 2;
+/** How far a press can move, in px, and still count as a click rather than a drag. */
+const CLICK_SLOP = 4;
+/** How long the full picture can take, in ms, before a busy mark shows. */
+const SLOW_MS = 300;
+
 /**
  * The next zoom step in or out, stopping at either end of {@link ZOOMS}.
  * @param zoom - the zoom now, one of {@link ZOOMS}
@@ -514,31 +529,29 @@ function stepZoom(zoom: number, direction: 1 | -1): number {
 }
 
 /**
- * A photo to look at closely: zoom with the wheel, the + and - keys or the buttons beneath it,
- * drag to look around a zoomed photo, and turn it with R. Turning only changes how it's shown
- * here; the file is never changed. Clicking it at fit size opens it in its app.
+ * A photo to look at closely: click to zoom in about the pointer and click again to fit, zoom
+ * with the wheel, the + and - keys or the buttons beneath it, drag to look around a zoomed
+ * photo, and turn it with R. Turning only changes how it's shown here; the file is never
+ * changed.
  * @param props - Component props.
  * @param props.item - the photo on show
- * @param props.openLabel - tooltip for clicking the photo
- * @param props.onOpen - open the photo in its default app
  * @param props.onShown - the full picture is on screen
  * @param props.onBroken - the full picture failed to load
  * @returns the photo with its zoom and turn buttons
  */
 function Photo({
   item,
-  openLabel,
-  onOpen,
   onShown,
   onBroken,
 }: {
   item: ViewItem;
-  openLabel: string;
-  onOpen: () => void;
   onShown: () => void;
   onBroken: () => void;
 }): ReactElement {
   const [sharp, setSharp] = useState(false);
+  // Whether the full picture's size is known yet; until then its box is empty.
+  const [sized, setSized] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [turns, setTurns] = useState(0);
   const [pan, setPan] = useState<Offset>({ x: 0, y: 0 });
@@ -548,10 +561,30 @@ function Photo({
   const photo = useRef<HTMLImageElement>(null);
   // Where a drag started, less the pan then, so moving the pointer moves the photo with it.
   const dragFrom = useRef<Offset | null>(null);
-  // Set once a press has moved the photo, so letting go doesn't count as a click that opens it.
+  // Where a press started, and whether it has since moved far enough to be a drag, so letting go
+  // of a drag doesn't count as a click that zooms.
+  const pressAt = useRef<Offset | null>(null);
   const dragged = useRef(false);
   const wheel = useRef(0);
   const sideways = turns % 2 === 1;
+
+  // A HEIC, RAW or TIFF is drawn by Windows first, so its size isn't known until that's done,
+  // and its own box (and the tile drawn in it) stays empty meanwhile. Watch for the box to open.
+  useEffect(() => {
+    const img = photo.current;
+    if (!img) return;
+    const observer = new ResizeObserver(() => {
+      if (img.offsetWidth > 0 && img.offsetHeight > 0) setSized(true);
+    });
+    observer.observe(img);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (sharp) return;
+    const timer = window.setTimeout(() => setSlow(true), SLOW_MS);
+    return () => window.clearTimeout(timer);
+  }, [sharp]);
 
   // The photo is laid out unturned, fitted to the stage. A quarter turn swaps its width and
   // height, so it's scaled to fit again, but never past its real size.
@@ -679,6 +712,7 @@ function Photo({
    */
   function onPointerDown(event: PointerEvent<HTMLImageElement>): void {
     dragged.current = false;
+    pressAt.current = { x: event.clientX, y: event.clientY };
     if (zoom === 1 || event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     dragFrom.current = { x: event.clientX - pan.x, y: event.clientY - pan.y };
@@ -690,19 +724,41 @@ function Photo({
    * @param event - the pointer moving
    */
   function onPointerMove(event: PointerEvent<HTMLImageElement>): void {
+    const press = pressAt.current;
+    if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > CLICK_SLOP) {
+      dragged.current = true;
+    }
     const from = dragFrom.current;
     if (!from) return;
-    dragged.current = true;
     setPan(clamp({ x: event.clientX - from.x, y: event.clientY - from.y }, zoom));
+  }
+
+  /**
+   * Zoom in about the pointer at fit size, or back to fit when zoomed. A drag is not a click.
+   * @param event - the click on the photo
+   */
+  function onClick(event: MouseEvent<HTMLImageElement>): void {
+    if (dragged.current) return;
+    if (zoom > 1) {
+      fitPhoto();
+      return;
+    }
+    const box = stage.current?.getBoundingClientRect();
+    if (!box) return;
+    zoomTo(CLICK_ZOOM, {
+      x: event.clientX - box.left - box.width / 2,
+      y: event.clientY - box.top - box.height / 2,
+    });
   }
 
   /** Stop dragging. */
   function onPointerUp(): void {
     dragFrom.current = null;
+    pressAt.current = null;
     setDragging(false);
   }
 
-  let cursor = "cursor-pointer";
+  let cursor = "cursor-zoom-in";
   if (zoom > 1) cursor = dragging ? "cursor-grabbing" : "cursor-grab";
   const changed = zoom > 1 || turns > 0;
 
@@ -710,22 +766,38 @@ function Photo({
   // a little soft, then sharpens. As a background it fills the photo's own box, which is known as
   // soon as the file's header is read, so a picture smaller than the screen never flashes up
   // stretched. It goes once the photo is in: the tile is flattened onto grey, which would show
-  // through a transparent picture.
+  // through a transparent picture. A picture Windows draws has no box until it's done, so its
+  // tile is its own layer filling the stage until then. A file the webview shows itself skips
+  // that: its box comes within moments, and a small picture would flash up stretched.
   return (
     <div
       ref={stage}
       onWheel={onWheel}
       className="group relative flex size-full items-center justify-center"
     >
+      {!sized && !item.original && (
+        <img
+          src={item.thumb}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          style={{ transform: `rotate(${turns * 90}deg)` }}
+          className="pointer-events-none absolute inset-0 size-full object-contain select-none"
+        />
+      )}
+      {slow && !sharp && (
+        <Icon
+          name="busy"
+          size={18}
+          className="pointer-events-none absolute top-0 right-0 animate-spin text-faint"
+        />
+      )}
       <img
         ref={photo}
         src={item.original ?? item.preview}
         alt={item.name}
-        title={zoom === 1 ? openLabel : undefined}
         draggable={false}
-        onClick={() => {
-          if (zoom === 1 && !dragged.current) onOpen();
-        }}
+        onClick={onClick}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -764,7 +836,7 @@ function Photo({
           disabled={zoom === ZOOMS[ZOOMS.length - 1]}
           onClick={zoomIn}
         />
-        <ToolButton icon="rotate" label="Turn (R)" onClick={turn} />
+        <ToolButton icon="rotate" label="Rotate (R)" onClick={turn} />
       </div>
     </div>
   );

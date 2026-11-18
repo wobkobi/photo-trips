@@ -2,7 +2,10 @@ import { createContext, useContext, useEffect, useRef } from "react";
 import type { JobDone, JobProgress } from "./api";
 
 export interface FinishedJob {
-  /** Increases with every finished job, so listeners can tell new results from old. */
+  /**
+   * Increases with every finished job and never restarts, even after
+   * {@link JobsContextValue.clearLastDone}, so listeners can tell new results from old.
+   */
   seq: number;
   done: JobDone;
 }
@@ -24,7 +27,7 @@ export const JOB_NAMES: Record<string, string> = {
   duplicates: "Checking for duplicates",
   remove: "Moving files to the Recycle Bin",
   "import-scan": "Checking for new photos",
-  import: "Bringing photos in",
+  import: "Importing photos",
   inbox: "Moving new photos in from the inbox",
 };
 

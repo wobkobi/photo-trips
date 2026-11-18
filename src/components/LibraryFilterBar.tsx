@@ -1,4 +1,4 @@
-import { useMemo, type ReactElement, type ReactNode } from "react";
+import { useMemo, type ReactElement, type ReactNode, type RefObject } from "react";
 import type { Tile } from "../lib/api";
 import { filterChoices, isFiltered, NO_FILTER, type LibraryFilter } from "../lib/libraryFilter";
 import { Icon } from "./Icon";
@@ -6,7 +6,7 @@ import { Button } from "./ui";
 
 /** A compact drop-down, styled to sit in a toolbar. */
 const SELECT =
-  "min-h-9 rounded-md border border-line-strong/60 bg-raised px-2 py-1 text-[14px] text-ink hover:border-line-strong";
+  "min-h-8.5 rounded-md border border-line-strong/60 bg-raised px-2 py-1 text-[14px] text-ink hover:border-line-strong";
 
 /**
  * A toolbar control with its name to its left.
@@ -32,16 +32,19 @@ function Inline({ label, children }: { label: string; children: ReactNode }): Re
  * @param props.tiles - every tile in the library, newest first
  * @param props.filter - the current filter
  * @param props.onChange - called with the new filter
+ * @param props.searchBox - set to the file name box, so Find (Ctrl+F) can focus it
  * @returns the bar
  */
 export function LibraryFilterBar({
   tiles,
   filter,
   onChange,
+  searchBox,
 }: {
   tiles: Tile[];
   filter: LibraryFilter;
   onChange: (filter: LibraryFilter) => void;
+  searchBox?: RefObject<HTMLInputElement | null>;
 }): ReactElement {
   const choices = useMemo(() => filterChoices(tiles, filter), [tiles, filter]);
   const tripValue = typeof filter.trip === "object" ? String(filter.trip.id) : filter.trip;
@@ -62,6 +65,7 @@ export function LibraryFilterBar({
       className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-line bg-surface px-5 py-1.5"
     >
       <input
+        ref={searchBox}
         type="search"
         value={filter.name}
         onChange={(e) => onChange({ ...filter, name: e.target.value })}
@@ -117,7 +121,7 @@ export function LibraryFilterBar({
         </Inline>
       )}
       {(choices.uncertain || filter.uncertain) && (
-        <label className="flex min-h-9 cursor-pointer items-center gap-2 text-[14px] text-muted">
+        <label className="flex min-h-8.5 cursor-pointer items-center gap-2 text-[14px] text-muted">
           <input
             type="checkbox"
             checked={filter.uncertain}

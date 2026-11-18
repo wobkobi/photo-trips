@@ -190,7 +190,7 @@ fn without(pending: &PendingBatch, skip: &[i64]) -> Result<(Plan, String)> {
         .cloned()
         .collect();
     if groups.is_empty() {
-        return Err(Error::msg("Tick at least one photo to move"));
+        return Err(Error::msg("Select at least one item to move"));
     }
     let plan = Plan {
         groups,

@@ -3,7 +3,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
 import { MovingProgress, ResultBanner } from "../components/PlanPreview";
-import { Button, EmptyState, LIST_FILL, PageHeader, ReviewHead } from "../components/ui";
+import {
+  Button,
+  EmptyState,
+  HOVER_RING,
+  LIST_FILL,
+  PageHeader,
+  ReviewHead,
+} from "../components/ui";
 import { Viewer } from "../components/Viewer";
 import { useLibrarySource } from "../components/viewSources";
 import {
@@ -114,7 +121,7 @@ export function DuplicatesPage({
               <Button
                 variant="primary"
                 onClick={() => run(() => api.removeDuplicates(plan.choices))}
-                disabled={busy}
+                busy={busy}
               >
                 Move to Recycle Bin
               </Button>
@@ -125,7 +132,7 @@ export function DuplicatesPage({
           ) : (
             <>
               {report !== null && report.unchecked > 0 && (
-                <Button onClick={check} disabled={busy}>
+                <Button onClick={check} busy={busy}>
                   <Icon name="refresh" size={16} />
                   Check new files
                 </Button>
@@ -133,7 +140,8 @@ export function DuplicatesPage({
               <Button
                 variant="primary"
                 onClick={() => setConfirming(true)}
-                disabled={busy || plan.copies === 0}
+                disabled={plan.copies === 0}
+                busy={busy}
               >
                 Move {count(plan.copies, "copy", "copies")} to the Recycle Bin
               </Button>
@@ -210,7 +218,7 @@ function NoSets({
         {count(report.unchecked, "photo or video is", "photos and videos are")} the same size as
         another file. Checking compares their contents, and only those files are read.
       </p>
-      <Button variant="primary" onClick={onCheck} disabled={busy}>
+      <Button variant="primary" onClick={onCheck} busy={busy}>
         Check for duplicates
       </Button>
     </EmptyState>
@@ -468,7 +476,7 @@ function CopyCard({
         className="group block w-full rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         <span
-          className={`relative block aspect-4/3 overflow-hidden rounded-[3px] bg-raised ${
+          className={`relative block aspect-4/3 overflow-hidden rounded-[3px] bg-raised ${HOVER_RING} ${
             state === "keep" ? "ring-3 ring-accent" : ""
           }`}
         >
@@ -519,8 +527,8 @@ function CopyCard({
       <button
         type="button"
         onClick={onZoom}
-        aria-label={`Look at ${name}`}
-        title="Look at this copy bigger"
+        aria-label={`Open ${name}`}
+        title="Open"
         className="on-dark absolute top-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-ground/70 text-ink opacity-0 group-hover:opacity-100 hover:bg-ground focus-visible:bg-ground focus-visible:opacity-100"
       >
         <Icon name="zoom" size={18} />

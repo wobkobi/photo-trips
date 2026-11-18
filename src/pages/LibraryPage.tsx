@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
 import { CodecHint } from "../components/CodecHint";
 import { DateEditor } from "../components/DateEditor";
@@ -6,7 +6,7 @@ import { Icon } from "../components/Icon";
 import { LibraryFilterBar } from "../components/LibraryFilterBar";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
 import { TileMenu, type MenuItem } from "../components/TileMenu";
-import { TimelineGrid, type TileEvent } from "../components/TimelineGrid";
+import { TimelineGrid, type TileEvent, type TileJump } from "../components/TimelineGrid";
 import { Viewer } from "../components/Viewer";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { useLibrarySource } from "../components/viewSources";
@@ -37,6 +37,8 @@ import { useTripReview } from "../lib/useTripReview";
 
 /** How many nearby trips the menus offer to add photos to. */
 const ADD_CHOICES = 4;
+/** How long after a try tiles without a thumbnail wait before asking again, in ms. */
+const THUMB_RETRY_MS = 60_000;
 
 /**
  * The whole library as a month-by-month timeline, with a viewer for single photos.
@@ -50,8 +52,10 @@ const ADD_CHOICES = 4;
  *   photos ticked
  * @param props.onImport - open the Import page
  * @param props.onNavigate - switch to another page, for History from the result banner
- * @param props.refreshRequested - File > Look for new photos (F5) was picked; refresh on opening
+ * @param props.refreshRequested - File > Refresh (F5) was picked; refresh on opening
  * @param props.onRefreshStarted - called once that refresh has been asked for
+ * @param props.findRequested - View > Find (Ctrl+F) was picked; focus the file name box
+ * @param props.onFindStarted - called once that box has been focused, or can't be
  * @returns the page
  */
 export function LibraryPage({
@@ -62,6 +66,8 @@ export function LibraryPage({
   onNavigate,
   refreshRequested,
   onRefreshStarted,
+  findRequested,
+  onFindStarted,
 }: {
   filter: LibraryFilter;
   onFilter: (filter: LibraryFilter) => void;
@@ -70,6 +76,8 @@ export function LibraryPage({
   onNavigate: (page: PageId) => void;
   refreshRequested: boolean;
   onRefreshStarted: () => void;
+  findRequested: boolean;
+  onFindStarted: () => void;
 }): ReactElement {
   const { settings, save } = useSettings();
   const { running } = useJobs();
@@ -100,6 +108,7 @@ export function LibraryPage({
   // Raised after a date change or an undo, so the viewer shows the new date.
   const [revision, setRevision] = useState(0);
   const tripReview = useTripReview();
+  const searchBox = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
     api.libraryTiles().then(
@@ -149,11 +158,44 @@ export function LibraryPage({
     setRevision((r) => r + 1);
   });
 
+  // Each tile once: a retry that fails again mustn't add it twice.
   const onThumbError = useCallback(
-    (tile: Tile) => setFailedThumbs((prev) => (prev.length >= 50 ? prev : [...prev, tile])),
+    (tile: Tile) =>
+      setFailedThumbs((prev) =>
+        prev.length >= 50 || prev.some((t) => t.id === tile.id) ? prev : [...prev, tile],
+      ),
     [],
   );
-  const closeViewer = useCallback(() => setOpen(null), []);
+  // Tiles without a thumbnail ask again when a Store extension arrives (the codec hint notices),
+  // and when the window comes back into focus a minute or more after the last try, as after
+  // fixing a file elsewhere. Windows' own memory of the failure lasts that minute too.
+  const [thumbRetry, setThumbRetry] = useState(0);
+  const anyThumbFailed = failedThumbs.length > 0;
+  useEffect(() => {
+    if (!anyThumbFailed) return;
+    const since = Date.now();
+    /** Ask again if the last try is old enough for Windows to draw the files afresh. */
+    const onFocus = (): void => {
+      if (Date.now() - since >= THUMB_RETRY_MS) setThumbRetry((n) => n + 1);
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [anyThumbFailed, thumbRetry]);
+  // Closing the viewer brings the last photo it showed into view in the grid and focuses it,
+  // since stepping through photos may have gone well past the one it opened on.
+  const [jump, setJump] = useState<TileJump | null>(null);
+  // A new filter shows a different list, so the grid goes back to its top. Focus stays put, so
+  // typing in the name box (a new filter each key) carries on. From the prop, so a trip opened
+  // from elsewhere does the same.
+  const [shownFilter, setShownFilter] = useState(filter);
+  if (shownFilter !== filter) {
+    setShownFilter(filter);
+    setJump({ index: 0, focus: false });
+  }
+  const closeViewer = useCallback(() => {
+    if (open !== null) setJump({ index: open, align: "auto" });
+    setOpen(null);
+  }, [open]);
   const ids = useMemo(() => tiles?.map((t) => t.id) ?? [], [tiles]);
   const source = useLibrarySource(ids, revision);
   const clearSelection = useCallback(() => {
@@ -173,6 +215,18 @@ export function LibraryPage({
     onRefreshStarted();
     api.indexLibrary().catch((err) => setError(errorText(err)));
   }, [refreshRequested, onRefreshStarted]);
+
+  // Find closes the viewer, which covers the file name box. Closed here during render, so the
+  // focus below runs in the commit that unmounts the viewer, after its cleanup hands focus back
+  // to the tile.
+  if (findRequested && open !== null) setOpen(null);
+  // The box only shows once the list has loaded, so Find waits for that.
+  const loaded = allTiles !== null;
+  useEffect(() => {
+    if (!findRequested || open !== null || !loaded) return;
+    onFindStarted();
+    searchBox.current?.focus();
+  }, [findRequested, onFindStarted, open, loaded]);
 
   const selecting = picking || selected.size > 0;
   const picked = useMemo(
@@ -262,7 +316,7 @@ export function LibraryPage({
       { label: "Copy path", onSelect: copyPath.bind(null, tile.id) },
       {
         label:
-          pick.length > 1 ? `Set date for ${countOf(pick.length, "photo", "photos")}` : "Set date",
+          pick.length > 1 ? `Set date for ${countOf(pick.length, "item", "items")}` : "Set date",
         onSelect: setDating.bind(null, pick),
         divided: true,
       },
@@ -282,12 +336,12 @@ export function LibraryPage({
         onSelect: createTrip.bind(null, found.free),
       });
     }
-    if (selecting) tripItems.push({ label: "Stop picking", onSelect: clearSelection });
+    if (selecting) tripItems.push({ label: "Deselect", onSelect: clearSelection });
     if (tripItems.length > 0) tripItems[0].divided = true;
     const bin: MenuItem = {
       label:
         pick.length > 1
-          ? `Send ${countOf(pick.length, "photo", "photos")} to the Recycle Bin`
+          ? `Send ${countOf(pick.length, "item", "items")} to the Recycle Bin`
           : "Send to the Recycle Bin",
       onSelect: setBinning.bind(null, pick),
       divided: true,
@@ -324,7 +378,7 @@ export function LibraryPage({
         chosen.map((t) => t.id),
         date,
       );
-      const photos = countOf(chosen.length, "photo", "photos");
+      const photos = countOf(chosen.length, "item", "items");
       setDateDone({
         batch,
         text: date ? `Date set for ${photos}.` : `Back to the file's own date for ${photos}.`,
@@ -454,14 +508,14 @@ export function LibraryPage({
             review !== null &&
             !moving && (
               <>
-                <Button variant="ghost" onClick={tripReview.back} disabled={running !== null}>
+                <Button variant="ghost" onClick={tripReview.back} busy={running !== null}>
                   <Icon name="back" size={16} />
                   Back
                 </Button>
                 <Button
                   variant="primary"
                   onClick={() => void tripReview.apply()}
-                  disabled={running !== null}
+                  busy={running !== null}
                 >
                   {review.action}
                 </Button>
@@ -471,7 +525,7 @@ export function LibraryPage({
             <>
               <span className="mr-2 text-[14px] text-muted" aria-live="polite">
                 {selected.size > 0
-                  ? `${countOf(selected.size, "photo", "photos")} picked`
+                  ? `${countOf(selected.size, "item", "items")} selected`
                   : "Click photos to add"}
               </span>
               <Button variant="ghost" onClick={clearSelection}>
@@ -520,9 +574,9 @@ export function LibraryPage({
               <Button
                 variant="ghost"
                 onClick={refresh}
-                disabled={running !== null}
-                title="Look for new photos (F5)"
-                aria-label="Look for new photos"
+                busy={running !== null}
+                title="Refresh (F5)"
+                aria-label="Refresh"
                 className="px-2.5"
               >
                 <Icon name="refresh" size={18} />
@@ -555,7 +609,7 @@ export function LibraryPage({
             {binQuestion(binning, binPartners?.id === binOne ? binPartners.names : null)} You can
             undo this from History.
           </p>
-          <Button variant="primary" onClick={confirmBin} disabled={running !== null}>
+          <Button variant="primary" onClick={confirmBin} busy={running !== null}>
             Send to the Recycle Bin
           </Button>
           <Button variant="ghost" onClick={() => setBinning(null)}>
@@ -566,7 +620,7 @@ export function LibraryPage({
       {dating !== null && !reviewing && (
         <div className="mx-5 mt-3 flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface p-4">
           <p className="min-w-0 flex-1 basis-60">
-            New date for {countOf(dating.length, "photo", "photos")}. Only Pic Cabinet uses it; the
+            New date for {countOf(dating.length, "item", "items")}. Only Pic Cabinet uses it; the
             files aren&apos;t changed.
           </p>
           <DateEditor
@@ -582,7 +636,7 @@ export function LibraryPage({
           <p className="min-w-0 flex-1 basis-60">{dateDone.text}</p>
           <Button
             onClick={() => api.undoBatch(dateDone.batch).catch((err) => setError(errorText(err)))}
-            disabled={running !== null}
+            busy={running !== null}
           >
             <Icon name="undo" size={16} />
             Undo
@@ -602,11 +656,21 @@ export function LibraryPage({
         />
       )}
       {!reviewing && settings?.codec_hint_dismissed !== "true" && (
-        <CodecHint failed={failedThumbs} onDismiss={() => save("codec_hint_dismissed", "true")} />
+        <CodecHint
+          failed={failedThumbs}
+          shown={allTiles ?? []}
+          onDismiss={() => save("codec_hint_dismissed", "true")}
+          onChange={() => setThumbRetry((n) => n + 1)}
+        />
       )}
 
       {!reviewing && allTiles !== null && total > 0 && (
-        <LibraryFilterBar tiles={allTiles} filter={filter} onChange={changeFilter} />
+        <LibraryFilterBar
+          tiles={allTiles}
+          filter={filter}
+          onChange={changeFilter}
+          searchBox={searchBox}
+        />
       )}
 
       {total > 0 && count === 0 && filtered && (
@@ -620,7 +684,7 @@ export function LibraryPage({
       {allTiles !== null && total === 0 && !indexing && (
         <EmptyState title="No photos here yet">
           <p>
-            Pic Cabinet didn&apos;t find any photos or videos in your library folder. Bring some in
+            Pic Cabinet didn&apos;t find any photos or videos in your library folder. Import some
             from a memory card, a phone or another folder, or choose a different library folder in
             Settings.
           </p>
@@ -647,6 +711,9 @@ export function LibraryPage({
           // While picking, a click picks, so the magnifier is the way to look at a photo.
           onTileZoom={selecting ? setOpen : undefined}
           onThumbError={onThumbError}
+          thumbRetry={thumbRetry}
+          showUncertain={filter.uncertain}
+          jump={jump}
         />
       )}
       {menu && <TileMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)} items={menu.items} />}
@@ -781,7 +848,7 @@ function ViewerTrip({
           <Button
             key={`${change.kind}-${change.trip.id}`}
             onClick={() => onEdit(change)}
-            disabled={busy}
+            busy={busy}
           >
             {change.kind === "remove"
               ? "Remove from trip"
@@ -833,7 +900,7 @@ function ViewerDate({
         Change date
       </Button>
       {tile.dateSet && (
-        <Button variant="ghost" onClick={() => onSave(null)} disabled={busy}>
+        <Button variant="ghost" onClick={() => onSave(null)} busy={busy}>
           Use the file&apos;s date
         </Button>
       )}

@@ -15,9 +15,11 @@ import {
   Images,
   Layers,
   LayoutGrid,
+  LoaderCircle,
   Luggage,
   MapIcon,
   MapPin,
+  PanelLeft,
   Pause,
   Play,
   RefreshCw,
@@ -78,6 +80,8 @@ const ICONS = {
   map: MapIcon,
   calendar: CalendarDays,
   help: CircleHelp,
+  busy: LoaderCircle,
+  panel: PanelLeft,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

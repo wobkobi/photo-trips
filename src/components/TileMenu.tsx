@@ -112,7 +112,7 @@ export function TileMenu({
             onClose();
             item.onSelect();
           }}
-          className={`block min-h-11 w-full px-4 py-2.5 text-left text-[16px] hover:bg-raised focus-visible:bg-raised focus-visible:outline-none ${item.divided ? "mt-1 border-t border-line" : ""}`}
+          className={`block min-h-8.5 w-full px-3 py-1.5 text-left text-[15px] hover:bg-raised focus-visible:bg-raised focus-visible:outline-none active:bg-line ${item.divided ? "mt-1 border-t border-line" : ""}`}
         >
           {item.label}
         </button>

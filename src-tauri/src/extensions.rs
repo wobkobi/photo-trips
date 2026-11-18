@@ -2,6 +2,10 @@
 // them to preview HEIC photos, HEVC video, camera RAW and AVIF, so the Library suggests the
 // missing ones when thumbnails fail.
 
+use std::sync::Mutex;
+
+use tauri::Manager;
+
 use crate::error::{Error, Result};
 
 /// Store product ids, keyed by the names the frontend uses. `hevc` is the free listing, which the
@@ -29,14 +33,25 @@ const PACKAGES: &[(&str, &[&str])] = &[
     ("av1", &["Microsoft.AV1VideoExtension_8wekyb3d8bbwe"]),
 ];
 
-/// The codecs this user already has, so the Library only suggests ones that would help.
+/// What [`installed_extensions`] found last time, to notice an extension coming or going.
+static LAST_FOUND: Mutex<Option<Vec<&'static str>>> = Mutex::new(None);
+
+/// The codecs this user already has, so the Library only suggests ones that would help. When
+/// that has changed since the last check (the user just came back from the Store), files the
+/// thumbnail pool couldn't draw are let through again, so their tiles can get pictures.
 #[tauri::command(async)]
-pub fn installed_extensions() -> Vec<&'static str> {
-    PACKAGES
+pub fn installed_extensions(app: tauri::AppHandle) -> Vec<&'static str> {
+    let found: Vec<&'static str> = PACKAGES
         .iter()
         .filter(|(_, families)| families.iter().any(|family| package_installed(family)))
         .map(|(codec, _)| *codec)
-        .collect()
+        .collect();
+    let mut last = LAST_FOUND.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if last.as_ref().is_some_and(|before| *before != found) {
+        app.state::<crate::thumbs::Pool>().forget_failures();
+    }
+    *last = Some(found.clone());
+    found
 }
 
 /// Open an extension's page in the Microsoft Store app.

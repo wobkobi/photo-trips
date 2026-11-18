@@ -28,6 +28,11 @@ describe("shortcutFor", () => {
     expect(shortcutFor(press("Q", { ctrl: true }))).toBe("menu-quit");
   });
 
+  it("takes Ctrl+F for the app's own Find", () => {
+    expect(shortcutFor(press("f", { ctrl: true }))).toBe("menu-find");
+    expect(shortcutFor(press("f"))).toBeNull();
+  });
+
   it("matches F5 on its own and Ctrl+comma", () => {
     expect(shortcutFor(press("F5"))).toBe("menu-refresh");
     expect(shortcutFor(press(",", { ctrl: true }))).toBe("menu-settings");

@@ -160,11 +160,11 @@ function BatchRow({
         {confirming ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[15px]">{confirmText(batch)}</span>
-            <Button variant="primary" onClick={onUndo} disabled={busy}>
-              Put back
+            <Button variant="primary" onClick={onUndo} busy={busy}>
+              Undo
             </Button>
             <Button variant="ghost" onClick={onCancelUndo}>
-              Keep
+              Cancel
             </Button>
           </div>
         ) : (
@@ -180,7 +180,7 @@ function BatchRow({
               </Button>
             )}
             {batch.canUndo && (
-              <Button onClick={onAskUndo} disabled={busy}>
+              <Button onClick={onAskUndo} busy={busy}>
                 <Icon name="undo" size={16} />
                 Undo
               </Button>
@@ -205,7 +205,7 @@ function confirmText(batch: BatchInfo): string {
     case "duplicates":
       return `Take ${files} out of the Recycle Bin?`;
     case "import":
-      return `Move the ${files} copied in to the Recycle Bin? The originals stay where they are.`;
+      return `Send the ${files} imported to the Recycle Bin? The originals stay where they are.`;
     case "import_move":
       return `Put ${files} back where they came from?`;
     case "trip":
@@ -219,8 +219,8 @@ function confirmText(batch: BatchInfo): string {
 const DID_TEXT: Record<string, string> = {
   duplicates: "sent to the Recycle Bin",
   recycle: "sent to the Recycle Bin",
-  import: "copied in",
-  import_move: "moved in",
+  import: "imported",
+  import_move: "imported",
 };
 
 /**
@@ -242,7 +242,7 @@ function statusText(batch: BatchInfo): string {
     case "failed":
       if (batch.kind === "duplicates") return "Every copy was kept";
       return batch.kind.startsWith("import")
-        ? "Nothing could be brought in"
+        ? "Nothing could be imported"
         : "Nothing could be moved";
     case "cancelled":
       return `Stopped part-way, ${moved}`;
@@ -275,9 +275,9 @@ const TRASH_TEXT: Record<EntryStatus, string> = {
 /** The same states for a file copied in; undoing one sends the copy to the Recycle Bin. */
 const COPY_TEXT: Record<EntryStatus, string> = {
   ...ENTRY_TEXT,
-  done: "Copied in",
-  failed: "Not copied",
-  skipped: "Not copied",
+  done: "Imported",
+  failed: "Not imported",
+  skipped: "Not imported",
   undoing: "Removing",
   undone: "In the bin",
 };

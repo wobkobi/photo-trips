@@ -64,7 +64,7 @@ export function JobStatus({
           onClick={() => api.cancelJob()}
           aria-label={`Stop ${name.toLowerCase()}`}
           title="Stop"
-          className="flex min-h-11 w-full items-center justify-center rounded-md text-ink hover:bg-raised"
+          className="flex min-h-8.5 w-full items-center justify-center rounded-md text-ink hover:bg-raised"
         >
           <Icon name="close" size={18} />
         </button>
@@ -84,7 +84,7 @@ export function JobStatus({
             onClick={() => api.cancelJob()}
             aria-label={`Stop ${(JOB_NAMES[running.kind] ?? "working").toLowerCase()}`}
             title="Stop"
-            className="-mr-1.5 flex size-9 shrink-0 items-center justify-center rounded-md text-muted hover:bg-raised hover:text-ink"
+            className="-mr-1.5 flex size-8.5 shrink-0 items-center justify-center rounded-md text-muted hover:bg-raised hover:text-ink"
           >
             <Icon name="close" size={16} />
           </button>
@@ -109,7 +109,7 @@ export function JobStatus({
           }}
           title={lastDone.done.error ?? undefined}
           aria-label="Something went wrong. Widen the menu to read it."
-          className="flex min-h-11 flex-1 items-center justify-center rounded-md border border-danger/40 bg-danger/10 text-danger hover:bg-danger/15"
+          className="flex min-h-8.5 flex-1 items-center justify-center rounded-md border border-danger/40 bg-danger/10 text-danger hover:bg-danger/15"
         >
           <Icon name="warn" size={20} />
         </button>
@@ -126,7 +126,7 @@ export function JobStatus({
         ref={hideRef}
         type="button"
         onClick={clearLastDone}
-        className="mt-2 min-h-9 rounded-md bg-raised px-3 text-[14px] font-semibold text-ink hover:bg-line"
+        className="mt-2 min-h-8.5 rounded-md bg-raised px-3 text-[14px] font-semibold text-ink hover:bg-line"
       >
         Dismiss
       </button>

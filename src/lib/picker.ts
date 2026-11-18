@@ -23,6 +23,8 @@ export function importTiles(items: ImportItem[]): Tile[] {
       extra: item.extra,
       version: item.version,
       trip: null,
+      // Empty files are left out of an import, so none reach the picker.
+      empty: false,
     }))
     .sort((a, b) => (a.takenAt < b.takenAt ? 1 : a.takenAt > b.takenAt ? -1 : a.id - b.id));
 }

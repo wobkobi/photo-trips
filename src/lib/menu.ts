@@ -6,12 +6,13 @@ import { useEffect, useRef } from "react";
 import { api } from "./api";
 
 /** What the menu asks the page to do, on the "menu://action" event. */
-export type MenuRequest = "refresh" | "about" | "updates";
+export type MenuRequest = "refresh" | "find" | "about" | "updates";
 
 /** Menu item ids by key combination, as written beside each item in menu.rs. */
 const SHORTCUTS: Record<string, string> = {
   "Ctrl+I": "menu-import",
   F5: "menu-refresh",
+  "Ctrl+F": "menu-find",
   "Ctrl+W": "menu-close",
   "Ctrl+Q": "menu-quit",
   "Ctrl+,": "menu-settings",
@@ -60,7 +61,8 @@ export function useMenuBar(onRequest: (request: MenuRequest) => void): void {
     function onKeyDown(event: KeyboardEvent): void {
       const id = shortcutFor(event);
       if (!id) return;
-      // Also stops WebView2's own use of the keys, like F5 reloading the page.
+      // Also stops WebView2's own use of the keys, like F5 reloading the page or Ctrl+F opening
+      // its find bar. Release builds turn those off anyway (win.rs); dev builds keep them.
       event.preventDefault();
       if (!event.repeat) void api.menuAction(id);
     }

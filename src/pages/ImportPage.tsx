@@ -1,7 +1,8 @@
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 import type { PageId } from "../App";
+import { CodecHint } from "../components/CodecHint";
 import { Icon } from "../components/Icon";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
 import {
@@ -47,9 +48,7 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
   const [moveFiles, setMoveFiles] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApplySummary | null>(null);
-  // Whether the import that ran last moved files in rather than copying them.
-  const [movedIn, setMovedIn] = useState(false);
-  // Items unticked on the review screen, for the preview they were unticked on.
+  // Items deselected on the review screen, for the preview they were unticked on.
   const [leftOut, setLeftOut] = useState<{ preview: number; items: ReadonlySet<number> } | null>(
     null,
   );
@@ -114,7 +113,6 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
    * @param ready - the checked import to bring in
    */
   function bringIn(ready: ImportPreview): void {
-    setMovedIn(ready.moving);
     void run(() => api.applyImport(ready.id, [...left]));
   }
 
@@ -142,21 +140,22 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
                 <Icon name="back" size={16} />
                 Other sources
               </Button>
-              <Button onClick={() => check(preview.spec)} disabled={busy}>
+              <Button onClick={() => check(preview.spec)} busy={busy}>
                 <Icon name="refresh" size={16} />
                 Check again
               </Button>
               <Button
                 variant="primary"
                 onClick={() => bringIn(preview)}
-                disabled={busy || totals === null || totals.items === 0}
+                disabled={totals === null || totals.items === 0}
+                busy={busy}
                 title={
                   totals && totals.files > totals.items
                     ? `${count(totals.files, "file", "files")}, with the videos and edits that go with them`
                     : undefined
                 }
               >
-                {preview.moving ? "Move" : "Copy"} {count(totals?.items ?? 0, "photo", "photos")} in
+                Import {count(totals?.items ?? 0, "item", "items")}
               </Button>
             </>
           )
@@ -170,8 +169,7 @@ export function ImportPage({ onNavigate }: { onNavigate: (page: PageId) => void 
       {result && !working && (
         <ResultBanner
           result={result}
-          verb={movedIn ? "moved" : "copied"}
-          destination="your library"
+          verb="imported"
           busy={busy}
           onUndo={() => run(() => api.undoBatch(result.batchId))}
           onHistory={() => onNavigate("history")}
@@ -272,7 +270,7 @@ function Sources({
                     {device.kind === "phone" ? "Phone or camera" : "Memory card"}
                   </span>
                 </span>
-                <Button variant="primary" onClick={() => onCheck(sourceOf(device))} disabled={busy}>
+                <Button variant="primary" onClick={() => onCheck(sourceOf(device))} busy={busy}>
                   Check for new photos
                 </Button>
               </li>
@@ -307,7 +305,7 @@ function Sources({
             onSelect={() => onMoveFiles(true)}
           />
         </fieldset>
-        <Button className="mt-4" onClick={onChooseFolder} disabled={busy}>
+        <Button className="mt-4" onClick={onChooseFolder} busy={busy}>
           <Icon name="folder" size={16} />
           Choose folder
         </Button>
@@ -375,8 +373,19 @@ function IncomingView({
   left: ReadonlySet<number>;
   onLeftChange: (left: ReadonlySet<number>) => void;
 }): ReactElement {
-  const { settings } = useSettings();
+  const { settings, save } = useSettings();
   const tiles = useMemo(() => importTiles(preview.items), [preview.items]);
+  // HEIC is usually first met here, coming off a phone, so the extension hint shows here too.
+  const [failedThumbs, setFailedThumbs] = useState<Tile[]>([]);
+  // Raised when the installed extensions change, so blank tiles ask for their thumbnails again.
+  const [thumbRetry, setThumbRetry] = useState(0);
+  const onThumbError = useCallback(
+    (tile: Tile) =>
+      setFailedThumbs((prev) =>
+        prev.length >= 50 || prev.some((t) => t.id === tile.id) ? prev : [...prev, tile],
+      ),
+    [],
+  );
   const order = useMemo(() => tiles.map((t) => t.id), [tiles]);
   const source = useImportSource(preview, order);
   const folders = useMemo(() => pickedFolders(preview.items, left), [preview.items, left]);
@@ -468,11 +477,19 @@ function IncomingView({
           </>
         }
       />
+      {settings?.codec_hint_dismissed !== "true" && (
+        <CodecHint
+          failed={failedThumbs}
+          shown={tiles}
+          onDismiss={() => save("codec_hint_dismissed", "true")}
+          onChange={() => setThumbRetry((n) => n + 1)}
+        />
+      )}
       <PickBar
         ticked={totals.items}
         total={preview.items.length}
         extra={<span className="text-muted">({formatBytes(totals.bytes)})</span>}
-        hint={<>Untick any you don&apos;t want. They stay {where} and show up again next time.</>}
+        hint={<>Deselect any you don&apos;t want. They stay {where} and show up again next time.</>}
         onAll={(pick) => onLeftChange(pick ? new Set() : new Set(tiles.map((t) => t.id)))}
       />
       <FolderJumpList folders={folders} onOpen={openFolder} />
@@ -485,8 +502,10 @@ function IncomingView({
           tileSize={tileSizeOf(settings)}
           thumbOf={thumbOf}
           source={source}
-          tickLabel="Bring this one in"
+          tickLabel="Import this one"
           jump={jump}
+          onThumbError={onThumbError}
+          thumbRetry={thumbRetry}
         />
       </div>
     </div>
@@ -567,7 +586,7 @@ function NothingNew({
           <Icon name="back" size={16} />
           Other sources
         </Button>
-        <Button onClick={onCheck} disabled={busy}>
+        <Button onClick={onCheck} busy={busy}>
           <Icon name="refresh" size={16} />
           Check again
         </Button>

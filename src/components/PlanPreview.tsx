@@ -4,7 +4,7 @@
 
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useRef, useState, type ReactElement, type ReactNode } from "react";
-import { thumbUrl, type ApplySummary, type JobProgress, type Preview } from "../lib/api";
+import { api, thumbUrl, type ApplySummary, type JobProgress, type Preview } from "../lib/api";
 import { count, monthLabel, splitPath } from "../lib/format";
 import type { FolderCount } from "../lib/picker";
 import { JOB_NAMES } from "../lib/useJobs";
@@ -29,6 +29,7 @@ export interface MoveRowData {
 const VERBS = {
   moved: ["Moved", "moving", "moved"],
   copied: ["Copied", "copying", "copied"],
+  imported: ["Imported", "importing", "imported"],
 } as const;
 
 /**
@@ -114,15 +115,15 @@ export function PlanView({
 export function LeftAlone({ files }: { files: number }): ReactElement {
   return (
     <p className="mt-2">
-      {count(files, "sidecar file stays", "sidecar files stay")} where{" "}
-      {files === 1 ? "it is" : "they are"} because the photo{" "}
-      {files === 1 ? "it belongs to is" : "they belong to is"} missing.
+      {count(files, "sidecar file", "sidecar files")} with no matching photo or video here{" "}
+      {files === 1 ? "stays" : "stay"} where {files === 1 ? "it is" : "they are"}.
     </p>
   );
 }
 
 /**
- * Progress while files move, go to the Recycle Bin or go back.
+ * Progress while files move, go to the Recycle Bin or go back, with a Stop button. Stopping
+ * leaves the files already done where they went; the result says how far it got.
  * @param props - Component props.
  * @param props.job - the running job
  * @returns the progress block
@@ -132,9 +133,12 @@ export function MovingProgress({ job }: { job: JobProgress }): ReactElement {
     <div className="max-w-xl px-5 py-5">
       <p className="mb-3 text-[18px] font-semibold">{JOB_NAMES[job.kind] ?? "Working"}</p>
       <Progress done={job.done} total={job.total} label={job.stage} />
-      <p className="mt-4 text-[15px] text-muted">
-        You can close this window. Pic Cabinet keeps going in the tray.
-      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Button onClick={() => api.cancelJob().catch(() => undefined)}>Stop</Button>
+        <p className="text-[15px] text-muted">
+          You can close this window. Pic Cabinet keeps going in the tray.
+        </p>
+      </div>
     </div>
   );
 }
@@ -199,7 +203,7 @@ export function ResultBanner({
           }. History says why.`}
       </p>
       {(result.moved > 0 || undoable) && (
-        <Button onClick={onUndo} disabled={busy}>
+        <Button onClick={onUndo} busy={busy}>
           <Icon name="undo" size={16} />
           Undo
         </Button>
@@ -263,7 +267,7 @@ export function FolderJumpList({
   return (
     <details className="group shrink-0 border-t border-line px-3 lg:hidden">
       {/* A flex summary loses the browser's marker, so the chevron stands in for it. */}
-      <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 px-2 text-[14px] text-muted hover:text-ink">
+      <summary className="flex min-h-8.5 cursor-pointer list-none items-center gap-2 px-2 text-[14px] text-muted hover:text-ink">
         <Icon
           name="chevron"
           size={16}
@@ -319,7 +323,7 @@ function FolderEntries({
                 type="button"
                 onClick={() => onOpen(folder)}
                 aria-label={`Go to the ${count(n, "photo", "photos")} going into ${title}`}
-                className="flex min-h-10 w-full items-baseline justify-between gap-3 rounded-md px-2.5 py-1 text-left text-[14px] hover:bg-raised"
+                className="flex min-h-8.5 w-full items-baseline justify-between gap-3 rounded-md px-2.5 py-1 text-left text-[14px] hover:bg-raised"
               >
                 {body}
               </button>

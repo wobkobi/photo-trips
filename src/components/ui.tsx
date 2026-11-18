@@ -1,6 +1,7 @@
 // Small shared building blocks: buttons, page header, empty state.
 
-import type { ComponentProps, ReactElement, ReactNode } from "react";
+import { useContext, type ComponentProps, type ReactElement, type ReactNode } from "react";
+import { JOB_NAMES, JobsContext } from "../lib/useJobs";
 import { Icon } from "./Icon";
 
 /**
@@ -16,34 +17,58 @@ import { Icon } from "./Icon";
  */
 export const LIST_FILL = "min-h-[max(18rem,60vh)] flex-1 contain-size";
 
+/**
+ * A hover mark for a photo tile: a thin ring inside its edge, drawn by `::after` so it sits over
+ * the picture and doesn't clash with a selection ring on the tile itself. Fading the photo on
+ * hover reads as a web page; desktop photo apps outline it. The element must be positioned.
+ */
+export const HOVER_RING =
+  "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:opacity-0 after:ring-2 after:ring-ink/40 after:transition-opacity after:ring-inset hover:after:opacity-100";
+
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 const VARIANTS: Record<Variant, string> = {
   // Violet for the main action, filled grey for the rest, and no fill at all for minor ones.
-  primary: "bg-brand text-white hover:bg-brand-hover disabled:bg-raised disabled:text-faint",
+  // Each gets a deeper fill while pressed, so a click is seen to land.
+  primary:
+    "bg-brand text-white hover:bg-brand-hover enabled:active:brightness-90 disabled:bg-raised disabled:text-faint",
   secondary:
-    "border border-line-strong/60 bg-raised text-ink hover:border-line-strong hover:bg-line disabled:text-faint disabled:hover:border-line-strong/60 disabled:hover:bg-raised",
+    "border border-line-strong/60 bg-raised text-ink hover:border-line-strong hover:bg-line enabled:active:bg-line-strong/50 disabled:text-faint disabled:hover:border-line-strong/60 disabled:hover:bg-raised",
   ghost:
-    "text-muted hover:bg-raised hover:text-ink disabled:text-faint disabled:hover:bg-transparent",
-  danger: "border border-danger/40 bg-danger/10 text-danger hover:bg-danger/15",
+    "text-muted hover:bg-raised hover:text-ink enabled:active:bg-line disabled:text-faint disabled:hover:bg-transparent",
+  danger:
+    "border border-danger/40 bg-danger/10 text-danger hover:bg-danger/15 enabled:active:bg-danger/25",
 };
 
 /**
- * Standard button.
+ * Standard button. One held back by `busy` while a background job runs says which job in its
+ * tooltip, unless it has a title of its own; one disabled for any other reason says nothing.
  * @param props - Component props.
  * @param props.variant - visual weight (default secondary)
  * @param props.className - extra classes
+ * @param props.busy - disabled because work is under way; the tooltip names a running job
+ * @param props.disabled - disabled for a reason other than work under way; no tooltip
  * @returns the button element
  */
 export function Button({
   variant = "secondary",
   className = "",
+  busy = false,
+  disabled,
   ...rest
-}: ComponentProps<"button"> & { variant?: Variant }): ReactElement {
+}: ComponentProps<"button"> & { variant?: Variant; busy?: boolean }): ReactElement {
+  // Read without useJobs, which throws, so a button outside the jobs provider still works.
+  const running = useContext(JobsContext)?.running;
+  const waiting =
+    busy && !disabled && running
+      ? `Busy: ${(JOB_NAMES[running.kind] ?? "working").toLowerCase()}`
+      : undefined;
   return (
     <button
       type="button"
-      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3.5 py-1.5 text-[15px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
+      title={waiting}
+      disabled={busy || disabled}
+      className={`inline-flex min-h-8.5 items-center justify-center gap-2 rounded-md px-3.5 py-1.5 text-[15px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
       {...rest}
     />
   );

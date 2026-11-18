@@ -36,21 +36,23 @@ export function monthLabel(key: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString(LOCALE, { month: "long", year: "numeric" });
 }
 
+// Made once: every grid tile's tooltip formats a date, and a fresh formatter per call is slow.
+const DAY_FORMAT = new Intl.DateTimeFormat(LOCALE, {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+const TIME_FORMAT = new Intl.DateTimeFormat(LOCALE, { hour: "numeric", minute: "2-digit" });
+
 /**
- * Full date and time for the viewer.
+ * Full date and time, for the viewer and tile tooltips.
  * @param takenAt - timestamp from the backend
  * @returns e.g. "Monday 15 July 2024 at 9:30 am"
  */
 export function formatTaken(takenAt: string): string {
   const date = parseTaken(takenAt);
-  const day = date.toLocaleDateString(LOCALE, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  const time = date.toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" });
-  return `${day.replace(",", "")} at ${time}`;
+  return `${DAY_FORMAT.format(date).replace(",", "")} at ${TIME_FORMAT.format(date)}`;
 }
 
 /**
@@ -200,14 +202,24 @@ export function folderName(path: string): string {
 }
 
 /**
+ * The tile row that holds a tile.
+ * @param rows - rows from {@link timelineRows}
+ * @param tile - the tile's index
+ * @returns the row index, or -1 when no row holds the tile
+ */
+export function tileRow(rows: TimelineRow[], tile: number): number {
+  return rows.findIndex((row) => row.type === "tiles" && tile >= row.start && tile < row.end);
+}
+
+/**
  * The row to scroll to so a tile shows in context: its month heading when the tile is in the
- * month's first row, otherwise the tile's own row.
+ * month's first row, otherwise the tile's own row ({@link tileRow}).
  * @param rows - rows from {@link timelineRows}
  * @param tile - the tile's index
  * @returns the row index, or -1 when no row holds the tile
  */
 export function jumpRow(rows: TimelineRow[], tile: number): number {
-  const at = rows.findIndex((row) => row.type === "tiles" && tile >= row.start && tile < row.end);
+  const at = tileRow(rows, tile);
   if (at > 0 && rows[at - 1].type === "month" && rows[at - 1].start === rows[at].start) {
     return at - 1;
   }

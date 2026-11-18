@@ -4,6 +4,143 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.30.7] - 2026-11-18
+
+### Fixed
+
+- Retrying thumbnails reloads only the blank tiles, and the Import preview retries once an extension
+  is installed. The Busy tooltip shows only on buttons waiting for a job, and the window colour
+  follows Windows when it switches between light and dark.
+
+## [0.30.6] - 2026-11-18
+
+### Changed
+
+- Standard words throughout: Select all / Select none, Deselect, Rotate, Open, Refresh, Import 12
+  items, and Undo / Cancel in History. Selections count items, and stray sidecars read as having no
+  matching photo or video.
+
+## [0.30.5] - 2026-11-18
+
+### Fixed
+
+- The Store extension hint no longer blames a codec for one damaged file: it waits for three files
+  of a type to fail (or all of them when there are fewer), ignores empty files, and also shows on
+  the Import preview. A photo the viewer can't show offers the extension it needs.
+
+## [0.30.4] - 2026-11-18
+
+### Fixed
+
+- Photos and videos Windows couldn't preview get their thumbnails as soon as the missing Store
+  extension is installed, and are tried again when you come back to the window a minute or more
+  later, instead of staying blank until Pic Cabinet restarts.
+
+## [0.30.3] - 2026-11-18
+
+### Changed
+
+- Hovering a photo outlines it instead of fading it, buttons and menu rows darken while pressed, and
+  hover and press changes happen at once rather than easing in.
+
+## [0.30.2] - 2026-11-18
+
+### Changed
+
+- Buttons, boxes, switches, menu rows and the sidebar are tighter, about 34px tall, like other
+  desktop apps; text stays the same size.
+
+## [0.30.1] - 2026-11-18
+
+### Fixed
+
+- The warning mark for a guessed date no longer sits on every such photo: it shows when the photo is
+  hovered or focused, and on all of them while the Uncertain dates filter is on. The tooltip says
+  Date uncertain too.
+
+## [0.30.0] - 2026-11-18
+
+### Added
+
+- Hovering a photo in the grid shows its file name, when it was taken and its trip, and screen
+  readers hear the file name too.
+
+## [0.29.2] - 2026-11-18
+
+### Fixed
+
+- Changing a Library filter shows the grid from the top, rather than somewhere in the middle of the
+  new list.
+
+## [0.29.1] - 2026-11-18
+
+### Fixed
+
+- Closing the viewer brings the grid to the last photo it showed and puts the focus on it, instead
+  of going back to wherever the viewer was opened.
+
+## [0.29.0] - 2026-11-18
+
+### Added
+
+- The window opens at the size and place it was left, maximised if it was, including after hiding to
+  the tray.
+
+## [0.28.0] - 2026-11-18
+
+### Added
+
+- The browser's own keys (print, reload, find bar, view source) no longer do anything in the app.
+  Ctrl+F, also View > Find, opens the Library and puts the cursor in its search box.
+
+## [0.27.0] - 2026-11-18
+
+### Added
+
+- Moving files, sending them to the Recycle Bin or putting them back can be stopped from the page
+  showing its progress, and a button that waits for a running job says which job in its tooltip.
+
+## [0.26.2] - 2026-11-18
+
+### Fixed
+
+- The menu down the left no longer repeats the app's name, which the title bar already shows, and
+  the button that narrows it sits at its top.
+
+## [0.26.1] - 2026-11-18
+
+### Fixed
+
+- HEIC, RAW and TIFF photos open in the viewer showing their thumbnail straight away instead of a
+  blank screen, with a small busy mark if the full picture takes a moment.
+
+## [0.26.0] - 2026-11-18
+
+### Added
+
+- Clicking a photo in the viewer zooms in where you clicked, and clicking again fits it to the
+  window. Opening it in another app is the button only.
+
+## [0.25.20] - 2026-11-18
+
+### Fixed
+
+- The window opens in the theme's own colour, with no white flash before the page draws.
+
+## [0.25.19] - 2026-11-18
+
+### Fixed
+
+- Right-clicking anywhere but on text no longer shows the browser's own menu with Back, Reload and
+  Print.
+
+## [0.25.18] - 2026-11-18
+
+### Fixed
+
+- A job that finishes after an earlier result was dismissed is always noticed, so pages that refresh
+  when a job ends no longer miss it.
+
 ## [0.25.17] - 2026-11-18
 
 ### Fixed

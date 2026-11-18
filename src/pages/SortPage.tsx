@@ -100,17 +100,18 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
             <>
               {skipped.size > 0 && (
                 <Button variant="ghost" onClick={() => setSkipped(new Set())}>
-                  Tick all
+                  Select all
                 </Button>
               )}
-              <Button onClick={checkAgain} disabled={checking || running !== null}>
+              <Button onClick={checkAgain} disabled={checking} busy={running !== null}>
                 <Icon name="refresh" size={16} />
                 Check again
               </Button>
               <Button
                 variant="primary"
                 onClick={() => run(() => api.applyPlan(preview.id, [...skipped]))}
-                disabled={checking || running !== null || files === 0}
+                disabled={checking || files === 0}
+                busy={running !== null}
               >
                 Move {count(files, "file", "files")}
               </Button>

@@ -33,7 +33,7 @@ const PAGES: { id: PageId; title: string; icon: IconName; text: string }[] = [
     id: "import",
     title: "Import",
     icon: "import",
-    text: "Brings photos in from a memory card, a phone or a folder. Ones already in your library are skipped, and nothing on the card or phone changes.",
+    text: "Imports photos from a memory card, a phone or a folder. Ones already in your library are skipped, and nothing on the card or phone changes.",
   },
   {
     id: "duplicates",
@@ -59,18 +59,19 @@ const PAGES: { id: PageId; title: string; icon: IconName; text: string }[] = [
 const SHORTCUTS: [keys: string, does: string][] = [
   ["Ctrl+1 to Ctrl+7", "Library to History"],
   ["Ctrl+I", "Import"],
-  ["F5", "Look for new photos"],
+  ["F5", "Refresh"],
+  ["Ctrl+F", "Find"],
   ["Ctrl+,", "Settings"],
   ["F1", "Help"],
   ["Arrow keys", "Move between photos in the Library"],
-  ["Ctrl+A", "Pick every photo shown in the Library"],
-  ["Delete", "Send the picked photos to the Recycle Bin"],
+  ["Ctrl+A", "Select every item shown in the Library"],
+  ["Delete", "Send the selected items to the Recycle Bin"],
   ["Left and Right", "Previous and next photo, full size"],
   ["Home and End", "First and last photo, full size"],
   ["+ and -", "Zoom in and out on a photo, full size"],
   ["0", "Fit the photo to the window again"],
-  ["R", "Turn a photo, full size"],
-  ["Esc", "Close a photo, or stop picking"],
+  ["R", "Rotate a photo, full size"],
+  ["Esc", "Close a photo, or deselect"],
 ];
 
 /**

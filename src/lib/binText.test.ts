@@ -21,6 +21,7 @@ function tile(name: string, extra = 0, kind: Tile["kind"] = "photo"): Tile {
     extra,
     version: 0,
     trip: null,
+    empty: false,
   };
 }
 

@@ -5,6 +5,14 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pic Cabinet</title>
+    <!-- The ground colour before the stylesheet loads, matching index.css, so the page never
+         flashes white. light-dark() follows the theme the window was given. -->
+    <style>
+      html {
+        color-scheme: light dark;
+        background: light-dark(#f6f7f8, #121417);
+      }
+    </style>
   </head>
 
   <body>

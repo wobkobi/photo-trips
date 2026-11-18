@@ -119,7 +119,7 @@ export function FolderNames({
       </div>
       {changed && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Button variant="primary" onClick={check} disabled={busy || checking}>
+          <Button variant="primary" onClick={check} disabled={checking} busy={busy}>
             Check the moves
           </Button>
           <Button variant="ghost" onClick={() => choose(saved)} disabled={checking}>
