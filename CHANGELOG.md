@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.60.1] - 2026-11-18
+
+### Fixed
+
+- Duplicates says "only hidden details differ" when copies hold the same visible details and leaves
+  out the matching details lines; History titles a job that stopped before moving anything as what
+  it set out to do; the viewer's lens line leaves out the phone's name and an aperture already shown
+  below it
+
 ## [0.60.0] - 2026-11-18
 
 ### Added

@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import type { FileDetails } from "../lib/api";
-import { cameraName, cameraSettings, sizeText } from "../lib/details";
+import { cameraName, cameraSettings, lensText, sizeText } from "../lib/details";
 import { clockTime } from "../lib/format";
 import { Fact } from "./Viewer";
 
@@ -39,13 +39,12 @@ export function Measures({
 export function CameraFact({ details }: { details: FileDetails }): ReactElement | null {
   const camera = cameraName(details.make, details.model);
   const settings = cameraSettings(details);
-  if (!camera && !details.lens && settings.length === 0) return null;
+  const lens = lensText(details);
+  if (!camera && !lens && settings.length === 0) return null;
   return (
     <Fact label="Camera">
       <p className="selectable">{camera ?? "Not recorded"}</p>
-      {details.lens && (
-        <p className="selectable mt-1 text-[15px] wrap-break-word text-muted">{details.lens}</p>
-      )}
+      {lens && <p className="selectable mt-1 text-[15px] wrap-break-word text-muted">{lens}</p>}
       {settings.length > 0 && (
         <p
           className="selectable mt-1 text-[15px] text-muted tabular-nums"

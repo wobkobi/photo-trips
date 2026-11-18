@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FileDetails } from "./api";
-import { cameraName, cameraSettings, sizeText } from "./details";
+import { cameraName, cameraSettings, lensText, sizeText } from "./details";
 
 const NONE: FileDetails = {
   make: null,
@@ -91,5 +91,31 @@ describe("cameraSettings", () => {
     expect(cameraSettings({ ...NONE, exposure: 1 })[0][1]).toBe("1 s");
     expect(cameraSettings({ ...NONE, lens: "EF 50mm" })).toEqual([]);
     expect(cameraSettings(NONE)).toEqual([]);
+  });
+});
+
+describe("lensText", () => {
+  const phone = { ...NONE, model: "iPhone 13 Pro", fNumber: 1.5 };
+
+  it("drops the phone's own name and an aperture the settings line already shows", () => {
+    expect(lensText({ ...phone, lens: "iPhone 13 Pro back triple camera 5.7mm f/1.5" })).toBe(
+      "Back triple camera 5.7mm",
+    );
+  });
+
+  it("keeps an aperture that differs from the shot's", () => {
+    expect(lensText({ ...phone, lens: "iPhone 13 Pro back camera 5.7mm f/1.8" })).toBe(
+      "Back camera 5.7mm f/1.8",
+    );
+  });
+
+  it("leaves a camera lens alone", () => {
+    expect(lensText({ ...NONE, model: "X-T4", fNumber: 2.8, lens: "XF16-55mmF2.8 R LM WR" })).toBe(
+      "XF16-55mmF2.8 R LM WR",
+    );
+  });
+
+  it("gives nothing when no lens is recorded", () => {
+    expect(lensText(NONE)).toBeNull();
   });
 });

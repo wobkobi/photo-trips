@@ -274,7 +274,8 @@ function Summary({
           <p>
             Sets marked different details are the same picture or video with different details
             stored in each file, so their sizes differ. These keep the copy with the most of a
-            location, a date taken and the camera.
+            location, a date taken and the camera. When only hidden details differ, such as an ID a
+            phone adds on export, the copies look the same and any of them can be kept.
           </p>
           <p>
             Sidecar files like .aae and .xmp that only belonged to a removed copy go with it. The
@@ -381,6 +382,10 @@ function SetRow({
   const ids = useMemo(() => set.copies.map((c) => c.id), [set.copies]);
   const source = useLibrarySource(ids);
   const shown = viewing === null ? null : set.copies[viewing];
+  // Copies can differ only in details the card doesn't list (an ID the phone adds on export),
+  // so the list shows only when it tells the copies apart.
+  const first = set.copies[0].details.join(",");
+  const detailsVary = set.copies.some((c) => c.details.join(",") !== first);
   return (
     <div
       ref={measureRef}
@@ -393,7 +398,9 @@ function SetRow({
         <p className="text-[15px] text-muted">
           {count(set.copies.length, `copy of the same ${one}`, `copies of the same ${one}`)},{" "}
           {set.detailsDiffer ? (
-            <span className="text-ink">different details</span>
+            <span className="text-ink">
+              {detailsVary ? "different details" : "only hidden details differ"}
+            </span>
           ) : (
             `${formatBytes(set.size)} each`
           )}
@@ -415,6 +422,7 @@ function SetRow({
             key={copy.id}
             copy={copy}
             detailsDiffer={set.detailsDiffer}
+            showDetails={detailsVary}
             state={keep === null ? "keep-all" : copy.id === keep ? "keep" : "bin"}
             onKeep={() => onPick(copy.id)}
             onZoom={() => setViewing(index)}
@@ -449,8 +457,8 @@ function SetRow({
  * One copy: kept, going to the bin, or kept because its whole set is left alone.
  * @param props - Component props.
  * @param props.copy - the file this card shows
- * @param props.detailsDiffer - the set's copies differ in details, so each shows its size and
- *   the details it holds
+ * @param props.detailsDiffer - the set's copies differ in details, so each shows its size
+ * @param props.showDetails - list the details this copy holds, since they differ between copies
  * @param props.state - whether the copy stays, goes, or stays with its whole set
  * @param props.onKeep - keep this copy instead
  * @param props.onZoom - open the copy in the viewer
@@ -459,12 +467,14 @@ function SetRow({
 function CopyCard({
   copy,
   detailsDiffer,
+  showDetails,
   state,
   onKeep,
   onZoom,
 }: {
   copy: DupCopy;
   detailsDiffer: boolean;
+  showDetails: boolean;
   state: "keep" | "bin" | "keep-all";
   onKeep: () => void;
   onZoom: () => void;
@@ -537,7 +547,7 @@ function CopyCard({
           {folder || "Library folder"}
         </span>
         <span className="block h-[1.5em] truncate text-[14px] text-faint">{notes.join(", ")}</span>
-        {detailsDiffer && (
+        {showDetails && (
           <span className="block truncate text-[14px] text-faint" title={details}>
             {details}
           </span>
