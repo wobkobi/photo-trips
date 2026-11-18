@@ -53,10 +53,12 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+# Thin LTO with the default codegen units halves a release build (297 s > 145 s for the app crate
+# with cached dependencies) for an .exe about 10% bigger. Fat LTO with one codegen unit
+# re-optimises every dependency in one single-threaded pass on every build, which the CI cache
+# can't help with. See https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
-codegen-units = 1
-lto = true
+lto = "thin"
 opt-level = 3
 
 strip = true
