@@ -164,7 +164,7 @@ describe("nextBeta", () => {
   });
 
   it("starts at 1", () => {
-    expect(nextBeta("0.32.0", ["v0.31.0-beta.4", "beta-feed"])).toBe("0.32.0-beta.1");
+    expect(nextBeta("0.32.0", ["v0.31.0-beta.4", "v0.32.0-beta.x"])).toBe("0.32.0-beta.1");
   });
 });
 
@@ -183,7 +183,7 @@ describe("betaTitle", () => {
 
 describe("feedCandidates", () => {
   it("lists releases and betas newest first, without the feed or stray tags", () => {
-    const tags = ["v0.30.7", "beta-feed", "v0.31.0-beta.2", "v0.31.0-beta.10", "nightly"];
+    const tags = ["v0.30.7", "v0.31.0-beta.2", "v0.31.0-beta.10", "nightly"];
     expect(feedCandidates(tags)).toEqual(["0.31.0-beta.10", "0.31.0-beta.2", "0.30.7"]);
   });
 });

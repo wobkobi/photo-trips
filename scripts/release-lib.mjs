@@ -236,8 +236,11 @@ export function assetUrl(version, name) {
   return `https://github.com/${RELEASES_REPO}/releases/download/v${version}/${name}`;
 }
 
-/** Release tag whose beta.json asset is the beta channel's update manifest. */
-export const BETA_FEED_TAG = "beta-feed";
+/**
+ * Branch whose beta.json is the beta channel's update manifest. A branch, not a release asset,
+ * because published releases here are immutable and their files can't be replaced.
+ */
+export const BETA_FEED_BRANCH = "update-feed";
 
 /**
  * Order two release versions, each "x.y.z" or "x.y.z-beta.n". A beta sorts below the release
@@ -304,7 +307,7 @@ export function betaPull(title) {
 
 /**
  * Releases the beta feed can point at, newest first: every finished release and beta, but not
- * the feed's own release or tags that aren't versions.
+ * tags that aren't versions.
  * @param {string[]} tags - tags of the published releases
  * @returns the versions, without their "v"
  */
