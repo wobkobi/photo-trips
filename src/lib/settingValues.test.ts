@@ -7,8 +7,20 @@ import {
   normaliseExtensions,
   parseFolders,
   samePath,
+  versionLabel,
   watchSummary,
 } from "./settingValues";
+
+describe("versionLabel", () => {
+  it("marks a pre-release build as beta", () => {
+    expect(versionLabel("0.31.0-beta.3")).toBe("Version 0.31.0-beta.3 (beta)");
+  });
+
+  it("leaves a release, build metadata and all, unmarked", () => {
+    expect(versionLabel("0.30.0")).toBe("Version 0.30.0");
+    expect(versionLabel("0.30.0+win-x64")).toBe("Version 0.30.0+win-x64");
+  });
+});
 
 describe("parseFolders", () => {
   it("reads a JSON list of paths", () => {

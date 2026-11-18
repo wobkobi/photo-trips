@@ -52,8 +52,10 @@ Windows, Windows keeps a startup entry for it, which you can turn off in Setting
 
 **Update checks.** About a minute after it starts, and then once a day, Pic Cabinet downloads a
 small file from GitHub (github.com) that names the latest version. You can also check from
-Settings > About or Help > Check for updates. If you choose to install an update, the installer is
-downloaded from GitHub too. These requests contain nothing about you, your photos or your library.
+Settings > About or Help > Check for updates. With Beta updates turned on there, it downloads a
+different file from GitHub that names the newest version, test versions included. If you choose
+to install an update, the installer is downloaded from GitHub too. These requests contain nothing
+about you, your photos or your library.
 As with any web request, GitHub receives your IP address and basic technical details, and handles
 them under the
 [GitHub Privacy Statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement).

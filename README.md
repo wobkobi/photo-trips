@@ -104,7 +104,8 @@ your photo library is in.
 
 Pic Cabinet checks for updates once a day and lets you know when one is ready. Settings > About
 shows what's new and installs it with **Install and restart**. Updates are signed, and the app
-refuses any that aren't.
+refuses any that aren't. Turn on **Beta updates** there to get new versions before they're
+released; turning it off again keeps the version you have until the next full release.
 
 ## Privacy
 
