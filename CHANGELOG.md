@@ -8,32 +8,34 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- Duplicates also finds copies of the same picture or video whose details differ, such as
-  re-exported Live Photo clips, and suggests keeping the copy with a location, date and camera
-- Beta updates, in Settings > About, offers test versions built from pull requests before they're
-  released. About marks a beta build, and turning the switch off keeps the version you have until
-  the next full release.
+- **Duplicates:** Also finds copies of the same picture or video whose details differ, such as
+  re-exported Live Photo clips, and suggests keeping the copy with the most details: location, date
+  and camera.
+- **Updates:** Beta updates, in Settings > About, offers test versions built from pull requests
+  before they're released. About marks a beta build, and turning the switch off keeps the version
+  you have until the next full release.
 
 ### Fixed
 
-- Duplicates says "only hidden details differ" when copies hold the same visible details and leaves
-  out the matching details lines; History titles a job that stopped before moving anything as what
-  it set out to do; the viewer's lens line leaves out the phone's name and an aperture already shown
-  below it
-- The viewer's details panel no longer shows Trip: None; the section only appears when the photo is
-  in a trip or one is near enough to add it to
-- A video in the viewer starts playing only after it has been on screen for a moment, so clicking
-  quickly past videos no longer flashes and plays each one
-- The map beside a photo uses OpenFreeMap's Bright style in both themes, which is easier to read
-  than a darkened map
-
-- Suburb names beside a photo come from OpenStreetMap's Nominatim, so they match the area the photo
-  is in; selecting a value in the details panel no longer runs on into the lines below; the viewer's
-  top bar spans the full width when the details panel is open, so it no longer jumps
-- Opening and closing the sidebar slides smoothly, with every icon staying in place, instead of
-  jumping
-- A Live Photo's clip plays in place over the photo, with no control bar pushing the picture up; a
-  click stops it
+- **Viewer:** Suburb names beside a photo come from OpenStreetMap's Nominatim, so they match the
+  area the photo is in.
+- **Viewer:** The map beside a photo uses OpenFreeMap's Bright style in both themes, which is easier
+  to read than a darkened map.
+- **Viewer:** The details panel no longer shows Trip: None. The section only appears when the photo
+  is in a trip or one is near enough to add it to.
+- **Viewer:** Selecting a value in the details panel no longer runs on into the lines below, and the
+  lens line leaves out the phone's name and an aperture already shown below it.
+- **Viewer:** The top bar spans the full width when the details panel is open, so it no longer
+  jumps.
+- **Viewer:** A video starts playing only after it has been on screen for a moment, so clicking
+  quickly past videos no longer flashes and plays each one.
+- **Viewer:** A Live Photo's clip plays in place over the photo, with no control bar pushing the
+  picture up, and a click stops it.
+- **Duplicates:** Says "only hidden details differ" when copies hold the same visible details, and
+  leaves out the matching details lines.
+- **History:** A job that stopped before moving anything is titled as what it set out to do.
+- **Navigation:** Opening and closing the sidebar slides smoothly, with every icon staying in place,
+  instead of jumping.
 
 ## [0.33.0] - 2026-11-18
 
