@@ -1,7 +1,8 @@
 # Rust checks on GitHub. cargo audit compares Cargo.lock with the RustSec advisory database, so a
 # dependency with a known vulnerability fails the check. It only reads the lockfile, so it runs on
-# Linux in seconds. Clippy and the tests need a full Windows build, so they run locally instead
-# (npm run lint, npm test). The weekly run catches advisories published after a merge.
+# Linux in seconds, as does cargo fmt --check, which reads only the source. Clippy and the tests
+# need a full Windows build, so they run locally instead (npm run lint, npm test). The weekly run
+# catches advisories published after a merge.
 name: Rust
 
 on:
@@ -19,6 +20,15 @@ permissions:
   contents: read
 
 jobs:
+  format:
+    name: Check Rust formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: cargo fmt --check
+        working-directory: src-tauri
+        run: cargo fmt --check
+
   audit:
     name: Check Rust dependencies
     runs-on: ubuntu-latest
