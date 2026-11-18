@@ -151,6 +151,30 @@ describe("timelineRows", () => {
     expect(stepTile(rows, 3, "Enter", 5)).toBeNull();
   });
 
+  it("moves focus a page of tile rows at a time, keeping the column and stopping at either end", () => {
+    // One month in rows of three: 0-3, 3-6, 6-9, 9-12, then a short 12-14.
+    const tiles = Array.from({ length: 14 }, (_, i) =>
+      tile(i + 1, `2024-08-${String(28 - i).padStart(2, "0")}T10:00:00`),
+    );
+    const rows = timelineRows(tiles, 3);
+    expect(stepTile(rows, 1, "PageDown", 14, 2)).toBe(7);
+    expect(stepTile(rows, 7, "PageUp", 14, 2)).toBe(1);
+    // Past either end stops at the last or first row, on the short row's last tile when the
+    // column isn't there.
+    expect(stepTile(rows, 5, "PageDown", 14, 10)).toBe(13);
+    expect(stepTile(rows, 10, "PageUp", 14, 10)).toBe(1);
+    expect(stepTile(rows, 2, "PageUp", 14, 2)).toBeNull();
+    expect(stepTile(rows, 12, "PageDown", 14, 2)).toBeNull();
+    // A page of no rows still moves one.
+    expect(stepTile(rows, 4, "PageDown", 14, 0)).toBe(7);
+    // Month headings don't count as rows.
+    const split = timelineRows(
+      [...tiles.slice(0, 4), tile(20, "2024-07-30T10:00:00"), tile(21, "2024-07-29T10:00:00")],
+      3,
+    );
+    expect(stepTile(split, 0, "PageDown", 6, 2)).toBe(4);
+  });
+
   it("returns nothing for an empty library", () => {
     expect(timelineRows([], 4)).toEqual([]);
   });

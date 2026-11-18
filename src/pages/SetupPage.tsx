@@ -34,13 +34,10 @@ export function SetupPage(): ReactElement {
           Where do your photos live?
         </h1>
         <p className="mt-5 text-[17px] leading-relaxed text-muted">
-          Pick the folder you want Pic Cabinet to keep tidy. Photos inside it get sorted into year
-          and month folders, and trips get folders of their own. Nothing moves until you review the
-          plan and say so.
+          Choose the folder to keep tidy. Nothing moves until you review the plan.
         </p>
         <p className="mt-3 text-[17px] leading-relaxed text-muted">
-          Photos kept somewhere else, like an old backup, a memory card or your phone, can be
-          imported once the library is set up.
+          Photos kept elsewhere can be imported later.
         </p>
         <Button variant="primary" className="mt-8 px-5 py-2.5 text-[16px]" onClick={chooseFolder}>
           <Icon name="folder" />

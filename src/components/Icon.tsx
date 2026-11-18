@@ -16,6 +16,7 @@ import {
   Info,
   Layers,
   LayoutGrid,
+  ListFilter,
   LoaderCircle,
   Luggage,
   MapIcon,
@@ -27,6 +28,7 @@ import {
   Play,
   RefreshCw,
   RotateCw,
+  Search,
   Settings,
   Smartphone,
   Sparkles,
@@ -103,6 +105,8 @@ const ICONS = {
   bin: Trash2,
   fullscreen: Maximize,
   windowed: Minimize,
+  search: Search,
+  filter: ListFilter,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

@@ -8,10 +8,12 @@ import {
   type ReactElement,
 } from "react";
 import { Sidebar } from "./components/Sidebar";
+import { ToastHost } from "./components/ToastHost";
 import { Tour } from "./components/Tour";
-import type { TripInfo } from "./lib/api";
+import { api, type TripInfo } from "./lib/api";
 import { themeOf } from "./lib/display";
 import { JobsProvider } from "./lib/jobs";
+import { BATCH_PAGE, newestUndoable } from "./lib/lastUndo";
 import { LibraryProvider } from "./lib/library";
 import {
   NO_FILTER,
@@ -23,6 +25,7 @@ import {
 import {
   historyStepForButton,
   historyStepForKey,
+  holdsWork,
   isTextEntry,
   modalOnScreen,
   useMenuBar,
@@ -39,11 +42,14 @@ import {
 } from "./lib/navHistory";
 import { PageMemoryProvider } from "./lib/pageMemory";
 import { SettingsProvider } from "./lib/settings";
+import { ToastProvider } from "./lib/toasts";
 import type { TripStart } from "./lib/trips";
 import { UpdatesProvider } from "./lib/updates";
+import { useFolderDrop } from "./lib/useFolderDrop";
 import { useJobDone } from "./lib/useJobs";
 import { useLibrary } from "./lib/useLibrary";
 import { useSettings } from "./lib/useSettings";
+import { useToasts } from "./lib/useToasts";
 import { useUpdates } from "./lib/useUpdates";
 import { keepsWebviewMenu } from "./lib/webviewMenu";
 import { DuplicatesPage } from "./pages/DuplicatesPage";
@@ -80,7 +86,7 @@ function placeOf(page: PageId, filter: LibraryFilter, from: PageId): NavEntry<Pa
 }
 
 /**
- * Root component: settings, job, library and page memory providers around the shell.
+ * Root component: settings, job, library, page memory and toast providers around the shell.
  * Right-clicks get no browser menu except on text, so the app never offers Back, Reload or Print.
  * @returns the app
  */
@@ -105,7 +111,9 @@ export default function App(): ReactElement {
         <UpdatesProvider>
           <LibraryProvider>
             <PageMemoryProvider>
-              <Shell />
+              <ToastProvider>
+                <Shell />
+              </ToastProvider>
             </PageMemoryProvider>
           </LibraryProvider>
         </UpdatesProvider>
@@ -130,6 +138,7 @@ function Shell(): ReactElement | null {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
   const { runCheck } = useUpdates();
+  const toasts = useToasts();
   const [page, setPage] = useState<PageId>("library");
   // A trip started in the Library or Suggestions, until the Trips page opens it.
   const [tripDraft, setTripDraft] = useState<TripStart | null>(null);
@@ -310,9 +319,24 @@ function Shell(): ReactElement | null {
     setTourClosed(true);
     void save("tour_done", "true").catch(() => undefined);
   }, [save]);
+  // The batch Ctrl+Z picked, until History shows its undo question.
+  const [undoAsk, setUndoAsk] = useState<number | null>(null);
+  const undoAskUsed = useCallback(() => setUndoAsk(null), []);
 
   useMenuBar((request: MenuRequest) => {
-    if (request === "refresh") {
+    if (request === "undo") {
+      // Nothing to undo leaves the page as it is. A failed list opens History, which shows why.
+      if (!settings?.library_root) return;
+      api.listBatches(BATCH_PAGE).then(
+        (batches) => {
+          const id = newestUndoable(batches);
+          if (id === null) return;
+          setUndoAsk(id);
+          openPageRef.current("history");
+        },
+        () => openPageRef.current("history"),
+      );
+    } else if (request === "refresh") {
       setRefresh(true);
       goTo("library");
     } else if (request === "find") {
@@ -340,12 +364,31 @@ function Shell(): ReactElement | null {
     if (mainRef.current) mainRef.current.scrollTop = 0;
   }, [page]);
 
+  // A folder dropped on the window, until the Import page starts checking it.
+  const [importDrop, setImportDrop] = useState<string | null>(null);
+  const clearImportDrop = useCallback(() => setImportDrop(null), []);
+  // A page holding work keeps it rather than opening Import over it.
+  const dropping = useFolderDrop(Boolean(settings?.library_root), (folder) => {
+    if (folder === null) {
+      toasts.show({ text: "Drop a folder, not files", problem: true });
+      return;
+    }
+    if (holdsWork()) {
+      toasts.show({ text: "Finish or leave this step first", problem: true });
+      return;
+    }
+    setImportDrop(folder);
+    openPageRef.current("import");
+  });
+
   if (settings === null) return null;
   if (!settings.library_root) return <SetupPage />;
   const touring = tourAsked || (!tourClosed && settings.tour_done !== "true");
 
   return (
     <div className="flex h-full">
+      {/* First, so its Escape listener goes in ahead of the pages' own. */}
+      <ToastHost onShow={openPage} />
       <Sidebar
         page={page}
         onPage={openPage}
@@ -370,15 +413,24 @@ function Shell(): ReactElement | null {
             tripDraft={tripDraft}
             onTripDraftUsed={clearTripDraft}
             onCreateTrip={createTrip}
+            importDrop={importDrop}
+            onImportDropUsed={clearImportDrop}
             refresh={refresh}
             onRefreshStarted={refreshStarted}
             find={find}
             onFindStarted={findStarted}
             showAbout={showAbout}
             onAboutShown={aboutShown}
+            undoAsk={undoAsk}
+            onUndoAskUsed={undoAskUsed}
             onTour={() => setTourAsked(true)}
           />
         </main>
+        {dropping && (
+          <div className="pointer-events-none absolute inset-3 z-30 flex items-center justify-center rounded-lg border-2 border-dashed border-accent bg-ground/80 text-[18px] font-semibold">
+            Drop a folder to import it
+          </div>
+        )}
         {touring && (
           <Tour
             onStep={setTourPage}
@@ -407,12 +459,16 @@ function Shell(): ReactElement | null {
  * @param props.tripDraft - a trip started elsewhere, for the Trips page to open
  * @param props.onTripDraftUsed - called once the Trips page has opened the draft
  * @param props.onCreateTrip - start a trip and open the Trips page
+ * @param props.importDrop - a folder dropped on the window, for the Import page to check
+ * @param props.onImportDropUsed - called once the Import page has taken the dropped folder
  * @param props.refresh - File > Refresh is waiting for the Library
  * @param props.onRefreshStarted - called once the Library has started looking
  * @param props.find - View > Find is waiting for the Library's file name box
  * @param props.onFindStarted - called once the Library has taken the find request
  * @param props.showAbout - Settings should open at About
  * @param props.onAboutShown - called once Settings has shown About
+ * @param props.undoAsk - a batch Ctrl+Z picked, for History to ask about undoing
+ * @param props.onUndoAskUsed - called once History has taken that batch
  * @param props.onTour - start the tour, from Help
  * @returns the page
  */
@@ -427,12 +483,16 @@ function CurrentPage({
   tripDraft,
   onTripDraftUsed,
   onCreateTrip,
+  importDrop,
+  onImportDropUsed,
   refresh,
   onRefreshStarted,
   find,
   onFindStarted,
   showAbout,
   onAboutShown,
+  undoAsk,
+  onUndoAskUsed,
   onTour,
 }: {
   page: PageId;
@@ -445,12 +505,16 @@ function CurrentPage({
   tripDraft: TripStart | null;
   onTripDraftUsed: () => void;
   onCreateTrip: (start: TripStart) => void;
+  importDrop: string | null;
+  onImportDropUsed: () => void;
   refresh: boolean;
   onRefreshStarted: () => void;
   find: boolean;
   onFindStarted: () => void;
   showAbout: boolean;
   onAboutShown: () => void;
+  undoAsk: number | null;
+  onUndoAskUsed: () => void;
   onTour: () => void;
 }): ReactElement {
   switch (page) {
@@ -459,7 +523,6 @@ function CurrentPage({
         <LibraryPage
           onCreateTrip={onCreateTrip}
           onImport={() => onNavigate("import")}
-          onNavigate={onNavigate}
           onShowTrip={onShowTrip}
           onLeaveTrip={onLeaveTrip}
           onEditTrip={onEditTrip}
@@ -470,7 +533,7 @@ function CurrentPage({
         />
       );
     case "sort":
-      return <SortPage onNavigate={onNavigate} />;
+      return <SortPage />;
     case "trips":
       return (
         <TripsPage
@@ -478,22 +541,21 @@ function CurrentPage({
           onDraftUsed={onTripDraftUsed}
           edit={tripEdit}
           onEditUsed={onTripEditUsed}
-          onNavigate={onNavigate}
           onShowTrip={onShowTrip}
         />
       );
     case "suggestions":
-      return <SuggestionsPage onNavigate={onNavigate} onCreateTrip={onCreateTrip} />;
+      return <SuggestionsPage onCreateTrip={onCreateTrip} />;
     case "import":
-      return <ImportPage onNavigate={onNavigate} />;
+      return <ImportPage dropped={importDrop} onDroppedUsed={onImportDropUsed} />;
     case "duplicates":
-      return <DuplicatesPage onNavigate={onNavigate} />;
+      return <DuplicatesPage />;
     case "history":
-      return <HistoryPage onNavigate={onNavigate} />;
-    case "settings":
       return (
-        <SettingsPage showAbout={showAbout} onAboutShown={onAboutShown} onNavigate={onNavigate} />
+        <HistoryPage onNavigate={onNavigate} undoAsk={undoAsk} onUndoAskUsed={onUndoAskUsed} />
       );
+    case "settings":
+      return <SettingsPage showAbout={showAbout} onAboutShown={onAboutShown} />;
     case "help":
       return <HelpPage onNavigate={onNavigate} onTour={onTour} />;
   }

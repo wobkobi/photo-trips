@@ -57,32 +57,33 @@ describe("reasonText", () => {
 });
 
 describe("howFound", () => {
-  const busy =
-    "A day with 15 or more photos and videos counts as busy. Two or more busy days in a row make a suggestion, even with a quiet day between them.";
-  const away =
-    "A day spent more than 50 km from home counts as well, however few photos it has, and a busy one makes a suggestion on its own as a day trip. Busy days at home don't count.";
+  const busy = "Made from busy days (15 or more photos and videos)";
+  const away = `${busy} and days more than 50 km from home`;
 
   it("names a home worked out from the photos", () => {
     expect(howFound({ minPhotos: 15, located: 900, home: { place: "Auckland", set: false } })).toBe(
-      `${busy} Home looks to be near Auckland, where photos were taken on the most days. ${away}`,
+      `${away}, which looks to be near Auckland.`,
     );
     expect(howFound({ minPhotos: 15, located: 900, home: { place: null, set: false } })).toBe(
-      `${busy} Home looks to be where photos were taken on the most days. ${away}`,
+      `${away}, worked out from your photos.`,
     );
   });
 
   it("says when home was set by hand", () => {
     expect(howFound({ minPhotos: 15, located: 0, home: { place: "Dunedin", set: true } })).toBe(
-      `${busy} Home is set in Settings, near Dunedin. ${away}`,
+      `${away}, set in Settings near Dunedin.`,
+    );
+    expect(howFound({ minPhotos: 15, located: 0, home: { place: null, set: true } })).toBe(
+      `${away}, set in Settings.`,
     );
   });
 
   it("explains why only busy days count without a home", () => {
     expect(howFound({ minPhotos: 15, located: 0, home: null })).toBe(
-      `${busy} None of the photos have a location, so only busy days count.`,
+      `${busy}, as none of the photos have a location.`,
     );
     expect(howFound({ minPhotos: 15, located: 12, home: null })).toBe(
-      `${busy} Too few photos have a location to tell where home is, so only busy days count.`,
+      `${busy}, as too few photos have a location to find home.`,
     );
   });
 });

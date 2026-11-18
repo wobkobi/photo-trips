@@ -4,6 +4,7 @@ import {
   assetUrl,
   betaPull,
   betaTitle,
+  byArea,
   changeHistory,
   changelogSection,
   compareReleases,
@@ -11,6 +12,7 @@ import {
   manifest,
   nextBeta,
   releaseNotes,
+  withoutMentions,
 } from "./release-lib.mjs";
 
 const CHANGELOG = `# Changelog
@@ -162,7 +164,7 @@ describe("nextBeta", () => {
   });
 
   it("starts at 1", () => {
-    expect(nextBeta("0.32.0", ["v0.31.0-beta.4", "beta-feed"])).toBe("0.32.0-beta.1");
+    expect(nextBeta("0.32.0", ["v0.31.0-beta.4", "v0.32.0-beta.x"])).toBe("0.32.0-beta.1");
   });
 });
 
@@ -181,7 +183,73 @@ describe("betaTitle", () => {
 
 describe("feedCandidates", () => {
   it("lists releases and betas newest first, without the feed or stray tags", () => {
-    const tags = ["v0.30.7", "beta-feed", "v0.31.0-beta.2", "v0.31.0-beta.10", "nightly"];
+    const tags = ["v0.30.7", "v0.31.0-beta.2", "v0.31.0-beta.10", "nightly"];
     expect(feedCandidates(tags)).toEqual(["0.31.0-beta.10", "0.31.0-beta.2", "0.30.7"]);
+  });
+});
+
+describe("byArea", () => {
+  const TAGGED = [
+    "### Added",
+    "",
+    "- **Viewer:** Clicking a photo zooms in.",
+    "- **Library:** Tiles show their file name.",
+    "",
+    "### Changed",
+    "",
+    "- **Settings:** Tighter buttons.",
+    "",
+    "### Fixed",
+    "",
+    "- **Library:** A new filter starts at the top.",
+    "- A crash on start.",
+    "- **Backups:** An unknown area.",
+  ].join("\n");
+
+  it("groups bullets under their area in a set order, labelled by kind", () => {
+    expect(byArea(TAGGED)).toBe(
+      [
+        "### Library",
+        "",
+        "- New: Tiles show their file name.",
+        "- Fixed: A new filter starts at the top.",
+        "",
+        "### Viewer",
+        "",
+        "- New: Clicking a photo zooms in.",
+        "",
+        "### Settings",
+        "",
+        "- Changed: Tighter buttons.",
+        "",
+        "### Backups",
+        "",
+        "- Fixed: An unknown area.",
+        "",
+        "### General",
+        "",
+        "- Fixed: A crash on start.",
+      ].join("\n"),
+    );
+  });
+
+  it("leaves notes without areas as they are", () => {
+    const plain = "### Fixed\n\n- A fix.";
+    expect(byArea(plain)).toBe(plain);
+  });
+
+  it("groups merged release notes and each version in the history", () => {
+    const changelog = `## [0.12.0] - 2026-11-16\n\n### Added\n\n- **Viewer:** Zoom.\n\n${CHANGELOG.slice(CHANGELOG.indexOf("## [0.11.0]"))}`;
+    expect(releaseNotes(changelog, "0.12.0", "0.11.0")).toBe("### Viewer\n\n- New: Zoom.");
+    expect(changeHistory(changelog, "0.12.0")[0].notes).toBe("### Viewer\n\n- New: Zoom.");
+    expect(changeHistory(changelog, "0.12.0")[1].notes).toContain("### Added");
+  });
+});
+
+describe("withoutMentions", () => {
+  it("breaks @ mentions outside code spans", () => {
+    expect(withoutMentions("- Skips #recycle, @eaDir and `@Recycle`; mail a@b.nz")).toBe(
+      "- Skips #recycle, @\u200BeaDir and `@Recycle`; mail a@b.nz",
+    );
   });
 });

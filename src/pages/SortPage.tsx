@@ -1,25 +1,23 @@
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
-import type { PageId } from "../App";
 import { Icon } from "../components/Icon";
-import { LeftAlone, MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
+import { LeftAlone, MovingProgress, PlanView } from "../components/PlanPreview";
 import { Button, EmptyState, PageHeader } from "../components/ui";
-import { api, errorText, type ApplySummary, type Preview } from "../lib/api";
+import { api, errorText, type Preview } from "../lib/api";
 import { count } from "../lib/format";
 import { useJobDone, useJobs } from "../lib/useJobs";
+import { useToasts } from "../lib/useToasts";
 
 /**
  * Sort the library into trip and year/month folders: review every move first, then apply it
- * as one change that can be undone.
- * @param props - Component props.
- * @param props.onNavigate - switch to another page
+ * as one change that can be undone. The result shows as a toast with Undo.
  * @returns the page
  */
-export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void }): ReactElement {
+export function SortPage(): ReactElement {
   const { running } = useJobs();
+  const { expectJob } = useToasts();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ApplySummary | null>(null);
   /** Photos unticked to stay where they are, by media id. A new plan ticks everything again. */
   const [skipped, setSkipped] = useState<ReadonlySet<number>>(new Set());
 
@@ -41,14 +39,10 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
   useEffect(load, [load]);
   useJobDone(["index", "remove", "import", "inbox"], load);
   useJobDone("apply", (done) => {
-    if (done.ok) setResult(done.result as ApplySummary);
-    else if (done.error) setError(done.error);
+    if (!done.ok && done.error) setError(done.error);
     load();
   });
-  useJobDone("undo", () => {
-    setResult(null);
-    load();
-  });
+  useJobDone("undo", load);
 
   /** Work the plan out again, showing the buttons as busy until it's back. */
   function checkAgain(): void {
@@ -57,14 +51,16 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
   }
 
   /**
-   * Run an action, showing any failure as the page error.
-   * @param action - the API call to make
+   * Move the ticked photos; the job's end shows a toast.
+   * @param plan - the plan to apply
    */
-  async function run(action: () => Promise<void>): Promise<void> {
+  async function apply(plan: Preview): Promise<void> {
     setError(null);
+    const forget = expectJob("apply", {});
     try {
-      await action();
+      await api.applyPlan(plan.id, [...skipped]);
     } catch (err) {
+      forget();
       setError(errorText(err));
     }
   }
@@ -95,6 +91,8 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
     <div className="flex h-full flex-col">
       <PageHeader
         title="Sort"
+        // Unticked photos are lost on leaving, so Ctrl+Z and a dropped folder stay put.
+        holdsWork={ready && skipped.size > 0}
         actions={
           ready && (
             <>
@@ -109,7 +107,7 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
               </Button>
               <Button
                 variant="primary"
-                onClick={() => run(() => api.applyPlan(preview.id, [...skipped]))}
+                onClick={() => void apply(preview)}
                 disabled={checking || files === 0}
                 busy={running !== null}
               >
@@ -123,14 +121,6 @@ export function SortPage({ onNavigate }: { onNavigate: (page: PageId) => void })
         <p role="alert" className="mx-5 mt-3 text-danger">
           {error}
         </p>
-      )}
-      {result && !moving && (
-        <ResultBanner
-          result={result}
-          busy={running !== null}
-          onUndo={() => run(() => api.undoBatch(result.batchId))}
-          onHistory={() => onNavigate("history")}
-        />
       )}
 
       {moving && running && <MovingProgress job={running} />}

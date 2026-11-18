@@ -1,4 +1,4 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import {
   useEffect,
   useLayoutEffect,
@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ReactElement,
+  type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
@@ -24,10 +25,12 @@ import {
   type GridPlace,
   type TimelineRow,
 } from "../lib/format";
+import { gridColumns, monthStarts } from "../lib/timelineLayout";
 import { tripBg } from "../lib/trips";
-import { DateRail, type RailMonth } from "./DateRail";
+import { DateRail, RAIL_SPACE } from "./DateRail";
 import { Icon } from "./Icon";
-import { HOVER_RING, LIST_FILL } from "./ui";
+import { MonthPin } from "./MonthPin";
+import { Button, HOVER_RING, LIST_FILL } from "./ui";
 
 // Tight gutters, so the grid reads as one wall of photos rather than a page of cards.
 const GAP = 3;
@@ -37,6 +40,13 @@ const HEADER_HEIGHT = 48;
 const JUMP_FRAMES = 6;
 /** Space left under the last row, so it doesn't sit hard against the bottom edge. */
 const END_SPACE = 32;
+/** Right padding of the rows while the date rail lies over the grid, keeping tiles clear of it. */
+const RAIL_PADDING = RAIL_SPACE + 4;
+/**
+ * Ctrl+wheel travel per photo size step. A mouse wheel notch is 100, so each notch is a step,
+ * while a touchpad pinch's stream of small deltas adds up instead of racing to an end.
+ */
+const WHEEL_STEP = 60;
 
 /** Click or right-click on a tile, with the modifier keys that decide what it does. */
 export type TileEvent = ReactMouseEvent<HTMLButtonElement>;
@@ -58,6 +68,40 @@ export interface TileJump {
 }
 
 /**
+ * The tile that holds the grid's one Tab stop (see the roving Tab stop in {@link TimelineGrid}).
+ * @param rows - the grid's rows
+ * @param drawn - the rows drawn now, overscan included
+ * @param range - the rows on screen, or null before the first layout
+ * @param current - the tile last focused, if any
+ * @param focusIn - focus is in the grid now
+ * @returns the tile's index; 0 when no tile row is drawn
+ */
+function gridTabStop(
+  rows: TimelineRow[],
+  drawn: VirtualItem[],
+  range: { startIndex: number; endIndex: number } | null,
+  current: number | null,
+  focusIn: boolean,
+): number {
+  /**
+   * Whether a row is on screen.
+   * @param row - the row's index
+   * @returns true when it's within the visible range
+   */
+  const onScreen = (row: number): boolean =>
+    range !== null && row >= range.startIndex && row <= range.endIndex;
+  if (current !== null) {
+    const row = tileRow(rows, current);
+    if (row >= 0 && (focusIn ? drawn.some((item) => item.index === row) : onScreen(row))) {
+      return current;
+    }
+  }
+  const tileRows = drawn.filter((item) => rows[item.index]?.type === "tiles");
+  const first = tileRows.find((item) => onScreen(item.index)) ?? tileRows[0];
+  return first ? rows[first.index].start : 0;
+}
+
+/**
  * A library tile's thumbnail.
  * @param tile - the tile
  * @returns the thumbnail URL
@@ -67,16 +111,39 @@ function libraryThumb(tile: Tile): string {
 }
 
 /**
+ * Whether the grid may take keyboard focus on showing: not over a dialog or the viewer, not in
+ * a page that's inert (under the tour), and not from anything already focused in the page, such
+ * as the search box Ctrl+F just focused. Focus left on the menu that opened the page, or on
+ * nothing, is fair game.
+ * @param grid - the grid's scroller
+ * @returns true when focusing a tile takes focus from nothing that wants it
+ */
+function mayTakeFocus(grid: HTMLElement): boolean {
+  if (grid.closest("[inert]")) return false;
+  if (document.querySelector('dialog[open], [aria-modal="true"]')) return false;
+  const active = document.activeElement;
+  if (!active || active === document.body) return true;
+  return !active.closest("main");
+}
+
+/**
  * Month-grouped photo grid that only renders the rows on screen.
  * @param props - Component props.
  * @param props.tiles - tiles, newest first
  * @param props.tileSize - preferred tile edge in CSS pixels; tiles stretch to fill each row
  * @param props.selecting - picking photos, so tiles show a tick box and a click picks
  * @param props.selected - ids of selected tiles
- * @param props.onTileClick - called with a tile's index and the click
+ * @param props.onTileClick - called with a tile's index, the click, and the tile that had focus
+ *   before it (null when none has), for a Shift+click with no anchor to range from
+ * @param props.onTileExtend - called with the tile focus left and the tile it moved to when
+ *   Shift (or Ctrl+Shift, with true) and an arrow, Page Up, Page Down, Home or End moves focus;
+ *   without it those keys are left alone
  * @param props.onTileMenu - called with a tile's index and the right-click
  * @param props.onTileZoom - called with a tile's index from its magnifier button; tiles only get
  * one when this is given
+ * @param props.onTileStart - called with a tile's index from the tick shown in its corner on
+ *   hover, to start selecting with that tile; tiles only get the tick when this is given and
+ *   nothing is being selected
  * @param props.onThumbError - called when Windows has no thumbnail for a tile
  * @param props.thumbOf - a tile's thumbnail URL (default: the library thumbnail for its id)
  * @param props.thumbRetry - raise to have tiles without a thumbnail ask for one again
@@ -92,6 +159,10 @@ function libraryThumb(tile: Tile): string {
  * @param props.place - where the grid is scrolled to ({@link GridPlace}), kept up to date as it
  *   scrolls and gone back to when the grid mounts again; without it the grid keeps its own,
  *   which still holds its place when the column count changes
+ * @param props.onSizeStep - called with 1 (bigger) or -1 (smaller) for each Ctrl+wheel notch over
+ *   the grid; without it Ctrl+wheel is left alone
+ * @param props.takeFocus - focus the grid's Tab stop once it's first laid out, unless that would
+ *   take focus from something in the page or from a dialog
  * @returns the scrolling grid
  */
 export function TimelineGrid({
@@ -100,8 +171,10 @@ export function TimelineGrid({
   selecting,
   selected,
   onTileClick,
+  onTileExtend,
   onTileMenu,
   onTileZoom,
+  onTileStart,
   onThumbError,
   thumbOf = libraryThumb,
   thumbRetry = 0,
@@ -112,14 +185,18 @@ export function TimelineGrid({
   onJumpDone,
   ownsHeight = false,
   place,
+  onSizeStep,
+  takeFocus = false,
 }: {
   tiles: Tile[];
   tileSize: number;
   selecting: boolean;
   selected: ReadonlySet<number>;
-  onTileClick: (index: number, event: TileEvent) => void;
+  onTileClick: (index: number, event: TileEvent, focused: number | null) => void;
+  onTileExtend?: (from: number, to: number, keep: boolean) => void;
   onTileMenu: (index: number, event: TileEvent) => void;
   onTileZoom?: (index: number) => void;
+  onTileStart?: (index: number) => void;
   onThumbError: (tile: Tile) => void;
   thumbOf?: (tile: Tile) => string;
   thumbRetry?: number;
@@ -130,46 +207,64 @@ export function TimelineGrid({
   onJumpDone?: () => void;
   ownsHeight?: boolean;
   place?: RefObject<GridPlace | null>;
+  onSizeStep?: (step: 1 | -1) => void;
+  takeFocus?: boolean;
 }): ReactElement {
+  const outerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const ownPlace = useRef<GridPlace | null>(null);
   const placeRef = place ?? ownPlace;
+  // The scroller's width less its scrollbar, and the whole grid's, which no scrollbar changes.
   const [width, setWidth] = useState(0);
+  const [outerWidth, setOuterWidth] = useState(0);
   const [viewHeight, setViewHeight] = useState(0);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    const outer = outerRef.current;
+    if (!el || !outer) return;
     // Measured at once, before the first paint, so the first frame already has its rows and a
     // place gone back to never shows the top first. The observer keeps it current after that.
     setWidth(el.clientWidth);
     setViewHeight(el.clientHeight);
-    const observer = new ResizeObserver(([entry]) => {
-      setWidth(entry.contentRect.width);
-      setViewHeight(entry.contentRect.height);
+    setOuterWidth(outer.clientWidth);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === outer) setOuterWidth(entry.contentRect.width);
+        else {
+          setWidth(entry.contentRect.width);
+          setViewHeight(entry.contentRect.height);
+        }
+      }
     });
     observer.observe(el);
+    observer.observe(outer);
     return () => observer.disconnect();
   }, []);
 
-  const inner = Math.max(0, width - SIDE_PADDING * 2);
-  const columns = Math.max(2, Math.floor((inner + GAP) / (target + GAP)));
-  const tileSize = Math.floor((inner - GAP * (columns - 1)) / columns);
-  const rows = useMemo(() => timelineRows(tiles, columns), [tiles, columns]);
-  // Where each month starts, from the same row heights the list lays out with, for the date rail.
-  const { months, total } = useMemo(() => {
-    const found: RailMonth[] = [];
-    let top = 0;
-    for (const row of rows) {
-      if (row.type === "month") {
-        found.push({ key: row.key, label: row.label, top });
-        top += HEADER_HEIGHT;
-      } else top += tileSize + GAP;
-    }
-    return { months: found, total: top + END_SPACE };
-  }, [rows, tileSize]);
-  // Only worth showing when there's somewhere to jump to.
-  const showRail = months.length > 1 && total > viewHeight * 1.5;
+  // The rail is decided from the layout it would leave, at the grid's full width (the scrollbar
+  // hides while it shows), so it never depends on itself: the layout without it is wider, so
+  // shorter, and can't call for it either. It's only worth showing with somewhere to jump to.
+  const railed = gridColumns(outerWidth - SIDE_PADDING - RAIL_PADDING, target, GAP);
+  const railRows = useMemo(() => timelineRows(tiles, railed.columns), [tiles, railed.columns]);
+  const railHeight = useMemo(
+    () => monthStarts(railRows, railed.tileSize, GAP, HEADER_HEIGHT),
+    [railRows, railed.tileSize],
+  );
+  const showRail = railHeight.months.length > 1 && railHeight.total + END_SPACE > viewHeight * 1.5;
+  const plain = gridColumns(width - SIDE_PADDING * 2, target, GAP);
+  const { columns, tileSize } = showRail ? railed : plain;
+  const rows = useMemo(
+    () => (columns === railed.columns ? railRows : timelineRows(tiles, columns)),
+    [tiles, columns, railed.columns, railRows],
+  );
+  // Where each month starts, from the same row heights the list lays out with, for the date rail
+  // and the pinned month label.
+  const { months, total: rowsHeight } = useMemo(
+    () => monthStarts(rows, tileSize, GAP, HEADER_HEIGHT),
+    [rows, tileSize],
+  );
+  const total = rowsHeight + END_SPACE;
 
   // TanStack Virtual returns fresh functions each render, which the React Compiler can't
   // memoise; it skips this component, which is the documented, intended outcome.
@@ -199,6 +294,10 @@ export function TimelineGrid({
   // where the same pixel offset would land months away. Before paint, so there's no jump.
   const laidOut = width > 0;
   const placedAt = useRef(0);
+  // The row a kept place was put back at. While it stays at the top the place isn't rewritten
+  // from it, since that would swap the kept tile for the first in its new row and creep back a
+  // few photos on every size change.
+  const placedRow = useRef(-1);
   useLayoutEffect(() => {
     if (!laidOut || placedAt.current === columns) return;
     placedAt.current = columns;
@@ -208,6 +307,7 @@ export function TimelineGrid({
     // Sizes may still be the estimates from before the width was known.
     virtualizer.measure();
     virtualizer.scrollToIndex(row, { align: "start" });
+    placedRow.current = row;
     // Only the layout decides when to go back; new tiles or a moved place mustn't pull the view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [laidOut, columns]);
@@ -219,7 +319,9 @@ export function TimelineGrid({
     /** Note the row now at the top of the view. */
     const onScroll = (): void => {
       const top = virtualizer.getVirtualItemForOffset(el.scrollTop);
-      if (top) placeRef.current = gridPlace(rows, tiles, top.index);
+      if (!top || top.index === placedRow.current) return;
+      placedRow.current = -1;
+      placeRef.current = gridPlace(rows, tiles, top.index);
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
@@ -268,21 +370,120 @@ export function TimelineGrid({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jump, laidOut]);
 
+  // Ctrl+wheel resizes the photos instead of zooming the whole window. React's onWheel is
+  // passive, so it can't stop the zoom; this listener isn't. A plain wheel still scrolls.
+  const wheel = useRef(0);
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el || !onSizeStep) return;
+    /**
+     * Step the photo size once per notch of Ctrl+wheel.
+     * @param event - a wheel turn over the grid or its date rail
+     */
+    const onWheel = (event: WheelEvent): void => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      wheel.current += event.deltaY;
+      if (Math.abs(wheel.current) < WHEEL_STEP) return;
+      const step = wheel.current < 0 ? 1 : -1;
+      wheel.current = 0;
+      onSizeStep(step);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [onSizeStep]);
+
+  // On first showing, focus the tile Tab would land on. A frame later, so a kept place has been
+  // gone back to and the Tab stop is a tile on screen there.
+  const tookFocus = useRef(false);
+  useEffect(() => {
+    if (!takeFocus || !laidOut || tookFocus.current) return;
+    const frame = requestAnimationFrame(() => {
+      tookFocus.current = true;
+      const el = scrollRef.current;
+      if (!el || !mayTakeFocus(el)) return;
+      el.querySelector<HTMLElement>('[data-tile][tabindex="0"]')?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [takeFocus, laidOut]);
+
+  // The grid is one Tab stop, and the arrow keys move between its tiles. The stop is the tile
+  // last focused while that's on screen, or while focus is still in the grid (so Tab from a
+  // focused tile scrolled off screen leaves the grid rather than landing on another tile), else
+  // the first tile on screen. A focused tile scrolled far enough to unmount drops focus to the
+  // page, and Tab back in lands on the first tile on screen.
+  const [current, setCurrent] = useState<number | null>(null);
+  const [focusIn, setFocusIn] = useState(false);
+  const items = virtualizer.getVirtualItems();
+  const range = virtualizer.range;
+  const tabTile = gridTabStop(rows, items, range, current, focusIn);
+  // A press focuses the tile pressed before its click arrives, so the tile focused before the
+  // press is noted as the press starts, for a Shift+click to range from.
+  const lastFocused = useRef<number | null>(null);
+  const focusedBeforePress = useRef<number | null>(null);
+
   /**
-   * Arrow keys, Home and End move focus between tiles. The tile may not be drawn yet, so its row
-   * is scrolled into view first and the tile focused once it's there, as for a jump.
+   * Note the focused tile as the grid's Tab stop.
+   * @param event - focus arriving on something in the grid
+   */
+  function onGridFocus(event: ReactFocusEvent<HTMLDivElement>): void {
+    setFocusIn(true);
+    const tile = event.target.dataset.tile ?? event.target.dataset.zoomTile;
+    if (tile === undefined) return;
+    setCurrent(Number(tile));
+    lastFocused.current = Number(tile);
+  }
+
+  /**
+   * Pass a tile's click on with the tile focused before it. A click from the keyboard (detail 0)
+   * has no press, and the tile clicked is the one focused.
+   * @param index - the clicked tile
+   * @param event - the click
+   */
+  function clickTile(index: number, event: TileEvent): void {
+    onTileClick(
+      index,
+      event,
+      event.detail === 0 ? lastFocused.current : focusedBeforePress.current,
+    );
+  }
+
+  /**
+   * Note focus leaving the grid altogether.
+   * @param event - focus leaving something in the grid
+   */
+  function onGridBlur(event: ReactFocusEvent<HTMLDivElement>): void {
+    if (!event.currentTarget.contains(event.relatedTarget)) setFocusIn(false);
+  }
+
+  /**
+   * Arrow keys, Page Up, Page Down, Home and End move focus between tiles; a page is as many tile
+   * rows as fit on screen whole. With Shift (and `onTileExtend` given) the move also extends the
+   * selection, and Ctrl+Shift keeps what was selected besides. Ctrl alone is left to the page.
    * @param event - a key press inside the grid
    */
   function onGridKey(event: ReactKeyboardEvent<HTMLDivElement>): void {
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.altKey || event.metaKey) return;
+    if (event.shiftKey ? !onTileExtend : event.ctrlKey) return;
     const from = (event.target as HTMLElement).dataset.tile;
     if (from === undefined) return;
-    const to = stepTile(rows, Number(from), event.key, tiles.length);
+    const page = Math.floor(viewHeight / (tileSize + GAP));
+    const to = stepTile(rows, Number(from), event.key, tiles.length, page);
     if (to === null) return;
     event.preventDefault();
+    focusTileAt(to);
+    if (event.shiftKey) onTileExtend?.(Number(from), to, event.ctrlKey);
+  }
+
+  /**
+   * Move focus to a tile. It may not be drawn yet, so its row is scrolled into view first and the
+   * tile focused once it's there, retrying each frame up to JUMP_FRAMES, as for a jump.
+   * @param to - the tile's index
+   */
+  function focusTileAt(to: number): void {
     virtualizer.scrollToIndex(tileRow(rows, to), { align: "auto" });
     let tries = 0;
-    /** Focus the tile once it's drawn, retrying each frame up to JUMP_FRAMES. */
+    /** Look for the tile, and try again next frame while it isn't drawn. */
     const focusTile = (): void => {
       const tile = scrollRef.current?.querySelector<HTMLButtonElement>(`[data-tile="${to}"]`);
       if (tile) tile.focus({ preventScroll: true });
@@ -292,15 +493,23 @@ export function TimelineGrid({
   }
 
   return (
-    <div className={`flex ${ownsHeight ? LIST_FILL : "min-h-0 flex-1"}`}>
-      {/* Key presses bubble up from the focused tile button. */}
-      <div ref={scrollRef} onKeyDown={onGridKey} className="min-w-0 flex-1 overflow-y-auto">
+    <div ref={outerRef} className={`relative flex ${ownsHeight ? LIST_FILL : "min-h-0 flex-1"}`}>
+      {/* Key presses bubble up from the focused tile button. The date rail stands in for the
+          scrollbar while it shows. */}
+      <div
+        ref={scrollRef}
+        onKeyDown={onGridKey}
+        onPointerDownCapture={() => (focusedBeforePress.current = lastFocused.current)}
+        onFocus={onGridFocus}
+        onBlur={onGridBlur}
+        className={`min-w-0 flex-1 overflow-y-auto ${showRail ? "no-scrollbar" : ""}`}
+      >
         {width > 0 && (
           <div
             className="relative w-full"
             style={{ height: virtualizer.getTotalSize() + END_SPACE }}
           >
-            {virtualizer.getVirtualItems().map((item) => {
+            {items.map((item) => {
               const row = rows[item.index];
               return (
                 <div
@@ -309,13 +518,14 @@ export function TimelineGrid({
                   style={{
                     transform: `translateY(${item.start}px)`,
                     height: item.size,
-                    paddingInline: SIDE_PADDING,
+                    paddingLeft: SIDE_PADDING,
+                    paddingRight: showRail ? RAIL_PADDING : SIDE_PADDING,
                   }}
                 >
                   {row.type === "month" ? (
                     // The row has a fixed height (HEADER_HEIGHT), so nothing in it may wrap: a long
                     // month name is cut short instead of growing up over the photos above.
-                    <div className="flex h-full items-end gap-4 px-1 pb-1">
+                    <div className="group/month flex h-full items-end gap-4 px-1 pb-1">
                       <h2 className="flex min-w-0 items-baseline gap-2.5 pb-2.5">
                         <span className="truncate text-[16px] leading-none font-semibold">
                           {row.label}
@@ -334,15 +544,21 @@ export function TimelineGrid({
                           index={row.start + offset}
                           tile={tile}
                           size={tileSize}
+                          tabStop={row.start + offset === tabTile}
                           selecting={selecting}
                           thumb={thumbOf(tile)}
                           retry={thumbRetry}
                           selected={selected.has(tile.id)}
                           faded={fadeUnselected && !selected.has(tile.id)}
                           showUncertain={showUncertain}
-                          onClick={(event) => onTileClick(row.start + offset, event)}
+                          onClick={(event) => clickTile(row.start + offset, event)}
                           onMenu={(event) => onTileMenu(row.start + offset, event)}
                           onZoom={onTileZoom && (() => onTileZoom(row.start + offset))}
+                          onStart={
+                            onTileStart && !selecting
+                              ? () => onTileStart(row.start + offset)
+                              : undefined
+                          }
                           onThumbError={onThumbError}
                         />
                       ))}
@@ -354,8 +570,47 @@ export function TimelineGrid({
           </div>
         )}
       </div>
+      {width > 0 && <MonthPin months={months} scrollRef={scrollRef} inset={SIDE_PADDING} />}
       {showRail && <DateRail months={months} total={total} scrollRef={scrollRef} />}
     </div>
+  );
+}
+
+/**
+ * A month heading's button, for {@link TimelineGrid}'s `monthAction`, that selects the whole
+ * month, or deselects it when all of it is selected. Short on screen so it fits the fixed-height
+ * heading beside the name; the full wording is read out.
+ * @param props - Component props.
+ * @param props.month - the month row the button belongs to
+ * @param props.allPicked - every photo in the month is selected, so the button deselects
+ * @param props.onPick - called with true to select the month or false to deselect it
+ * @param props.onHover - show the button only while the heading is hovered, and leave it out of
+ *   the Tab order, for when nothing is being selected yet
+ * @returns the button
+ */
+export function MonthPickButton({
+  month,
+  allPicked,
+  onPick,
+  onHover = false,
+}: {
+  month: MonthRow;
+  allPicked: boolean;
+  onPick: (pick: boolean) => void;
+  onHover?: boolean;
+}): ReactElement {
+  return (
+    <Button
+      variant="ghost"
+      className={`ml-auto shrink-0 whitespace-nowrap ${
+        onHover ? "opacity-0 group-hover/month:opacity-100 focus-visible:opacity-100" : ""
+      }`}
+      tabIndex={onHover ? -1 : undefined}
+      aria-label={allPicked ? `Deselect all of ${month.label}` : `Select all of ${month.label}`}
+      onClick={() => onPick(!allPicked)}
+    >
+      {allPicked ? "Deselect month" : "Select month"}
+    </Button>
   );
 }
 
@@ -368,6 +623,7 @@ export function TimelineGrid({
  * @param props.thumb - thumbnail URL
  * @param props.retry - a count that, when raised, has a tile without a thumbnail ask again
  * @param props.size - tile edge in CSS pixels
+ * @param props.tabStop - the grid's one Tab stop; every other tile is reached by the arrow keys
  * @param props.selecting - picking photos, so a plain click picks instead of opening
  * @param props.selected - the tile is picked
  * @param props.faded - dim the tile, for an unpicked one when most are picked
@@ -375,6 +631,8 @@ export function TimelineGrid({
  * @param props.onClick - called with the click
  * @param props.onMenu - called with the right-click
  * @param props.onZoom - open the tile in the viewer from a magnifier button; no magnifier without it
+ * @param props.onStart - start selecting with this tile from a tick shown on hover; no tick
+ *   without it
  * @param props.onThumbError - called when the thumbnail fails to load
  * @returns the tile
  */
@@ -384,6 +642,7 @@ function TileButton({
   thumb,
   retry,
   size,
+  tabStop,
   selecting,
   selected,
   faded,
@@ -391,6 +650,7 @@ function TileButton({
   onClick,
   onMenu,
   onZoom,
+  onStart,
   onThumbError,
 }: {
   /** Position in the grid, for finding the tile to focus after a jump. */
@@ -399,6 +659,7 @@ function TileButton({
   thumb: string;
   retry: number;
   size: number;
+  tabStop: boolean;
   /** Picking photos, so a plain click picks instead of opening. */
   selecting: boolean;
   selected: boolean;
@@ -408,6 +669,8 @@ function TileButton({
   onMenu: (event: TileEvent) => void;
   /** Open the tile in the viewer from a magnifier button, for when a click picks instead. */
   onZoom?: () => void;
+  /** Start selecting with this tile, from the tick shown on hover while nothing is selected. */
+  onStart?: () => void;
   onThumbError: (tile: Tile) => void;
 }): ReactElement {
   const [failed, setFailed] = useState(false);
@@ -450,6 +713,7 @@ function TileButton({
         onClick={onClick}
         onContextMenu={onMenu}
         data-tile={index}
+        tabIndex={tabStop ? 0 : -1}
         aria-label={label}
         title={tip}
         aria-pressed={selecting ? selected : undefined}
@@ -533,11 +797,33 @@ function TileButton({
         <button
           type="button"
           onClick={onZoom}
+          data-zoom-tile={index}
+          tabIndex={tabStop ? 0 : -1}
           aria-label={`Open ${tile.name}`}
           title="Open"
           className="on-dark absolute top-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-ground/70 text-ink opacity-0 group-hover:opacity-100 hover:bg-ground focus-visible:bg-ground focus-visible:opacity-100"
         >
           <Icon name="zoom" size={18} />
+        </button>
+      )}
+      {/* Drawn where the selecting tick sits, so the click lands on the tick that then shows.
+          Out of the Tab order: keyboard users start selecting with Shift and the arrows. Focus
+          goes to the tile, since the tick is gone once selecting starts. */}
+      {onStart && (
+        <button
+          type="button"
+          onClick={(event) => {
+            onStart();
+            event.currentTarget.parentElement
+              ?.querySelector<HTMLElement>("[data-tile]")
+              ?.focus({ preventScroll: true });
+          }}
+          tabIndex={-1}
+          aria-label={`Select ${tile.name}`}
+          title="Select"
+          className="on-dark absolute top-2 left-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-ink bg-ground/50 text-ink opacity-0 group-hover:opacity-100 hover:bg-ground/80"
+        >
+          <Icon name="check" size={20} />
         </button>
       )}
     </div>

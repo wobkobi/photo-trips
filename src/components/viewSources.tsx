@@ -56,7 +56,7 @@ export function useLibrarySource(ids: number[], revision = 0): ViewSource {
        * @param index - position in `ids`
        * @returns resolves once it's on the clipboard
        */
-      copy: (index) => api.copyMedia(ids[index]),
+      copy: (index) => api.copyMedia([ids[index]]),
       gone: "Refresh to bring the library up to date.",
       refresh: { label: "Refresh", run: api.indexLibrary },
     }),

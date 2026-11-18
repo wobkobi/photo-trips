@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { historyStepForButton, historyStepForKey, shortcutFor } from "./menu";
+import { historyStepForButton, historyStepForKey, isUndoKey, shortcutFor } from "./menu";
 
 /**
  * A fake key press for {@link shortcutFor}.
@@ -77,5 +77,23 @@ describe("historyStepForButton", () => {
     expect(historyStepForButton(0)).toBeNull();
     expect(historyStepForButton(1)).toBeNull();
     expect(historyStepForButton(2)).toBeNull();
+  });
+});
+
+describe("isUndoKey", () => {
+  it("takes Ctrl+Z in either case", () => {
+    expect(isUndoKey(press("z", { ctrl: true }))).toBe(true);
+    expect(isUndoKey(press("Z", { ctrl: true }))).toBe(true);
+  });
+
+  it("leaves Z alone, and Ctrl+Shift+Z and Alt with it", () => {
+    expect(isUndoKey(press("z"))).toBe(false);
+    expect(isUndoKey(press("z", { ctrl: true, shift: true }))).toBe(false);
+    expect(isUndoKey(press("z", { ctrl: true, alt: true }))).toBe(false);
+    expect(isUndoKey(press("y", { ctrl: true }))).toBe(false);
+  });
+
+  it("isn't a menu shortcut, so it never reaches the backend", () => {
+    expect(shortcutFor(press("z", { ctrl: true }))).toBeNull();
   });
 });

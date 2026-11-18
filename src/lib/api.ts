@@ -598,11 +598,12 @@ export const api = {
    */
   revealMedia: (id: number) => invoke<void>("reveal_media", { id }),
   /**
-   * Put an indexed file on the clipboard, to paste into a folder, an email or a chat.
-   * @param id - media id
-   * @returns resolves once it's on the clipboard
+   * Put indexed files on the clipboard together, to paste into a folder, an email or a chat.
+   * Ids no longer in the library are skipped; it fails only when none are left.
+   * @param ids - media ids
+   * @returns resolves once they're on the clipboard
    */
-  copyMedia: (id: number) => invoke<void>("copy_media", { id }),
+  copyMedia: (ids: number[]) => invoke<void>("copy_media", { ids }),
   /**
    * Set the date of photos, with the files that go with them, in Pic Cabinet only: the files
    * aren't changed. History can undo it.
@@ -742,6 +743,12 @@ export const api = {
    * @returns resolves once the job has started
    */
   scanImport: (source: ImportSource) => invoke<void>("scan_import", { source }),
+  /**
+   * The first folder among paths dropped on the window; files are passed over.
+   * @param paths - everything dropped, in the order given
+   * @returns the folder, or null when none was a folder
+   */
+  droppedFolder: (paths: string[]) => invoke<string | null>("dropped_folder", { paths }),
   /**
    * The latest import preview, if it hasn't been used.
    * @returns the preview, or null

@@ -99,8 +99,8 @@ export function MissingExtensions({
 }
 
 /**
- * Banner shown when Windows couldn't draw thumbnails and a Store extension that isn't installed
- * would fix them.
+ * A one-line notice shown when Windows couldn't draw thumbnails and a Store extension that isn't
+ * installed would fix them.
  * @param props - Component props.
  * @param props.failed - tiles whose thumbnails failed this session
  * @param props.shown - every tile on show, so a type the list has only one or two of needs fewer
@@ -108,7 +108,7 @@ export function MissingExtensions({
  * @param props.onDismiss - hide the hint for good
  * @param props.onChange - an extension came or went since the last check, so tiles without a
  *   thumbnail are worth asking again
- * @returns the banner, or nothing when no missing extension is implicated
+ * @returns the notice, or nothing when no missing extension is implicated
  */
 export function CodecHint({
   failed,
@@ -154,19 +154,34 @@ export function CodecHint({
   const missing = missingCodecs(failed, installed, shown);
   if (missing.length === 0) return null;
 
+  // One line: the free extensions as buttons, each saying what it's for in its tooltip, and any
+  // paid fallback after them for a PC the Store won't offer the free one to.
   return (
-    <div className="mx-8 mt-5 flex flex-wrap gap-3 rounded-md border border-warn-line bg-warn-soft p-4">
-      <Icon name="warn" className="mt-0.5 shrink-0 text-warn" />
-      <div className="min-w-0 flex-1 basis-64">
-        <p>
-          Windows can&apos;t preview some of your files. They are still sorted normally. These
-          extensions from the Microsoft Store add the missing previews:
-        </p>
-        <div className="mt-3">
-          <ExtensionButtons codecs={missing} />
-        </div>
-      </div>
-      <Button variant="ghost" onClick={onDismiss} className="shrink-0 self-start">
+    <div className="mx-5 mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-warn-line bg-warn-soft px-3 py-1.5">
+      <Icon name="warn" size={16} className="shrink-0 text-warn" />
+      <p className="text-[14px]">Some previews need a free extension:</p>
+      {missing.map((codec) => {
+        const { name, what, fallback } = LISTINGS[codec];
+        return (
+          <span key={codec} className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" onClick={() => api.openStorePage(codec)} title={`For ${what}`}>
+              <Icon name="open" size={16} />
+              {name}
+            </Button>
+            {fallback && (
+              <Button
+                variant="ghost"
+                onClick={() => api.openStorePage(fallback.product)}
+                title={`If the Store says the free one isn't available for this PC. ${fallback.note}`}
+              >
+                <Icon name="open" size={16} />
+                {fallback.name} (paid)
+              </Button>
+            )}
+          </span>
+        );
+      })}
+      <Button variant="ghost" onClick={onDismiss} className="ml-auto">
         Don&apos;t show again
       </Button>
     </div>

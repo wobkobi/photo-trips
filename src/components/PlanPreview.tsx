@@ -1,10 +1,10 @@
 // Review screen pieces shared by every change that moves files (Sort, Trips, Import): the
-// summary, destination folders, the list of moves, progress while moving, and the result with
-// Undo.
+// summary, destination folders, the list of moves and progress while moving. The result shows
+// as a toast.
 
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useRef, useState, type ReactElement, type ReactNode } from "react";
-import { api, thumbUrl, type ApplySummary, type JobProgress, type Preview } from "../lib/api";
+import { api, thumbUrl, type JobProgress, type Preview } from "../lib/api";
 import { count, monthLabel, splitPath } from "../lib/format";
 import type { FolderCount } from "../lib/picker";
 import { JOB_NAMES } from "../lib/useJobs";
@@ -24,13 +24,6 @@ export interface MoveRowData {
   extra: number;
   renamed: boolean;
 }
-
-/** Sentence-start, "-ing" and plain forms for the result banner. */
-const VERBS = {
-  moved: ["Moved", "moving", "moved"],
-  copied: ["Copied", "copying", "copied"],
-  imported: ["Imported", "importing", "imported"],
-} as const;
 
 /**
  * Everything a previewed change will do: a headline count, notes, the folders receiving files
@@ -139,85 +132,6 @@ export function MovingProgress({ job }: { job: JobProgress }): ReactElement {
           You can close this window. Pic Cabinet keeps going in the tray.
         </p>
       </div>
-    </div>
-  );
-}
-
-/**
- * Outcome of an applied change, with Undo and a link to History.
- * @param props - Component props.
- * @param props.result - what the apply job reported
- * @param props.intro - sentence before the move count, e.g. "Saved the trip Japan."
- * @param props.destination - where the files went, when that isn't a folder, e.g. "the
- *   Recycle Bin"
- * @param props.verb - what happened to the files (default moved)
- * @param props.undoable - offer Undo even when no file moved (a trip change still can be)
- * @param props.busy - another job is running, so Undo waits
- * @param props.onUndo - undo the whole change
- * @param props.onHistory - open History
- * @param props.onLibrary - open the Library, offered once files have arrived there
- * @returns the banner
- */
-export function ResultBanner({
-  result,
-  intro,
-  destination,
-  verb = "moved",
-  undoable = false,
-  busy,
-  onUndo,
-  onHistory,
-  onLibrary,
-}: {
-  result: ApplySummary;
-  intro?: string;
-  destination?: string;
-  verb?: keyof typeof VERBS;
-  undoable?: boolean;
-  busy: boolean;
-  onUndo: () => void;
-  onHistory: () => void;
-  onLibrary?: () => void;
-}): ReactElement {
-  const [past, ing, plain] = VERBS[verb];
-  const moved = count(result.moved, "file", "files") + (destination ? ` to ${destination}` : "");
-  const movedText = result.cancelled
-    ? `Stopped after ${ing} ${moved}.`
-    : result.moved > 0 || !intro
-      ? `${past} ${moved}.`
-      : "";
-  const problem = result.failed > 0;
-  return (
-    <div
-      role="status"
-      className={`mx-8 mt-5 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-md border p-4 ${
-        problem ? "border-warn-line bg-warn-soft" : "border-line bg-surface"
-      }`}
-    >
-      <Icon name={problem ? "warn" : "check"} className={problem ? "text-warn" : "text-accent"} />
-      <p className="min-w-0 flex-1">
-        {[intro, movedText].filter(Boolean).join(" ")}
-        {problem &&
-          ` ${count(result.failed, "file", "files")} couldn't be ${plain} and stayed where ${
-            result.failed === 1 ? "it was" : "they were"
-          }. History says why.`}
-      </p>
-      {(result.moved > 0 || undoable) && (
-        <Button onClick={onUndo} busy={busy}>
-          <Icon name="undo" size={16} />
-          Undo
-        </Button>
-      )}
-      {onLibrary && result.moved > 0 && (
-        <Button onClick={onLibrary}>
-          <Icon name="library" size={16} />
-          See in Library
-        </Button>
-      )}
-      <Button variant="ghost" onClick={onHistory}>
-        <Icon name="history" size={16} />
-        See history
-      </Button>
     </div>
   );
 }

@@ -267,12 +267,14 @@ export function placeRow(rows: TimelineRow[], tiles: Tile[], place: GridPlace): 
 /**
  * The tile a key moves focus to in the grid. Left and Right step through the tiles in order,
  * across month breaks. Up and Down keep the column in the tile row above or below, skipping
- * month headings; a shorter row (a month's last) lands on its last tile. Home and End go to the
- * first and last tile.
+ * month headings; a shorter row (a month's last) lands on its last tile. Page Up and Page Down do
+ * the same a page of tile rows at a time, stopping at the first or last row. Home and End go to
+ * the first and last tile.
  * @param rows - rows from {@link timelineRows}
  * @param tile - the focused tile's index
  * @param key - the key's `key` value
  * @param total - how many tiles there are
+ * @param page - how many tile rows Page Up and Page Down move (at least 1)
  * @returns the tile to focus, or null when the key isn't one of these or can't go further
  */
 export function stepTile(
@@ -280,17 +282,27 @@ export function stepTile(
   tile: number,
   key: string,
   total: number,
+  page = 1,
 ): number | null {
   const last = total - 1;
   if (key === "ArrowLeft") return tile > 0 ? tile - 1 : null;
   if (key === "ArrowRight") return tile < last ? tile + 1 : null;
   if (key === "Home") return tile > 0 ? 0 : null;
   if (key === "End") return tile < last ? last : null;
-  if (key !== "ArrowUp" && key !== "ArrowDown") return null;
+  const pageRows = Math.max(1, page);
+  const move = new Map([
+    ["ArrowUp", -1],
+    ["ArrowDown", 1],
+    ["PageUp", -pageRows],
+    ["PageDown", pageRows],
+  ]).get(key);
+  if (move === undefined) return null;
   const tileRows = rows.filter((row) => row.type === "tiles");
   const at = tileRows.findIndex((row) => tile >= row.start && tile < row.end);
-  const to = at < 0 ? undefined : tileRows[at + (key === "ArrowUp" ? -1 : 1)];
-  if (!to) return null;
+  if (at < 0) return null;
+  const toAt = Math.min(Math.max(at + move, 0), tileRows.length - 1);
+  if (toAt === at) return null;
+  const to = tileRows[toAt];
   return Math.min(to.start + (tile - tileRows[at].start), to.end - 1);
 }
 

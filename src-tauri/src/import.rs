@@ -689,6 +689,14 @@ pub fn scan_import(app: AppHandle, source: SourceSpec) -> Result<()> {
     start_scan(&app, source)
 }
 
+/// The first folder among paths dropped on the window, for Import to check. Dropped files are
+/// passed over, so dropping one photo never imports everything beside it. Async, so looking at
+/// paths on a slow or sleeping drive doesn't hold up the window.
+#[tauri::command(async)]
+pub fn dropped_folder(paths: Vec<PathBuf>) -> Option<PathBuf> {
+    paths.into_iter().find(|path| path.is_dir())
+}
+
 /// [`scan_import`], also started from the tray's "Import from <card>" item.
 pub fn start_scan(app: &AppHandle, source: SourceSpec) -> Result<()> {
     let state = app.state::<AppState>();
@@ -1113,6 +1121,24 @@ mod tests {
     use crate::recycle::fake;
 
     const LIBRARY_PHOTO: &str = "2025\\2025-03\\IMG_20250301_090000.jpg";
+
+    #[test]
+    fn dropped_folder_skips_files_and_missing_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("IMG_1.jpg");
+        fs::write(&photo, b"x").unwrap();
+        let first = dir.path().join("Holiday");
+        let second = dir.path().join("Backup");
+        fs::create_dir(&first).unwrap();
+        fs::create_dir(&second).unwrap();
+        let gone = dir.path().join("gone");
+        assert_eq!(
+            dropped_folder(vec![photo.clone(), gone, first.clone(), second]),
+            Some(first)
+        );
+        assert_eq!(dropped_folder(vec![photo]), None);
+        assert_eq!(dropped_folder(Vec::new()), None);
+    }
 
     fn japan() -> Trip {
         Trip {

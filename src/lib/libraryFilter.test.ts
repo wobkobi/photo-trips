@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { Tile } from "./api";
 import {
+  activeChips,
   clearFilters,
   filterChoices,
   filterTiles,
   isFiltered,
   isFilteredBesidesTrip,
   NO_FILTER,
+  popoverFilterCount,
   sameFilter,
   tripOf,
 } from "./libraryFilter";
@@ -151,5 +153,53 @@ describe("sameFilter", () => {
     expect(sameFilter(NO_FILTER, { ...NO_FILTER, kind: "videos" })).toBe(false);
     expect(sameFilter(NO_FILTER, { ...NO_FILTER, uncertain: true })).toBe(false);
     expect(sameFilter(NO_FILTER, { ...NO_FILTER, name: "img" })).toBe(false);
+  });
+});
+
+describe("activeChips", () => {
+  const trip = { id: 7, name: "Japan" };
+
+  it("has none with no filter, only a trip, or only a name", () => {
+    expect(activeChips(NO_FILTER)).toEqual([]);
+    expect(activeChips({ ...NO_FILTER, trip, name: "img" })).toEqual([]);
+  });
+
+  it("gives one chip per part in toolbar order, each removing only itself", () => {
+    const filter = {
+      ...NO_FILTER,
+      trip: "none" as const,
+      kind: "videos" as const,
+      year: "2024",
+      uncertain: true,
+    };
+    const chips = activeChips(filter);
+    expect(chips.map((c) => c.label)).toEqual([
+      "Videos",
+      "2024",
+      "Uncertain dates",
+      "Not on a trip",
+    ]);
+    expect(chips[0].without).toEqual({ ...filter, kind: "all" });
+    expect(chips[1].without).toEqual({ ...filter, year: "any" });
+    expect(chips[2].without).toEqual({ ...filter, uncertain: false });
+    expect(chips[3].without).toEqual({ ...filter, trip: "any" });
+  });
+
+  it("keeps the trip on show when a chip is removed inside one", () => {
+    const [chip] = activeChips({ ...NO_FILTER, trip, kind: "photos" });
+    expect(chip.label).toBe("Photos");
+    expect(chip.without).toEqual({ ...NO_FILTER, trip });
+  });
+});
+
+describe("popoverFilterCount", () => {
+  it("counts year, uncertain dates and not on a trip, but not kind, name or a trip", () => {
+    expect(popoverFilterCount(NO_FILTER)).toBe(0);
+    const trip = { id: 7, name: "Japan" };
+    expect(popoverFilterCount({ ...NO_FILTER, trip, kind: "videos", name: "a" })).toBe(0);
+    expect(popoverFilterCount({ ...NO_FILTER, year: "2024", uncertain: true })).toBe(2);
+    expect(popoverFilterCount({ ...NO_FILTER, year: "2024", uncertain: true, trip: "none" })).toBe(
+      3,
+    );
   });
 });

@@ -47,30 +47,22 @@ export function reasonText(suggestion: Suggestion): string {
 }
 
 /**
- * How suggestions were found: what makes a day busy, and where home is.
+ * How suggestions were found, in one line: what makes a day busy, and where home is.
  * @param found - the settings and home the suggestions came from
- * @returns two or three sentences
+ * @returns one sentence
  */
 export function howFound(found: Pick<Suggestions, "home" | "minPhotos" | "located">): string {
-  const busy =
-    `A day with ${found.minPhotos.toLocaleString("en-NZ")} or more photos and videos counts as busy. ` +
-    "Two or more busy days in a row make a suggestion, even with a quiet day between them.";
-  const away =
-    `A day spent more than ${AWAY_KM} km from home counts as well, however few photos it has, ` +
-    "and a busy one makes a suggestion on its own as a day trip. Busy days at home don't count.";
+  const busy = `Made from busy days (${found.minPhotos.toLocaleString("en-NZ")} or more photos and videos)`;
+  const away = `${busy} and days more than ${AWAY_KM} km from home`;
   const { home } = found;
-  if (home?.set) {
-    const near = home.place ? `, near ${home.place}` : "";
-    return `${busy} Home is set in Settings${near}. ${away}`;
-  }
+  if (home?.set) return `${away}, set in Settings${home.place ? ` near ${home.place}` : ""}.`;
   if (home) {
-    const where = home.place ? `near ${home.place}, ` : "";
-    return `${busy} Home looks to be ${where}where photos were taken on the most days. ${away}`;
+    return home.place
+      ? `${away}, which looks to be near ${home.place}.`
+      : `${away}, worked out from your photos.`;
   }
-  if (found.located === 0) {
-    return `${busy} None of the photos have a location, so only busy days count.`;
-  }
-  return `${busy} Too few photos have a location to tell where home is, so only busy days count.`;
+  if (found.located === 0) return `${busy}, as none of the photos have a location.`;
+  return `${busy}, as too few photos have a location to find home.`;
 }
 
 /**

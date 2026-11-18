@@ -1,26 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import type { PageId } from "../App";
 import { BinDialog } from "../components/BinDialog";
 import { CodecHint } from "../components/CodecHint";
 import { DateEditor } from "../components/DateEditor";
 import { Icon } from "../components/Icon";
-import { LibraryFilterBar } from "../components/LibraryFilterBar";
-import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
+import { LibraryFilterChips, LibraryFilterControls } from "../components/LibraryFilterBar";
+import { PhotoSizeControl } from "../components/PhotoSizeControl";
+import { MovingProgress, PlanView } from "../components/PlanPreview";
 import { TileMenu, type MenuItem } from "../components/TileMenu";
-import { TimelineGrid, type TileEvent, type TileJump } from "../components/TimelineGrid";
+import {
+  MonthPickButton,
+  TimelineGrid,
+  type MonthRow,
+  type TileEvent,
+  type TileJump,
+} from "../components/TimelineGrid";
 import { Viewer } from "../components/Viewer";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { useLibrarySource } from "../components/viewSources";
-import {
-  api,
-  errorText,
-  type ApplySummary,
-  type IndexSummary,
-  type Tile,
-  type TripInfo,
-} from "../lib/api";
-
-import { tileSizeOf } from "../lib/display";
+import { api, errorText, type IndexSummary, type Tile, type TripInfo } from "../lib/api";
+import { photoTile, stepPhotoSize } from "../lib/display";
 import { count as countOf } from "../lib/format";
 import { layers } from "../lib/layers";
 import {
@@ -28,6 +26,7 @@ import {
   filterTiles,
   isFilteredBesidesTrip,
   NO_FILTER,
+  sameFilter,
   tripOf,
   type FilterTrip,
   type LibraryFilter,
@@ -42,6 +41,7 @@ import {
   type CommandTarget,
   type PhotoCommand,
 } from "../lib/photoCommands";
+import { rangeStart, selectRange, toggleRun } from "../lib/selection";
 import {
   addEdit,
   editDone,
@@ -53,7 +53,9 @@ import {
 import { EMPTY_FORM, rangeOfTiles, rangeText, type TripStart } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { useLibrary } from "../lib/useLibrary";
+import { usePhotoSize } from "../lib/usePhotoSize";
 import { useSettings } from "../lib/useSettings";
+import { useToasts } from "../lib/useToasts";
 import { useTripReview } from "../lib/useTripReview";
 
 /** How long after a try tiles without a thumbnail wait before asking again, in ms. */
@@ -62,8 +64,9 @@ const THUMB_RETRY_MS = 60_000;
 /**
  * The whole library as a month-by-month timeline, with a viewer for single photos. The photos,
  * filter, selection and open photo live in the library store, so they are as they were on
- * coming back. "Make a trip" turns clicks into selecting, so the photos to make a trip from can
+ * coming back. Select, or the tick on a hovered tile, turns clicks into selecting, so photos can
  * be chosen without knowing any shortcuts; Ctrl-click, Shift-click and right-click select too.
+ * While selecting, the toolbar gives way to the selection's actions.
  *
  * A trip in the filter makes the page that trip's: its name as the title, its dates and count
  * beside it, Edit, and a back arrow to where it was opened from. Its other filters narrow within
@@ -72,20 +75,18 @@ const THUMB_RETRY_MS = 60_000;
  * @param props.onCreateTrip - start a new trip over the picked photos' days, with only those
  *   photos ticked
  * @param props.onImport - open the Import page
- * @param props.onNavigate - switch to another page, for History from the result banner
  * @param props.onShowTrip - show one trip, from the viewer's trip name
  * @param props.onLeaveTrip - leave the trip on show for the page it was opened from
  * @param props.onEditTrip - open the trip on show in the Trips page's editor
  * @param props.refreshRequested - File > Refresh (F5) was picked; refresh on opening
  * @param props.onRefreshStarted - called once that refresh has been asked for
- * @param props.findRequested - View > Find (Ctrl+F) was picked; focus the file name box
+ * @param props.findRequested - View > Find (Ctrl+F) was picked; focus the search box
  * @param props.onFindStarted - called once that box has been focused, or can't be
  * @returns the page
  */
 export function LibraryPage({
   onCreateTrip,
   onImport,
-  onNavigate,
   onShowTrip,
   onLeaveTrip,
   onEditTrip,
@@ -96,7 +97,6 @@ export function LibraryPage({
 }: {
   onCreateTrip: (start: TripStart) => void;
   onImport: () => void;
-  onNavigate: (page: PageId) => void;
   onShowTrip: (trip: FilterTrip) => void;
   onLeaveTrip: () => void;
   onEditTrip: (trip: TripInfo) => void;
@@ -139,37 +139,25 @@ export function LibraryPage({
     [allTiles, trip],
   );
   const [error, setError] = useState<string | null>(null);
+  const photoSize = usePhotoSize();
   const [failedThumbs, setFailedThumbs] = useState<Tile[]>([]);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   /** Photos waiting for the user to confirm sending them to the Recycle Bin. */
   const [binning, setBinning] = useState<Tile[] | null>(null);
   /** Raised each time the photo open in the viewer is binned, so the next one slides in. */
   const [binnedOpen, setBinnedOpen] = useState(0);
-
-  /** This page started the running Recycle Bin job, so its end shows here. */
-  const [binStarted, setBinStarted] = useState(false);
-  const [binResult, setBinResult] = useState<ApplySummary | null>(null);
   /** Photos waiting for a new date, picked from the menu. */
   const [dating, setDating] = useState<Tile[] | null>(null);
   const [savingDate, setSavingDate] = useState(false);
-  /** The last date change, for its Undo button. */
-  const [dateDone, setDateDone] = useState<{ batch: number; text: string } | null>(null);
+  /** Why the date in the open Set date dialog couldn't be saved. */
+  const [dateError, setDateError] = useState<string | null>(null);
   // Raised after a date change or an undo, so the viewer shows the new date.
   const [revision, setRevision] = useState(0);
   const tripReview = useTripReview();
+  const toasts = useToasts();
   const searchBox = useRef<HTMLInputElement>(null);
 
-  useJobDone("remove", (job) => {
-    if (!binStarted) return;
-    setBinStarted(false);
-    if (job.ok) setBinResult(job.result as ApplySummary);
-    else if (job.error) setError(job.error);
-  });
-  useJobDone("undo", () => {
-    setBinResult(null);
-    setDateDone(null);
-    setRevision((r) => r + 1);
-  });
+  useJobDone("undo", () => setRevision((r) => r + 1));
 
   // Each tile once: a retry that fails again mustn't add it twice.
   const onThumbError = useCallback(
@@ -236,7 +224,6 @@ export function LibraryPage({
     clearPicks();
     setMenu(null);
   }, [clearPicks]);
-
   /** Re-read the library folder for new and changed files. */
   function refresh(): void {
     api.indexLibrary().catch((err) => setError(errorText(err)));
@@ -248,21 +235,24 @@ export function LibraryPage({
     api.indexLibrary().catch((err) => setError(errorText(err)));
   }, [refreshRequested, onRefreshStarted]);
 
-  // Find closes the viewer, which covers the file name box. The focus below waits for the
-  // commit that unmounts the viewer, so it lands after the viewer's cleanup hands focus back
-  // to the tile.
+  const selecting = picking || selected.size > 0;
+  // Find closes the viewer, which covers the search box, and stops selecting, whose actions take
+  // the toolbar's place (a new search would drop the selection anyway). The focus below waits for
+  // the commit that shows the box, so after the viewer it lands once the viewer's cleanup has
+  // handed focus back to the tile.
   useEffect(() => {
-    if (findRequested && open !== null) setOpenId(null);
-  }, [findRequested, open, setOpenId]);
+    if (!findRequested) return;
+    if (open !== null) setOpenId(null);
+    if (selecting) clearPicks();
+  }, [findRequested, open, setOpenId, selecting, clearPicks]);
   // The box only shows once the list has loaded, so Find waits for that.
   const loaded = allTiles !== null;
   useEffect(() => {
-    if (!findRequested || open !== null || !loaded) return;
+    if (!findRequested || open !== null || selecting || !loaded) return;
     onFindStarted();
     searchBox.current?.focus();
-  }, [findRequested, onFindStarted, open, loaded]);
+  }, [findRequested, onFindStarted, open, selecting, loaded]);
 
-  const selecting = picking || selected.size > 0;
   const picked = useMemo(
     () => (allTiles ?? []).filter((t) => selected.has(t.id)),
     [allTiles, selected],
@@ -281,7 +271,8 @@ export function LibraryPage({
   const gridShown = open === null && !reviewOpen;
   // Capture phase, so Escape deselects before the header's back arrow sees it: inside a trip the
   // first Escape clears the selection and the second leaves the trip. A text box (the name search
-  // clears itself), a menu, the viewer or a modal on screen keeps its own Escape.
+  // clears itself), a menu, a popover such as Filter's, the viewer or a modal on screen keeps its
+  // own Escape.
   useEffect(() => {
     if (!selecting || !gridShown) return;
     /**
@@ -292,7 +283,12 @@ export function LibraryPage({
     function onEscape(event: KeyboardEvent): void {
       if (event.key !== "Escape" || event.repeat || event.defaultPrevented) return;
       if (isTextEntry(event.target)) return;
-      if (event.target instanceof Element && event.target.closest('[role="menu"]')) return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest('[role="menu"], [role="dialog"]')
+      ) {
+        return;
+      }
       if (modalOnScreen()) return;
       event.preventDefault();
       clearSelection();
@@ -343,9 +339,9 @@ export function LibraryPage({
       view: viewPhoto,
       open: fileAction.bind(null, api.openMedia, fail),
       reveal: fileAction.bind(null, api.revealMedia, fail),
-      copy: fileAction.bind(null, api.copyMedia, fail),
+      copy: copyAll.bind(null, fail),
       copyPath: copyPath.bind(null, fail),
-      setDate: setDating,
+      setDate: openDating,
       fileDate: fileDates,
       tripEdit: startEdit,
       makeTrip: createTrip,
@@ -393,23 +389,17 @@ export function LibraryPage({
   }
 
   /**
-   * Explorer-style selection: Ctrl toggles, Shift extends from the last clicked tile, and a
-   * plain click toggles while picking or while anything is picked. Otherwise a plain click
-   * opens the viewer.
+   * Explorer-style selection: Ctrl toggles, Shift extends from the last clicked tile (or with
+   * none, from the tile that had focus, which becomes the anchor), and a plain click toggles
+   * while picking or while anything is picked. Otherwise a plain click opens the viewer.
    * @param index - position of the clicked tile in the shown list
    * @param event - the click, for its modifier keys
+   * @param focused - the tile that had focus before the click, or null
    */
-  function onTileClick(index: number, event: TileEvent): void {
+  function onTileClick(index: number, event: TileEvent, focused: number | null): void {
     if (!tiles) return;
     const id = tiles[index].id;
-    const anchor = anchorId === null ? undefined : indexOf.get(anchorId);
-    if (event.shiftKey && anchor !== undefined) {
-      const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
-      const next = new Set(event.ctrlKey ? selected : []);
-      for (let i = from; i <= to; i += 1) next.add(tiles[i].id);
-      setSelected(next);
-      return;
-    }
+    if (event.shiftKey && extendTo(index, focused, event.ctrlKey)) return;
     if (event.ctrlKey || event.metaKey || selecting) {
       const next = new Set(selected);
       if (next.has(id)) next.delete(id);
@@ -422,8 +412,58 @@ export function LibraryPage({
   }
 
   /**
-   * Right-click menu: the file actions for the photo under the pointer, then the trip changes
-   * for the pick. Outside picking it acts on that photo alone without starting to pick; while
+   * Select the run from the anchor to a tile, or from `from` when there's no anchor, which then
+   * becomes the anchor so further Shift moves extend from the same place.
+   * @param to - the tile the run ends at
+   * @param from - where to start without an anchor, or null
+   * @param keep - keep the selection so far besides the run (Ctrl held too)
+   * @returns false when there was nowhere to start from, so nothing changed
+   */
+  function extendTo(to: number, from: number | null, keep: boolean): boolean {
+    if (!tiles) return false;
+    const anchor = anchorId === null ? undefined : indexOf.get(anchorId);
+    const start = rangeStart(anchor, from, tiles.length);
+    if (start === null) return false;
+    setSelected(selectRange(ids, start, to, keep ? selected : []));
+    if (anchor === undefined) setAnchorId(ids[start]);
+    return true;
+  }
+
+  /**
+   * A month heading's button: shown on hover while nothing is selected, and always while
+   * selecting, when it's also a Tab stop.
+   * @param month - the month row the button belongs to
+   * @returns the button
+   */
+  function monthAction(month: MonthRow): ReactElement {
+    const run = ids.slice(month.start, month.end);
+    return (
+      <MonthPickButton
+        month={month}
+        allPicked={run.every((id) => selected.has(id))}
+        onPick={() => setSelected(toggleRun(selected, run))}
+        onHover={!selecting}
+      />
+    );
+  }
+
+  /**
+   * Start selecting from a tile's hover tick, with that tile picked and the anchor for Shift.
+   * Picking stays on if it's deselected again, as after Select.
+   * @param index - position of the tile in the shown list
+   */
+  function startPicking(index: number): void {
+    if (!tiles) return;
+    const id = tiles[index].id;
+    setPicking(true);
+    setSelected(new Set([id]));
+    setAnchorId(id);
+  }
+
+  /**
+   * Right-click menu: the file actions for the photo under the pointer (Copy takes the whole
+   * pick), then the trip changes for the pick. Outside picking it acts on that photo alone
+   * without starting to pick; while
    * picking, an unpicked photo becomes the whole pick, as in Explorer.
    * @param index - position of the tile in the shown list
    * @param event - the right-click, for where to open the menu
@@ -443,7 +483,7 @@ export function LibraryPage({
   }
 
   /**
-   * Send the photos waiting for confirmation to the Recycle Bin; the job's end shows the result.
+   * Send the photos waiting for confirmation to the Recycle Bin; the job's end shows a toast.
    * They leave the grid at once, and an open viewer moves on to the next photo, closing only when
    * none is left. If the job can't start they come back. They leave the selection too, which
    * ends only when nothing is left in it, so binning one photo from the viewer keeps the rest.
@@ -452,7 +492,6 @@ export function LibraryPage({
     if (binning === null) return;
     const binIds = binning.map((t) => t.id);
     setBinning(null);
-    setBinResult(null);
     const gone = new Set(binIds);
     const kept = [...selected].filter((id) => !gone.has(id));
     if (selected.size > 0 && kept.length === 0) clearSelection();
@@ -463,41 +502,63 @@ export function LibraryPage({
       if (next !== null) setBinnedOpen((n) => n + 1);
     }
     hide(binIds);
-    setBinStarted(true);
+    const forget = toasts.expectJob("remove", { destination: "the Recycle Bin" });
     api.recycleMedia(binIds).catch((err) => {
-      setBinStarted(false);
+      forget();
       unhide(binIds);
-      setError(errorText(err));
+      // A toast, so the failure shows over the viewer too.
+      toasts.show({ text: errorText(err), problem: true });
     });
   }
 
   /**
    * Set the date of some photos in Pic Cabinet, or go back to their files' own dates, then show
-   * the change with its Undo. A photo open in the viewer stays open as it moves in the timeline,
-   * since the viewer follows its id.
+   * the change in a toast with its Undo. A photo open in the viewer stays open as it moves in the
+   * timeline, since the viewer follows its id.
    * @param chosen - the photos
    * @param date - local time, `YYYY-MM-DDTHH:MM:SS`, or null for the files' own dates
    */
   async function saveDates(chosen: Tile[], date: string | null): Promise<void> {
     setSavingDate(true);
+    setDateError(null);
+    // The page error is hidden behind the viewer and the dialog, so a failure shows in the
+    // dialog while it's open and as a toast otherwise.
+    let inDialog = dating !== null;
     try {
       const batch = await api.setDates(
         chosen.map((t) => t.id),
         date,
       );
       const photos = countOf(chosen.length, "item", "items");
-      setDateDone({
-        batch,
+      toasts.show({
+        batchId: batch,
         text: date ? `Date set for ${photos}.` : `Back to the file's own date for ${photos}.`,
       });
       setDating(null);
+      inDialog = false;
       await reload();
       setRevision((r) => r + 1);
     } catch (err) {
-      setError(errorText(err));
+      if (inDialog) setDateError(errorText(err));
+      else toasts.show({ text: errorText(err), problem: true });
     } finally {
       setSavingDate(false);
     }
+  }
+
+  /**
+   * Open the Set date dialog, without a failure left from the last time.
+   * @param chosen - the photos to date
+   */
+  function openDating(chosen: Tile[]): void {
+    setDateError(null);
+    setDating(chosen);
+  }
+
+  /** Close the Set date dialog without changing anything. */
+  function closeDating(): void {
+    setDateError(null);
+    setDating(null);
   }
 
   /**
@@ -525,8 +586,17 @@ export function LibraryPage({
   }
 
   /**
-   * Open, reveal or copy a file.
-   * @param action - {@link api.openMedia}, {@link api.revealMedia} or {@link api.copyMedia}
+   * Put photos' files on the clipboard together.
+   * @param fail - shows the failure
+   * @param chosen - the photos
+   */
+  function copyAll(fail: (err: unknown) => void, chosen: Tile[]): void {
+    api.copyMedia(chosen.map((t) => t.id)).catch(fail);
+  }
+
+  /**
+   * Open or reveal a file.
+   * @param action - {@link api.openMedia} or {@link api.revealMedia}
    * @param fail - shows the failure
    * @param photo - the file's photo
    */
@@ -603,6 +673,8 @@ export function LibraryPage({
    */
   function changeFilter(next: LibraryFilter): void {
     setMenu(null);
+    // Picking the filter already shown keeps the place in the grid and the selection.
+    if (sameFilter(next, filter)) return;
     setFilter(next);
   }
 
@@ -653,13 +725,25 @@ export function LibraryPage({
             )
           ) : selecting ? (
             <>
+              <Button
+                variant="ghost"
+                onClick={clearSelection}
+                title="Done (Esc)"
+                aria-label="Done"
+                className="px-2.5"
+              >
+                <Icon name="close" size={18} />
+              </Button>
               <span className="mr-2 text-[14px] text-muted" aria-live="polite">
-                {selected.size > 0
-                  ? `${countOf(selected.size, "item", "items")} selected`
-                  : "Click photos to add"}
+                {selected.size.toLocaleString()} selected
               </span>
-              <Button variant="ghost" onClick={clearSelection}>
-                Cancel
+              <Button onClick={() => copyAll(showError, picked)} disabled={picked.length === 0}>
+                <Icon name="copy" size={18} />
+                Copy
+              </Button>
+              <Button onClick={() => openDating(picked)} disabled={picked.length === 0}>
+                <Icon name="calendar" size={18} />
+                Set date
               </Button>
               {[...edits.remove, ...edits.putBack].map((edit) => (
                 <Button
@@ -692,13 +776,33 @@ export function LibraryPage({
                 <Icon name="trips" size={18} />
                 Make trip
               </Button>
+              <Button
+                variant="danger"
+                onClick={() => setBinning(picked)}
+                disabled={picked.length === 0}
+                title="Send to the Recycle Bin (Delete)"
+              >
+                <Icon name="bin" size={18} />
+                Recycle Bin
+              </Button>
             </>
           ) : (
             <>
+              {placeTiles !== null && placeTotal > 0 && (
+                <LibraryFilterControls
+                  tiles={placeTiles}
+                  filter={filter}
+                  onChange={changeFilter}
+                  searchBox={searchBox}
+                />
+              )}
+              {count > 0 && (
+                <PhotoSizeControl value={photoSize.size} onChange={photoSize.setSize} />
+              )}
               {count > 0 && (
                 <Button onClick={() => setPicking(true)}>
                   <Icon name="check" size={18} />
-                  Make a trip
+                  Select
                 </Button>
               )}
               {tripInfo && (
@@ -720,7 +824,9 @@ export function LibraryPage({
           )
         }
       />
-      {(error ?? loadError) && <p className="mx-5 mt-3 text-danger">{error ?? loadError}</p>}
+      {(error ?? loadError ?? photoSize.error) && (
+        <p className="mx-5 mt-3 text-danger">{error ?? loadError ?? photoSize.error}</p>
+      )}
       {tripReview.error && (
         <p role="alert" className="mx-5 mt-3 text-danger">
           {tripReview.error}
@@ -728,41 +834,6 @@ export function LibraryPage({
       )}
       {moving && running && <MovingProgress job={running} />}
       {!moving && review !== null && <PlanView preview={review.preview} />}
-      {tripReview.result && !reviewing && (
-        <ResultBanner
-          result={tripReview.result.summary}
-          intro={tripReview.result.done}
-          undoable
-          busy={running !== null}
-          onUndo={() => void tripReview.undo()}
-          onHistory={() => onNavigate("history")}
-        />
-      )}
-
-      {dateDone && !reviewing && (
-        <div className="mx-5 mt-3 flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface p-4">
-          <p className="min-w-0 flex-1 basis-60">{dateDone.text}</p>
-          <Button
-            onClick={() => api.undoBatch(dateDone.batch).catch((err) => setError(errorText(err)))}
-            busy={running !== null}
-          >
-            <Icon name="undo" size={16} />
-            Undo
-          </Button>
-          <Button variant="ghost" onClick={() => setDateDone(null)}>
-            Close
-          </Button>
-        </div>
-      )}
-      {binResult && !reviewing && (
-        <ResultBanner
-          result={binResult}
-          destination="the Recycle Bin"
-          busy={running !== null}
-          onUndo={() => api.undoBatch(binResult.batchId).catch((err) => setError(errorText(err)))}
-          onHistory={() => onNavigate("history")}
-        />
-      )}
       {!reviewing && settings?.codec_hint_dismissed !== "true" && (
         <CodecHint
           failed={failedThumbs}
@@ -772,13 +843,8 @@ export function LibraryPage({
         />
       )}
 
-      {!reviewing && placeTiles !== null && placeTotal > 0 && (
-        <LibraryFilterBar
-          tiles={placeTiles}
-          filter={filter}
-          onChange={changeFilter}
-          searchBox={searchBox}
-        />
+      {!reviewing && placeTotal > 0 && (
+        <LibraryFilterChips filter={filter} onChange={changeFilter} />
       )}
 
       {!reviewing && total > 0 && trip && placeTotal === 0 && (
@@ -820,19 +886,24 @@ export function LibraryPage({
         <TimelineGrid
           ownsHeight
           tiles={tiles}
-          tileSize={tileSizeOf(settings)}
+          tileSize={photoTile(photoSize.size)}
           selecting={selecting}
           selected={selected}
           onTileClick={onTileClick}
+          onTileExtend={(from, to, keep) => extendTo(to, from, keep)}
           onTileMenu={onTileMenu}
+          monthAction={monthAction}
           // While picking, a click picks, so the magnifier is the way to look at a photo.
           onTileZoom={selecting ? (index) => setOpenId(tiles[index].id) : undefined}
+          onTileStart={startPicking}
           onThumbError={onThumbError}
           thumbRetry={thumbRetry}
           showUncertain={filter.uncertain}
           jump={jump}
           onJumpDone={jumpDone}
           place={place}
+          onSizeStep={(step) => photoSize.setSize(stepPhotoSize(photoSize.size, step))}
+          takeFocus
         />
       )}
       {menu && <TileMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)} items={menu.items} />}
@@ -860,7 +931,7 @@ export function LibraryPage({
               <ViewerDate
                 tile={tiles[open]}
                 busy={savingDate}
-                onChange={() => setDating([tiles[open]])}
+                onChange={() => openDating([tiles[open]])}
                 onFileDate={() => void saveDates([tiles[open]], null)}
               />
             </>
@@ -882,8 +953,9 @@ export function LibraryPage({
           items={dating.length}
           initial={dating[0].takenAt}
           busy={savingDate}
+          error={dateError}
           onSave={(date) => void saveDates(dating, date)}
-          onCancel={() => setDating(null)}
+          onCancel={closeDating}
         />
       )}
     </div>

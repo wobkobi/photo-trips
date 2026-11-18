@@ -60,15 +60,101 @@ function compareVersions(a, b) {
 }
 
 /**
+ * Areas of the app in the order release notes list them. A changelog bullet names its area
+ * first ("- **Viewer:** Clicking a photo zooms in"); areas not listed here follow in the order
+ * they first appear, and bullets without one go under General, last.
+ */
+const AREA_ORDER = [
+  "Library",
+  "Viewer",
+  "Trips",
+  "Import",
+  "Phones",
+  "Sort",
+  "Duplicates",
+  "Recycle Bin",
+  "History",
+  "Navigation",
+  "Settings",
+  "Updates",
+];
+
+/** What each changelog heading is called beside a bullet once the notes are grouped by area. */
+const TYPE_LABEL = {
+  Added: "New",
+  Changed: "Changed",
+  Deprecated: "Deprecated",
+  Removed: "Removed",
+  Fixed: "Fixed",
+  Security: "Security",
+};
+
+/**
+ * Regroup changelog notes by area of the app, each bullet labelled with its kind ("- New: ...",
+ * "- Fixed: ..."), so a release reads as what changed where. Notes with no area-tagged bullet
+ * (releases from before areas were used) come back unchanged.
+ * @param {string} notes - "### Added" style groups of single-line bullets
+ * @returns the notes grouped under "### Library" style headings
+ */
+export function byArea(notes) {
+  const lines = notes.split("\n");
+  const tagged = /^- \*\*([^*]+?):\*\*\s+(.*)$/;
+  if (!lines.some((line) => tagged.test(line))) return notes;
+
+  /** @type {Map<string, string[]>} */
+  const areas = new Map();
+  let kind = "";
+  for (const line of lines) {
+    if (line.startsWith("### ")) {
+      kind = line.slice(4).trim();
+      continue;
+    }
+    if (!line.trim()) continue;
+    const match = tagged.exec(line);
+    const area = match ? match[1].trim() : "General";
+    const text = match ? match[2] : line.replace(/^[-*]\s+/, "");
+    const label = TYPE_LABEL[/** @type {keyof typeof TYPE_LABEL} */ (kind)] ?? kind;
+    areas.set(area, [...(areas.get(area) ?? []), label ? `- ${label}: ${text}` : `- ${text}`]);
+  }
+  /**
+   * Where an area sorts: listed areas in {@link AREA_ORDER}, then others, then General.
+   * @param {string} area - area name
+   * @returns {number} its position
+   */
+  const rank = (area) => {
+    if (area === "General") return AREA_ORDER.length + 1;
+    const i = AREA_ORDER.indexOf(area);
+    return i === -1 ? AREA_ORDER.length : i;
+  };
+  return [...areas]
+    .sort(([a], [b]) => rank(a) - rank(b))
+    .map(([area, bullets]) => `### ${area}\n\n${bullets.join("\n")}`)
+    .join("\n\n");
+}
+
+/**
  * Notes for a release: every changelog section after the last published release up to this
  * version, so changes from a version that was never released still reach installed copies.
- * Sections are merged under one heading each ("### Added", "### Fixed"), newest first.
+ * Grouped by area of the app when the changelog names areas, see {@link byArea}.
  * @param {string} changelog - CHANGELOG.md text
  * @param {string} version - version being released
  * @param {string | null} since - last published version, or null to use this version's section alone
  * @returns the notes, or null when the changelog has no section for this version
  */
 export function releaseNotes(changelog, version, since) {
+  const notes = typedNotes(changelog, version, since);
+  return notes && byArea(notes);
+}
+
+/**
+ * {@link releaseNotes} before grouping by area: the sections merged under one heading each
+ * ("### Added", "### Fixed"), newest first.
+ * @param {string} changelog - CHANGELOG.md text
+ * @param {string} version - version being released
+ * @param {string | null} since - last published version, or null for this version's section alone
+ * @returns the notes, or null when the changelog has no section for this version
+ */
+function typedNotes(changelog, version, since) {
   const own = changelogSection(changelog, version);
   if (!own || !since) return own;
   const versions = [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)]
@@ -114,7 +200,7 @@ export function changeHistory(changelog, version) {
     .sort((a, b) => compareVersions(b, a))
     .flatMap((v) => {
       const notes = changelogSection(changelog, v);
-      return notes ? [{ version: v, notes }] : [];
+      return notes ? [{ version: v, notes: byArea(notes) }] : [];
     });
 }
 
@@ -150,8 +236,11 @@ export function assetUrl(version, name) {
   return `https://github.com/${RELEASES_REPO}/releases/download/v${version}/${name}`;
 }
 
-/** Release tag whose beta.json asset is the beta channel's update manifest. */
-export const BETA_FEED_TAG = "beta-feed";
+/**
+ * Branch whose beta.json is the beta channel's update manifest. A branch, not a release asset,
+ * because published releases here are immutable and their files can't be replaced.
+ */
+export const BETA_FEED_BRANCH = "update-feed";
 
 /**
  * Order two release versions, each "x.y.z" or "x.y.z-beta.n". A beta sorts below the release
@@ -218,7 +307,7 @@ export function betaPull(title) {
 
 /**
  * Releases the beta feed can point at, newest first: every finished release and beta, but not
- * the feed's own release or tags that aren't versions.
+ * tags that aren't versions.
  * @param {string[]} tags - tags of the published releases
  * @returns the versions, without their "v"
  */
@@ -227,4 +316,18 @@ export function feedCandidates(tags) {
     .filter((tag) => /^v\d+\.\d+\.\d+(?:-beta\.\d+)?$/.test(tag))
     .map((tag) => tag.slice(1))
     .sort((a, b) => compareReleases(b, a));
+}
+
+/**
+ * Release notes made safe for a GitHub release body, where "@word" mentions a user: GitHub lists
+ * them as contributors and notifies them, so a NAS folder like `@eaDir` pinged a stranger. A
+ * zero-width space after the "@" stops the link and reads the same. Code spans are left alone.
+ * @param {string} notes - release notes markdown
+ * @returns the notes with no mentions
+ */
+export function withoutMentions(notes) {
+  return notes
+    .split(/(`[^`]*`)/)
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(/(^|[^\w])@(?=\w)/g, "$1@\u200B")))
+    .join("");
 }

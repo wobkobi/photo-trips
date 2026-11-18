@@ -170,6 +170,7 @@ pub fn run() {
                         log::warn!("Couldn't save the window's size and place: {err}");
                     }
                     let _ = window.hide();
+                    tray::notify_hidden_once(window.app_handle());
                 }
             }
             if let tauri::WindowEvent::ThemeChanged(theme) = event {
@@ -210,6 +211,7 @@ pub fn run() {
             duplicates::list_duplicates,
             duplicates::remove_duplicates,
             import::scan_import,
+            import::dropped_folder,
             import::import_preview,
             import::apply_import,
             import::discard_import,

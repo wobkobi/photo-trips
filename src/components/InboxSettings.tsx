@@ -61,14 +61,9 @@ export function InboxSettings(): ReactElement {
       error={error}
       detail={
         <>
+          <p>New photos and videos put here move into the library, and can be undone in History.</p>
           <p>
-            New photos and videos put in these folders move into the library by themselves once they
-            finish copying, each to its month or trip folder. Photos already in the library stay
-            where they are. Each batch shows in History, where it can be undone.
-          </p>
-          <p>
-            Files are moved, not copied. In a OneDrive or Dropbox folder that means they leave the
-            cloud too, unless the library is also in that folder.
+            Files are moved, not copied, so in a OneDrive or Dropbox folder they leave the cloud.
           </p>
         </>
       }

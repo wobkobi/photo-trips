@@ -6,8 +6,11 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef } from "react";
 import { api } from "./api";
 
-/** What the menu asks the page to do, on the "menu://action" event. */
-export type MenuRequest = "refresh" | "find" | "about" | "updates";
+/**
+ * What the menu asks the page to do, on the "menu://action" event. "undo" has no menu item; it
+ * comes only from Ctrl+Z pressed in the page.
+ */
+export type MenuRequest = "refresh" | "find" | "about" | "updates" | "undo";
 
 /** Menu item ids by key combination, as written beside each item in menu.rs. */
 const SHORTCUTS: Record<string, string> = {
@@ -58,6 +61,16 @@ export function keyCombo(event: KeyPress): string | null {
 export function shortcutFor(event: KeyPress): string | null {
   const combo = keyCombo(event);
   return combo === null ? null : (SHORTCUTS[combo] ?? null);
+}
+
+/**
+ * Whether a key press is Ctrl+Z, by the character so it stays on Z under AZERTY.
+ * @param event - the keydown
+ * @returns true for Ctrl+Z with no other modifier
+ */
+export function isUndoKey(event: KeyPress): boolean {
+  if (!event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) return false;
+  return event.key.toLowerCase() === "z";
 }
 
 /** A step through the places visited. */
@@ -121,6 +134,15 @@ export function modalOnScreen(): boolean {
 }
 
 /**
+ * Whether the open page holds work that leaving it would lose (a changed trip form, an import
+ * being checked, photos unticked on Sort). Its PageHeader marks itself `data-holds-work`.
+ * @returns true while such a page is open
+ */
+export function holdsWork(): boolean {
+  return document.querySelector("[data-holds-work]") !== null;
+}
+
+/**
  * Runs menu shortcuts typed in the page, and hands the page the menu requests only it can
  * carry out.
  * @param onRequest - called with each request from the menu (or a shortcut for one)
@@ -134,10 +156,20 @@ export function useMenuBar(onRequest: (request: MenuRequest) => void): void {
 
   useEffect(() => {
     /**
-     * Run the menu item bound to a key press, if any.
+     * Run the menu item bound to a key press, if any. Ctrl+Z asks the page to undo the last
+     * change, unless it's for a box being typed in (which undoes its own typing), a modal on
+     * screen, a handler that already used it, or a page holding work that opening History would
+     * lose.
      * @param event - the key press
      */
     function onKeyDown(event: KeyboardEvent): void {
+      if (isUndoKey(event)) {
+        if (event.defaultPrevented || isTextEntry(event.target) || modalOnScreen()) return;
+        if (holdsWork()) return;
+        event.preventDefault();
+        if (!event.repeat) handler.current("undo");
+        return;
+      }
       const id = shortcutFor(event);
       if (!id) return;
       // Also stops WebView2's own use of the keys, like F5 reloading the page or Ctrl+F opening

@@ -5,8 +5,12 @@ use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Wry};
+use tauri_plugin_notification::NotificationExt;
 
+use crate::AppState;
 use crate::commands;
+use crate::commands::lock_db;
+use crate::db;
 use crate::devices::Device;
 use crate::import;
 use crate::watch;
@@ -14,6 +18,8 @@ use crate::watch;
 const PAUSE_ID: &str = "pause";
 const IMPORT_ID: &str = "import";
 const UPDATE_ID: &str = "update";
+/// Set once the "still running in the tray" notice has been shown, so it never repeats.
+const HIDDEN_NOTICE_KEY: &str = "tray_notice_shown";
 
 /// Handle to the "Pause watching" menu item, kept so its label can follow the watcher state.
 struct PauseItem(MenuItem<Wry>);
@@ -100,6 +106,31 @@ pub fn show_main(app: &AppHandle) {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
+    }
+}
+
+/// The first time closing hides the window, say the app is still running in the tray, so the
+/// window going doesn't read as a quit. Noted only once shown, so a notice that fails to show is
+/// tried again on the next close.
+pub fn notify_hidden_once(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let Ok(conn) = lock_db(&state) else { return };
+    if db::get_bool(&conn, HIDDEN_NOTICE_KEY, false).unwrap_or(false) {
+        return;
+    }
+    let shown = app
+        .notification()
+        .builder()
+        .title("Pic Cabinet is still running")
+        .body("Open it again from the tray icon, or choose Quit there to close it.")
+        .show();
+    match shown {
+        Ok(()) => {
+            if let Err(err) = db::set_setting(&conn, HIDDEN_NOTICE_KEY, "true") {
+                log::warn!("Couldn't note the tray notice: {err}");
+            }
+        }
+        Err(err) => log::warn!("Couldn't show the tray notice: {err}"),
     }
 }
 

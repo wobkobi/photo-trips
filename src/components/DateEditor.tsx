@@ -13,6 +13,8 @@ const FILLED = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
  * @param props.items - how many photos and videos get the date
  * @param props.initial - the date to start from, `YYYY-MM-DDTHH:MM:SS`
  * @param props.busy - a change is being saved, so Set date waits
+ * @param props.error - why the last save failed, shown in the dialog since the page behind it
+ *   is out of reach
  * @param props.onSave - set this date, `YYYY-MM-DDTHH:MM:SS`
  * @param props.onCancel - close without changing anything
  * @returns the dialog
@@ -21,12 +23,14 @@ export function DateEditor({
   items,
   initial,
   busy,
+  error,
   onSave,
   onCancel,
 }: {
   items: number;
   initial: string;
   busy: boolean;
+  error?: string | null;
   onSave: (date: string) => void;
   onCancel: () => void;
 }): ReactElement {
@@ -52,6 +56,11 @@ export function DateEditor({
           onChange={(event) => setValue(event.target.value)}
           className={`mt-4 ${INPUT}`}
         />
+        {error && (
+          <p role="alert" className="mt-3 text-danger">
+            {error}
+          </p>
+        )}
         <div className={DIALOG_BUTTONS}>
           <Button variant="primary" type="submit" disabled={!filled} busy={busy}>
             Set date

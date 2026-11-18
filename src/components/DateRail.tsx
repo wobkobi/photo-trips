@@ -1,4 +1,4 @@
-// The strip of years down the right of a photo grid: drag or click it to jump to a month.
+// The strip of years over the right edge of a photo grid: drag or click it to jump to a month.
 
 import {
   useEffect,
@@ -11,13 +11,7 @@ import {
   type ReactElement,
   type RefObject,
 } from "react";
-
-/** A month heading in the grid: its label and how far down the grid it starts, in pixels. */
-export interface RailMonth {
-  key: string;
-  label: string;
-  top: number;
-}
+import { monthAt, type RailMonth } from "../lib/timelineLayout";
 
 /** Year labels closer together than this, in pixels, would overlap, so the later one is left out. */
 const LABEL_GAP = 18;
@@ -25,26 +19,18 @@ const LABEL_GAP = 18;
 const BUBBLE_MS = 900;
 
 /**
- * The month at `offset` pixels down the grid: the last one starting at or above it.
- * @param months - months in grid order
- * @param offset - pixels from the top of the grid
- * @returns the month's index in `months`
+ * Width the rail takes from the right of the grid it lies over (`w-14` plus its `right-1`), so
+ * the grid can keep its tiles clear of it.
  */
-function monthAt(months: RailMonth[], offset: number): number {
-  let lo = 0;
-  let hi = months.length - 1;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (months[mid].top <= offset + 1) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo;
-}
+export const RAIL_SPACE = 60;
 
 /**
- * A rail beside a scrolling grid of months, showing where each year starts at its place in the
- * grid. Dragging or clicking scrolls the grid to that point; hovering names the month there. As a
- * slider, arrow keys step a month, Page Up and Page Down a year, and Home and End go to the ends.
+ * A rail laid over the right edge of a scrolling grid of months, in place of its scrollbar,
+ * showing where each year starts at its place in the grid. Dragging or clicking scrolls the grid
+ * to that point; hovering names the month there. As a slider, arrow keys step a month, Page Up and
+ * Page Down a year, and Home and End go to the ends.
+ * A wheel turn over it scrolls the grid, as it would over the scrollbar it stands in for. The
+ * parent must be positioned, since the rail sits absolutely at its right edge.
  * @param props - Component props.
  * @param props.months - the grid's month headings, newest first, each with where it starts
  * @param props.total - the grid's full height in pixels
@@ -178,6 +164,10 @@ export function DateRail({
       aria-valuenow={current}
       aria-valuetext={months[current].label}
       onKeyDown={onKeyDown}
+      onWheel={(event) => {
+        // Ctrl+wheel is left to the grid's own listener, which resizes the photos.
+        if (!event.ctrlKey) scrollRef.current?.scrollBy({ top: event.deltaY });
+      }}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         dragging.current = true;
@@ -201,7 +191,7 @@ export function DateRail({
         dragging.current = false;
         setHoverY(null);
       }}
-      className="relative my-2 mr-1 w-14 shrink-0 cursor-row-resize touch-none rounded-md select-none hover:bg-raised/60 focus-visible:outline-offset-0"
+      className="absolute top-2 right-1 bottom-2 w-14 cursor-row-resize touch-none rounded-md select-none hover:bg-raised/60 focus-visible:outline-offset-0"
     >
       {months.map((month) => (
         <span

@@ -116,21 +116,25 @@ describe("photoCommands", () => {
     const labels = new Map(commands.map((c) => [c.id, c.label]));
     expect(labels.get("set-date")).toBe("Set date for 3 items");
     expect(labels.get("bin")).toBe("Send 3 items to the Recycle Bin");
+    expect(labels.get("copy")).toBe("Copy 3 photos");
     expect(labels.get("deselect")).toBe("Deselect");
     commands.find((c) => c.id === "bin")?.run();
     expect(handlers.bin).toHaveBeenCalledWith(photos);
     commands.find((c) => c.id === "copy")?.run();
-    expect(handlers.copy).toHaveBeenCalledWith(photos[0]);
+    expect(handlers.copy).toHaveBeenCalledWith(photos);
   });
 
-  it("disables one-photo commands when no one photo is meant", () => {
+  it("leaves out one-photo commands for several photos", () => {
     const handlers = allHandlers();
     const photos = [tile(1), tile(2)];
     const commands = photoCommands({ photo: null, photos, selection: true }, null, handlers);
-    const disabled = commands.filter((c) => c.disabled).map((c) => c.id);
-    expect(disabled).toEqual(["view", "open", "reveal", "copy", "copy-path"]);
+    const ids = commands.map((c) => c.id);
+    for (const id of ["view", "open", "reveal", "copy-path"]) expect(ids).not.toContain(id);
+    expect(commands.some((c) => c.disabled)).toBe(false);
+    const clicked = photoCommands({ photo: photos[0], photos, selection: true }, null, handlers);
+    expect(clicked.map((c) => c.id)).toEqual(ids);
     commands.find((c) => c.id === "copy")?.run();
-    expect(handlers.copy).not.toHaveBeenCalled();
+    expect(handlers.copy).toHaveBeenCalledWith(photos);
   });
 
   it("disables the photo commands for an empty target", () => {
@@ -216,12 +220,15 @@ describe("matchCommand", () => {
     void bin;
     const without = photoCommands(one(tile(1)), null, noBin);
     expect(matchCommand(press("Delete"), without)).toBeNull();
+    const empty = photoCommands({ photo: null, photos: [], selection: true }, null, allHandlers());
+    expect(matchCommand(press("c", { ctrl: true }), empty)).toBeNull();
+    expect(matchCommand(press("Delete"), empty)).toBeNull();
     const many = photoCommands(
       { photo: null, photos: [tile(1), tile(2)], selection: true },
       null,
       allHandlers(),
     );
-    expect(matchCommand(press("c", { ctrl: true }), many)).toBeNull();
+    expect(matchCommand(press("c", { ctrl: true }), many)?.id).toBe("copy");
     expect(matchCommand(press("Delete"), many)?.id).toBe("bin");
   });
 });

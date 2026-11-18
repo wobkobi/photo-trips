@@ -19,7 +19,7 @@ export interface PhotoCommand {
   label: string;
   /** The keys that run it, as written beside it in a menu, e.g. "Ctrl+C". */
   shortcut?: string;
-  /** Shown but not runnable, as when a one-photo command has no single photo to act on. */
+  /** Shown but not runnable, as when a command has no photo to act on. */
   disabled?: boolean;
   /** Starts a new group, drawn with a line above it in a menu. */
   divided?: boolean;
@@ -30,7 +30,7 @@ export interface PhotoCommand {
 export interface CommandTarget {
   /**
    * The one photo for commands that take one: the right-clicked, focused or open photo. Null
-   * when several are selected and none was pointed at, which disables those commands.
+   * when several are selected and none was pointed at; those commands are then left out.
    */
   photo: Tile | null;
   /** The photos for commands that take several: the selection, or just the photo. */
@@ -54,7 +54,7 @@ export interface CommandHandlers {
   view?: (photo: Tile) => void;
   open?: (photo: Tile) => void;
   reveal?: (photo: Tile) => void;
-  copy?: (photo: Tile) => void;
+  copy?: (photos: Tile[]) => void;
   copyPath?: (photo: Tile) => void;
   setDate?: (photos: Tile[]) => void;
   fileDate?: (photos: Tile[]) => void;
@@ -68,22 +68,25 @@ export interface CommandHandlers {
 function nothing(): void {}
 
 /**
- * A command that acts on the target's one photo, disabled when there isn't one.
+ * A command that acts on the target's one photo, disabled when there isn't one and left out
+ * when the target has several photos.
  * @param id - the command's id
  * @param label - its label
  * @param photo - the target's one photo, or null
+ * @param many - whether the target has several photos
  * @param handler - what it does, or undefined to leave it out
  * @param shortcut - its keys, if any
- * @returns the command, or null when there's no handler
+ * @returns the command, or null when there's no handler or the target has several photos
  */
 function onePhoto(
   id: string,
   label: string,
   photo: Tile | null,
+  many: boolean,
   handler: ((photo: Tile) => void) | undefined,
   shortcut?: string,
 ): PhotoCommand | null {
-  if (!handler) return null;
+  if (!handler || many) return null;
   return {
     id,
     label,
@@ -144,14 +147,23 @@ export function photoCommands(
   const { photo, photos } = target;
   const many = photos.length > 1;
   const none = photos.length === 0;
-  const { setDate, fileDate, deselect, bin } = handlers;
+  const { copy, setDate, fileDate, deselect, bin } = handlers;
 
   const file = [
-    onePhoto("view", "View", photo, handlers.view),
-    onePhoto("open", "Open", photo, handlers.open),
-    onePhoto("reveal", "Show in folder", photo, handlers.reveal),
-    onePhoto("copy", "Copy", photo, handlers.copy, "Ctrl+C"),
-    onePhoto("copy-path", "Copy path", photo, handlers.copyPath),
+    onePhoto("view", "View", photo, many, handlers.view),
+    onePhoto("open", "Open", photo, many, handlers.open),
+    onePhoto("reveal", "Show in folder", photo, many, handlers.reveal),
+    // Copy puts every target file on the clipboard at once, as Explorer's Copy does.
+    copy
+      ? {
+          id: "copy",
+          label: many ? `Copy ${count(photos.length, "photo", "photos")}` : "Copy",
+          shortcut: "Ctrl+C",
+          disabled: none,
+          run: copy.bind(null, photos),
+        }
+      : null,
+    onePhoto("copy-path", "Copy path", photo, many, handlers.copyPath),
   ];
 
   const date: (PhotoCommand | null)[] = [];

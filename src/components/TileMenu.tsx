@@ -142,10 +142,12 @@ export function TileMenu({
             onClose();
             item.onSelect();
           }}
-          className={`flex min-h-8.5 w-full items-center justify-between gap-6 px-3 py-1.5 text-left text-[15px] hover:bg-raised focus-visible:bg-raised focus-visible:outline-none active:bg-line disabled:text-muted disabled:hover:bg-transparent ${item.divided ? "mt-1 border-t border-line" : ""}`}
+          className={`flex min-h-8.5 w-full items-center justify-between gap-6 px-3 py-1.5 text-left text-[15px] whitespace-nowrap hover:bg-raised focus-visible:bg-raised focus-visible:outline-none active:bg-line disabled:text-muted disabled:hover:bg-transparent ${item.divided ? "mt-1 border-t border-line" : ""}`}
         >
           {item.label}
-          {item.shortcut && <span className="text-[13px] text-muted">{item.shortcut}</span>}
+          {item.shortcut && (
+            <span className="shrink-0 text-[13px] text-muted tabular-nums">{item.shortcut}</span>
+          )}
         </button>
       ))}
     </div>,

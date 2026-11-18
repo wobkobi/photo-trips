@@ -6,17 +6,15 @@ import {
   type FormEvent,
   type ReactElement,
 } from "react";
-import type { PageId } from "../App";
 import { Field, INPUT } from "../components/Field";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
-import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
+import { MovingProgress, PlanView } from "../components/PlanPreview";
 import { Button, EmptyState, HOVER_RING, LIST_FILL, PageHeader } from "../components/ui";
 import { useLibrarySource } from "../components/viewSources";
 import {
   api,
   errorText,
   thumbUrl,
-  type ApplySummary,
   type Preview,
   type SampleTile,
   type Tile,
@@ -41,6 +39,7 @@ import {
 } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { useSettings } from "../lib/useSettings";
+import { useToasts } from "../lib/useToasts";
 import { useTripMatches } from "../lib/useTripMatches";
 
 const NONE_LEFT: ReadonlySet<number> = new Set();
@@ -102,19 +101,19 @@ interface Review {
   /** Primary button text. */
   action: string;
   danger: boolean;
-  /** First sentence of the result banner once applied. */
+  /** First sentence of the result toast once applied. */
   done: string;
 }
 
 /**
  * Trips: date ranges whose photos live together in their own folder. Create, edit and delete
- * them, each previewed as file moves before anything changes.
+ * them, each previewed as file moves before anything changes. The result shows as a toast with
+ * Undo.
  * @param props - Component props.
  * @param props.draft - a trip started elsewhere (a Library selection or a suggestion) to open
  * @param props.onDraftUsed - called once the draft has opened in the editor
  * @param props.edit - a trip to open in the editor, from the Library's Edit
  * @param props.onEditUsed - called once that trip has opened in the editor
- * @param props.onNavigate - switch to another page
  * @param props.onShowTrip - open the Library showing only one trip's photos
  * @returns the page
  */
@@ -123,17 +122,16 @@ export function TripsPage({
   onDraftUsed,
   edit,
   onEditUsed,
-  onNavigate,
   onShowTrip,
 }: {
   draft: TripStart | null;
   onDraftUsed: () => void;
   edit: TripInfo | null;
   onEditUsed: () => void;
-  onNavigate: (page: PageId) => void;
   onShowTrip: (trip: FilterTrip) => void;
 }): ReactElement {
   const { running } = useJobs();
+  const { expectJob } = useToasts();
   const { settings } = useSettings();
   const [trips, setTrips] = useState<TripInfo[] | null>(null);
   const [editor, setEditor] = useState<Editor | null>(() => {
@@ -141,8 +139,8 @@ export function TripsPage({
     return edit ? editorOf(edit) : null;
   });
   const [review, setReview] = useState<Review | null>(null);
-  const [applying, setApplying] = useState<string | null>(null);
-  const [result, setResult] = useState<{ summary: ApplySummary; done: string } | null>(null);
+  /** The reviewed change is being made, so the job's end closes the review and editor. */
+  const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -166,19 +164,15 @@ export function TripsPage({
   useEffect(load, [load]);
   useJobDone(["index", "remove", "import", "inbox"], load);
   useJobDone("apply", (done) => {
-    if (applying !== null) {
-      if (done.ok) setResult({ summary: done.result as ApplySummary, done: applying });
-      else if (done.error) setError(done.error);
-      setApplying(null);
+    if (applying) {
+      if (!done.ok && done.error) setError(done.error);
+      setApplying(false);
       setReview(null);
       setEditor(null);
     }
     load();
   });
-  useJobDone("undo", () => {
-    setResult(null);
-    load();
-  });
+  useJobDone("undo", load);
 
   /**
    * Plan a trip change and show its moves for review before anything changes.
@@ -236,29 +230,18 @@ export function TripsPage({
   }
 
   /**
-   * Apply the reviewed change; the apply job's end shows the result and closes the editor.
+   * Apply the reviewed change; the apply job's end closes the editor and shows a toast.
    * @param current - the change under review
    */
   async function apply(current: Review): Promise<void> {
     setError(null);
-    setApplying(current.done);
+    setApplying(true);
+    const forget = expectJob("apply", { intro: current.done, undoable: true });
     try {
       await api.applyPlan(current.preview.id);
     } catch (err) {
-      setApplying(null);
-      setError(errorText(err));
-    }
-  }
-
-  /**
-   * Undo the trip change just made, showing any failure as the page error.
-   * @param batchId - the batch to undo
-   */
-  async function undo(batchId: number): Promise<void> {
-    setError(null);
-    try {
-      await api.undoBatch(batchId);
-    } catch (err) {
+      forget();
+      setApplying(false);
       setError(errorText(err));
     }
   }
@@ -275,11 +258,7 @@ export function TripsPage({
   // Back from a review returns to the form it came from, or the list for a delete. Not once the
   // change is confirmed, while its job is starting.
   const onBack =
-    reviewing && applying === null
-      ? () => setReview(null)
-      : editing
-        ? () => setEditor(null)
-        : undefined;
+    reviewing && !applying ? () => setReview(null) : editing ? () => setEditor(null) : undefined;
 
   return (
     <div className="flex h-full flex-col">
@@ -293,13 +272,7 @@ export function TripsPage({
         backKeys={!(editing && editor.changed)}
         actions={
           listing ? (
-            <Button
-              variant="primary"
-              onClick={() => {
-                setResult(null);
-                setEditor(newEditor(null));
-              }}
-            >
+            <Button variant="primary" onClick={() => setEditor(newEditor(null))}>
               New trip
             </Button>
           ) : (
@@ -321,16 +294,6 @@ export function TripsPage({
           {error}
         </p>
       )}
-      {result && listing && (
-        <ResultBanner
-          result={result.summary}
-          intro={result.done}
-          undoable
-          busy={running !== null}
-          onUndo={() => undo(result.summary.batchId)}
-          onHistory={() => onNavigate("history")}
-        />
-      )}
 
       {moving && running && <MovingProgress job={running} />}
       {!moving && review !== null && <PlanView preview={review.preview} note={review.note} />}
@@ -346,9 +309,8 @@ export function TripsPage({
       {listing && trips !== null && trips.length === 0 && (
         <EmptyState title="No trips yet">
           <p>
-            Add the dates you were away, and the photos from those days get their own folder, like{" "}
-            {tripFolder(namingOf(settings).trips, "2025-03-12", "Japan")}. Or select photos in the
-            Library with Make a trip.
+            Add the dates you were away to give those photos their own folder, like{" "}
+            {tripFolder(namingOf(settings).trips, "2025-03-12", "Japan")}.
           </p>
           <Button variant="primary" onClick={() => setEditor(newEditor(null))}>
             New trip
@@ -363,14 +325,8 @@ export function TripsPage({
               trip={trip}
               busy={busy}
               onShow={() => onShowTrip({ id: trip.id, name: trip.name })}
-              onEdit={() => {
-                setResult(null);
-                setEditor(editorOf(trip));
-              }}
-              onDelete={() => {
-                setResult(null);
-                reviewDelete(trip);
-              }}
+              onEdit={() => setEditor(editorOf(trip))}
+              onDelete={() => reviewDelete(trip)}
             />
           ))}
         </ul>

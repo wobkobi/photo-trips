@@ -68,11 +68,33 @@ export function photoSizeOf(settings: Settings | null): string {
 }
 
 /**
+ * Preferred tile edge for a photo size.
+ * @param value - one of the {@link PHOTO_SIZES} values; any other gets Medium's edge
+ * @returns the tile edge in CSS pixels
+ */
+export function photoTile(value: string): number {
+  return PHOTO_SIZES.find((size) => size.value === value)?.tile ?? DEFAULT_TILE;
+}
+
+/**
  * Preferred tile edge for the stored photo size.
  * @param settings - loaded settings
  * @returns the tile edge in CSS pixels
  */
 export function tileSizeOf(settings: Settings | null): number {
-  const value = photoSizeOf(settings);
-  return PHOTO_SIZES.find((size) => size.value === value)?.tile ?? DEFAULT_TILE;
+  return photoTile(photoSizeOf(settings));
+}
+
+/**
+ * The photo size one step bigger or smaller, held at the smallest and largest, for the grid's
+ * size control and Ctrl+wheel.
+ * @param value - the current {@link PHOTO_SIZES} value; any other counts as Medium
+ * @param step - above zero for bigger, below zero for smaller; only the sign counts
+ * @returns the neighbouring size, or the same one at either end
+ */
+export function stepPhotoSize(value: string, step: number): string {
+  const at = PHOTO_SIZES.findIndex((size) => size.value === value);
+  const from = at < 0 ? PHOTO_SIZES.findIndex((size) => size.value === DEFAULT_PHOTO) : at;
+  const to = Math.min(PHOTO_SIZES.length - 1, Math.max(0, from + Math.sign(step)));
+  return PHOTO_SIZES[to].value;
 }
