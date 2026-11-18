@@ -1,0 +1,102 @@
+# Publishes a beta of every push to an open pull request, e.g. 0.31.0-beta.2, for copies with
+# Beta updates on. Betas are GitHub pre-releases, never the latest release, so everyone else
+# keeps getting only what's merged into main. Closing the pull request (merged or not) deletes
+# its betas.
+#
+# A pull request that leaves the version at one already released (CI or docs only) builds no
+# beta, since it would sort below the release and no copy would take it. Pull requests from
+# forks build nothing: the signing key isn't given to them.
+name: Beta
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+# A new push replaces a beta still building for the same pull request, and closing it stops one
+concurrency:
+  group: beta-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  beta:
+    name: Publish a beta
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    outputs:
+      published: ${{ steps.publish.outcome == 'success' }}
+    steps:
+      # The pull request's own commit, not the merge with its base GitHub checks out by default
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check for an unreleased version
+        id: version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if gh release view "v$version" > /dev/null 2>&1; then
+            echo "v$version is already released, so there's no beta. Bump the version for one."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.version.outputs.new == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      # Shares the release workflow's cache, so a beta starts from main's compiled dependencies
+      - if: steps.version.outputs.new == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          shared-key: release
+          save-if: false
+
+      - if: steps.version.outputs.new == 'true'
+        run: npm ci
+
+      - name: Write the signing key
+        if: steps.version.outputs.new == 'true'
+        shell: bash
+        env:
+          KEY: ${{ secrets.PHOTO_TRIPS_UPDATER_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::The PHOTO_TRIPS_UPDATER_KEY secret is missing, so the beta can't be signed."
+            exit 1
+          fi
+          printf '%s' "$KEY" > "$RUNNER_TEMP/updater.key"
+          echo "PHOTO_TRIPS_UPDATER_KEY=$RUNNER_TEMP/updater.key" >> "$GITHUB_ENV"
+
+      - name: Build, sign and publish
+        id: publish
+        if: steps.version.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run release -- --beta ${{ github.event.pull_request.number }}
+
+  feed:
+    name: Point the beta feed at the newest release
+    needs: beta
+    if: always() && (needs.beta.outputs.published == 'true' || github.event.action == 'closed') && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    # One feed update at a time across every pull request and main
+    concurrency:
+      group: beta-feed
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Update the feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/beta-feed.mjs ${{ github.event.action == 'closed' && format('--drop {0}', github.event.pull_request.number) || '' }}
