@@ -97,8 +97,8 @@ pub fn run(
                 group_key = excluded.group_key, kind = excluded.kind, size = excluded.size,
                 mtime = excluded.mtime, taken_at = excluded.taken_at,
                 tz_offset_min = excluded.tz_offset_min, date_source = excluded.date_source,
-                lat = excluded.lat, lon = excluded.lon, hash = NULL,
-                indexed_at = excluded.indexed_at",
+                lat = excluded.lat, lon = excluded.lon, hash = NULL, fingerprint = NULL,
+                camera = NULL, indexed_at = excluded.indexed_at",
         )?;
         let now = db::now();
         for file in &new_rows {

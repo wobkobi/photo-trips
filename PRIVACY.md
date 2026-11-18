@@ -20,7 +20,11 @@ ever read, never written to. From each file it reads:
 - when it was taken, from the details stored inside the photo or video
 - where it was taken, if the file has GPS coordinates
 
-It also works out a fingerprint (a hash) of each file's contents, to spot identical copies.
+It also works out a fingerprint (a hash) of each file's contents, to spot identical copies. For
+files that might be copies of each other with different details, such as a re-saved video, it works
+out a second fingerprint of just the picture or video, leaving the details out, and notes whether
+the file names the camera that took it, to suggest which copy to keep. The camera's name itself
+isn't kept.
 
 When you look at a photo or video full size, the app also reads the camera or phone it was taken
 with, its size in pixels, and the camera's settings, to show beside it. These are read again each

@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.60.0] - 2026-11-18
+
+### Added
+
+- Duplicates also finds copies of the same picture or video whose details differ, such as
+  re-exported Live Photo clips, and suggests keeping the copy with a location, date and camera
+
 ## [0.59.8] - 2026-11-18
 
 ### Fixed
