@@ -159,6 +159,9 @@ pub fn run() {
                     .ok()
                     .and_then(|conn| db::get_bool(&conn, "close_to_tray", true).ok())
                     .unwrap_or(true);
+                // Leave fullscreen first, so the saved place is the window's own and, from the
+                // tray, it comes back with its menu bar.
+                commands::leave_fullscreen(window);
                 if to_tray {
                     api.prevent_close();
                     // The plugin writes its file only when the app exits, and an app living in
@@ -179,6 +182,7 @@ pub fn run() {
             commands::index_library,
             commands::job_status,
             commands::cancel_job,
+            commands::set_fullscreen,
             library::library_tiles,
             library::media_detail,
             library::open_media,

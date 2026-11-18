@@ -22,6 +22,7 @@ function togglePlay(el: HTMLVideoElement | null): void {
  * @param props.poster - a still shown until it plays
  * @param props.label - the file's name, for screen readers
  * @param props.onError - the webview can't play it
+ * @param props.onEnded - it played to the end
  * @returns the video and its controls
  */
 export function VideoPlayer({
@@ -29,11 +30,13 @@ export function VideoPlayer({
   poster,
   label,
   onError,
+  onEnded,
 }: {
   src: string;
   poster: string;
   label: string;
   onError: () => void;
+  onEnded?: () => void;
 }): ReactElement {
   const video = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -107,6 +110,7 @@ export function VideoPlayer({
           saveVolume(next);
         }}
         onError={onError}
+        onEnded={onEnded}
         className="min-h-0 max-w-full cursor-pointer object-contain"
       />
 

@@ -28,6 +28,9 @@ function tile(id: number, takenAt: string, extra: Partial<Tile> = {}): Tile {
     uncertain: false,
     dateSet: false,
     extra: 0,
+    live: false,
+    rawTwin: false,
+    linked: [],
     version: 0,
     trip: null,
     empty: false,
@@ -74,6 +77,13 @@ describe("filterTiles", () => {
     expect(ids(filterTiles(tiles, { ...NO_FILTER, name: ".JPG" }))).toEqual([1, 2, 3, 4]);
     expect(ids(filterTiles(tiles, { ...NO_FILTER, name: "beach" }))).toEqual([]);
     expect(isFiltered({ ...NO_FILTER, name: "  " })).toBe(false);
+  });
+
+  it("finds a tile by the name of a file that goes with it", () => {
+    const pair = [tile(5, "2025-03-12T10:00:00", { linked: ["IMG_5.MOV", "IMG_5.DNG"] })];
+    expect(ids(filterTiles(pair, { ...NO_FILTER, name: "img_5.dng" }))).toEqual([5]);
+    expect(ids(filterTiles(pair, { ...NO_FILTER, name: ".mov" }))).toEqual([5]);
+    expect(ids(filterTiles(pair, { ...NO_FILTER, name: ".aae" }))).toEqual([]);
   });
 
   it("combines every part", () => {

@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
 use tauri::window::Color;
-use tauri::{AppHandle, Manager, State, Theme};
+use tauri::{AppHandle, Emitter, Manager, State, Theme, Window};
 
 use crate::AppState;
 use crate::db;
@@ -102,6 +102,53 @@ pub fn apply_ground(app: &AppHandle, theme: Theme) {
     if let Err(err) = window.set_background_color(Some(ground)) {
         log::warn!("Couldn't set the window colour: {err}");
     }
+}
+
+/// Sent with true or false whenever the main window enters or leaves fullscreen, so the viewer's
+/// button follows a change made outside it (hiding to the tray leaves fullscreen).
+pub const FULLSCREEN_EVENT: &str = "fullscreen://changed";
+
+/// Put the window in or out of fullscreen and tell the page. Windows keeps a window's menu bar
+/// across the top of the screen in fullscreen, so the menu hides on the way in and comes back on
+/// the way out, or when fullscreen can't be entered.
+pub fn fullscreen(window: &Window, on: bool) -> tauri::Result<()> {
+    if on {
+        window.hide_menu()?;
+        if let Err(err) = window.set_fullscreen(true) {
+            let _ = window.show_menu();
+            return Err(err);
+        }
+    } else {
+        window.set_fullscreen(false)?;
+        window.show_menu()?;
+    }
+    window.app_handle().emit(FULLSCREEN_EVENT, on)
+}
+
+/// Leave fullscreen if the window is in it, so the place the window-state plugin saves is the
+/// window's own rather than the whole monitor. A failure is only logged, since the window is on
+/// its way to hiding or closing either way.
+pub fn leave_fullscreen(window: &Window) {
+    if window.is_fullscreen().unwrap_or(false)
+        && let Err(err) = fullscreen(window, false)
+    {
+        log::warn!("Couldn't leave fullscreen: {err}");
+    }
+}
+
+/// Quit the app, for Ctrl+Q and the tray's Quit, leaving fullscreen first so the saved window
+/// place isn't the whole monitor.
+pub fn quit(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        leave_fullscreen(&window.as_ref().window());
+    }
+    app.exit(0);
+}
+
+/// Enter or leave fullscreen, for the photo viewer's F and F11 keys and its button.
+#[tauri::command]
+pub fn set_fullscreen(window: Window, on: bool) -> Result<()> {
+    Ok(fullscreen(&window, on)?)
 }
 
 /// Let the webview load files from the library through the asset protocol (full-size photos,

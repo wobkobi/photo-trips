@@ -73,15 +73,18 @@ export function useLibrarySource(ids: number[], revision = 0): ViewSource {
  */
 function libraryItem(detail: MediaDetail): ViewItem {
   const shown = detail.kind === "video" ? detail.playable : detail.viewable;
+  const clip = detail.kind === "video" ? undefined : detail.members.find((m) => m.kind === "video");
   warmLibraryFacts(detail);
   return {
     name: detail.name,
     kind: detail.kind,
+    takenAt: detail.takenAt,
     original: shown ? fileUrl(detail.path) : null,
     missing: detail.missing,
     empty: detail.empty,
     preview: thumbUrl(detail.id, detail.version, true),
     thumb: thumbUrl(detail.id, detail.version),
+    live: clip?.playable ? fileUrl(clip.path) : undefined,
     facts: <LibraryFacts detail={detail} />,
   };
 }
@@ -150,6 +153,7 @@ function importItem(
   return {
     name: splitPath(item.from).name,
     kind: item.kind,
+    takenAt: item.takenAt,
     original: shown ? fileUrl(file.path) : null,
     missing: file.missing,
     // Empty files are left out of an import, so none is ever previewed.

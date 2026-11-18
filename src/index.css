@@ -53,6 +53,15 @@
   /* Windows' own font, so the app reads as part of the system; Exo is kept for the name. */
   --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --font-brand: "Exo Variable", "Exo", "Segoe UI", system-ui, sans-serif;
+
+  /* A dialog fades in with a slight grow, quick enough not to hold up the answer. */
+  --animate-dialog-in: dialog-in 120ms ease-out;
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
 }
 
 /* A near-black stage for photos shown large, and for badges drawn over thumbnails, in either

@@ -24,6 +24,12 @@ export interface Tile {
   dateSet: boolean;
   /** Companion files (Live Photo video, RAW twin, sidecars). */
   extra: number;
+  /** A photo with its Live Photo clip. */
+  live: boolean;
+  /** A photo with a RAW copy of itself. */
+  rawTwin: boolean;
+  /** Names of the companion files, so a name search finds the tile by them. */
+  linked: string[];
   version: number;
   /** Trip the photo was taken during. */
   trip: TileTrip | null;
@@ -41,9 +47,12 @@ export interface TileTrip {
 
 export interface MediaMember {
   id: number;
+  path: string;
   name: string;
   kind: MediaKind;
   size: number;
+  /** A video the built-in player should try. */
+  playable: boolean;
 }
 
 export interface MediaDetail {
@@ -514,6 +523,12 @@ export const api = {
    * @returns resolves once the item has run
    */
   menuAction: (id: string) => invoke<void>("menu_action", { id }),
+  /**
+   * Put the window in or out of fullscreen; the menu bar hides while it is in.
+   * @param on - true to enter fullscreen, false to leave it
+   * @returns resolves once changed
+   */
+  setFullscreen: (on: boolean) => invoke<void>("set_fullscreen", { on }),
   /**
    * The update the last check found, without checking again.
    * @returns the update, or null when none was found

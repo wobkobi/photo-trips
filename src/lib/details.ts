@@ -2,7 +2,6 @@
 // side panel.
 
 import type { FileDetails } from "./api";
-import { count } from "./format";
 
 /** Company words some makers put after their name ("NIKON CORPORATION", "Minolta Co., Ltd."). */
 const COMPANY =
@@ -58,8 +57,9 @@ function short(n: number): string {
 }
 
 /**
- * A picture's size, e.g. "4032 × 3024 pixels (12 megapixels)". Megapixels are left off videos,
- * where nobody counts them.
+ * A picture's size, e.g. "4032 × 3024 · 12 MP". Megapixels are whole from 10 up, one decimal
+ * below ("3.1 MP", "0.3 MP"), and left off videos, where nobody counts them, and off pictures
+ * too small to round to 0.1.
  * @param details - the file's details
  * @param video - whether the file is a video
  * @returns the text, or null when the file doesn't say
@@ -67,50 +67,30 @@ function short(n: number): string {
 export function sizeText(details: FileDetails, video: boolean): string | null {
   const { width, height } = details;
   if (!width || !height) return null;
-  const pixels = `${width} × ${height} pixels`;
+  const pixels = `${width} × ${height}`;
   const mega = (width * height) / 1_000_000;
-  if (video || mega < 0.95) return pixels;
-  return `${pixels} (${mega >= 10 ? Math.round(mega) : short(mega)} megapixels)`;
+  if (video || mega < 0.05) return pixels;
+  return `${pixels} · ${mega >= 10 ? Math.round(mega) : short(mega)} MP`;
 }
 
 /**
- * A video's length in words, e.g. "2 minutes 14 seconds". Seconds are left off past an hour.
- * @param seconds - the length
- * @returns the text
- */
-export function durationText(seconds: number): string {
-  const total = Math.round(seconds);
-  if (total < 1) return "Under a second";
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const secs = total % 60;
-  const parts = [];
-  if (hours) parts.push(count(hours, "hour", "hours"));
-  if (minutes) parts.push(count(minutes, "minute", "minutes"));
-  if (secs && !hours) parts.push(count(secs, "second", "seconds"));
-  return parts.join(" ");
-}
-
-/**
- * The camera's settings for the shot, as label and value pairs in the order photographers read
- * them. Only the ones the file records.
+ * The camera's settings for the shot as label and value pairs, in the order photographers read
+ * them: aperture, shutter, ISO, focal length. Only the ones the file records; the lens is kept
+ * apart because it is too long to share their line.
  * @param details - the file's details
- * @returns e.g. [["Aperture", "f/1.6"], ["Shutter speed", "1/120 second"]]
+ * @returns e.g. [["Aperture", "f/1.6"], ["Shutter speed", "1/120 s"]]
  */
 export function cameraSettings(details: FileDetails): [string, string][] {
-  const { lens, fNumber, exposure, iso, focalLength, focal35 } = details;
+  const { fNumber, exposure, iso, focalLength, focal35 } = details;
   const settings: [string, string][] = [];
-  if (lens) settings.push(["Lens", lens]);
   if (fNumber) settings.push(["Aperture", `f/${short(fNumber)}`]);
   if (exposure) {
     settings.push([
       "Shutter speed",
-      exposure >= 1
-        ? `${short(exposure)} ${exposure === 1 ? "second" : "seconds"}`
-        : `1/${Math.round(1 / exposure)} second`,
+      exposure >= 1 ? `${short(exposure)} s` : `1/${Math.round(1 / exposure)} s`,
     ]);
   }
-  if (iso) settings.push(["ISO", String(iso)]);
+  if (iso) settings.push(["ISO", `ISO ${iso}`]);
   // The full-frame figure is the one people compare between cameras; a phone's real 5 mm isn't.
   const focal = focal35 ?? focalLength;
   if (focal) settings.push(["Focal length", `${short(focal)} mm`]);

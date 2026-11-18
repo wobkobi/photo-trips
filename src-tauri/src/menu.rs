@@ -219,7 +219,7 @@ fn run(app: &AppHandle, id: &str) -> bool {
                 let _ = window.close();
             }
         }
-        QUIT => app.exit(0),
+        QUIT => commands::quit(app),
         SETTINGS => navigate(app, "settings"),
         HELP => navigate(app, "help"),
         PAUSE => watch::toggle_pause(app),
