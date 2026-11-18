@@ -34,6 +34,7 @@ const WRITABLE_SETTINGS: &[&str] = &[
     "tour_done",
     "theme",
     crate::updater::BETA_KEY,
+    crate::devices::NOTIFY_SETTING,
 ];
 
 /// Text sizes offered in Settings, as page zoom percentages. Zoom scales the whole page, so
@@ -237,6 +238,11 @@ pub fn set_setting(
         }
         crate::updater::BETA_KEY if value != "true" && value != "false" => {
             return Err(Error::msg("Beta updates must be true or false"));
+        }
+        crate::devices::NOTIFY_SETTING
+            if !crate::devices::NOTIFY_CHOICES.contains(&value.as_str()) =>
+        {
+            return Err(Error::msg("Choose one of the notification choices shown"));
         }
         _ => {}
     }

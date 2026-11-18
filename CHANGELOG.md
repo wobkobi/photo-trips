@@ -16,6 +16,9 @@ All notable changes to this project are documented here. The format follows
 - **Sort:** Names the folders that look like trips before spreading their files into month folders,
   with a button to make them trips first.
 - **Import:** Clicking the notification for a card or phone opens Import and checks that device.
+- **Import:** A card or phone plugged in again is announced at most once a week, so charging a phone
+  doesn't bring a notification each time. Settings > Window can change it to every time, once a day
+  or never.
 
 ### Fixed
 
