@@ -2,8 +2,13 @@
 // a GitHub release tagged on the current commit. Installed copies find it on their next update
 // check.
 //
-//   npm run release             build, then publish
-//   npm run release -- --dry-run  build and stage the files, without publishing
+//   npm run release                     build, then publish
+//   npm run release -- --dry-run        build and stage the files, without publishing
+//   npm run release -- --beta 49        publish a pre-release, e.g. 0.31.0-beta.2, for pull request 49
+//
+// A beta is numbered one past the highest beta of the package.json version already published,
+// and is never GitHub's latest release, so only copies with Beta updates on are offered it (once
+// scripts/beta-feed.mjs points the feed at it).
 //
 // Signing uses the private key at ~/.tauri/photo-trips-updater.key (or the path in
 // PHOTO_TRIPS_UPDATER_KEY). It never goes in the repo: anyone holding it can ship an update.
@@ -17,13 +22,18 @@ import {
   RELEASES_REPO,
   assetName,
   assetUrl,
+  betaTitle,
   changeHistory,
   manifest,
+  nextBeta,
   releaseNotes,
+  withoutMentions,
 } from "./release-lib.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const dryRun = process.argv.includes("--dry-run");
+const betaFlag = process.argv.indexOf("--beta");
+const pull = betaFlag === -1 ? null : Number(process.argv[betaFlag + 1]);
 
 /**
  * Stop with a message.
@@ -46,7 +56,33 @@ function run(cmd, args, options = {}) {
   return result.status === 0 ? (result.stdout ?? "").trim() : null;
 }
 
-const version = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
+if (pull !== null && !(Number.isInteger(pull) && pull > 0)) {
+  fail("--beta needs the pull request number, e.g. --beta 49.");
+}
+const packageVersion = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
+
+// A beta takes the next free number, so it needs every published tag
+let version = packageVersion;
+if (pull !== null) {
+  const tags = run("gh", [
+    "release",
+    "list",
+    "--repo",
+    RELEASES_REPO,
+    "--limit",
+    "1000",
+    "--json",
+    "tagName",
+    "--jq",
+    ".[].tagName",
+  ]);
+  if (tags === null) fail("couldn't list the published releases. Is gh signed in?");
+  // A beta of a version that's already out would sort below it, so no copy would take it
+  if (tags.split("\n").includes(`v${packageVersion}`)) {
+    fail(`${packageVersion} is already released. Bump the version for a beta.`);
+  }
+  version = nextBeta(packageVersion, tags.split("\n"));
+}
 const tag = `v${version}`;
 
 // Preflight: a release must match a pushed commit, have notes, and not exist yet.
@@ -54,7 +90,10 @@ const head = run("git", ["rev-parse", "HEAD"]);
 if (!dryRun && run("git", ["status", "--porcelain"]) !== "") {
   fail("the working tree has uncommitted changes. Commit them first.");
 }
-if (!dryRun && !run("git", ["branch", "-r", "--contains", "HEAD"])) {
+// Actions checks a pull request out by commit, with no remote branch to find it on, but that
+// commit came from GitHub so it's pushed
+const fromGitHub = pull !== null && process.env.GITHUB_ACTIONS === "true";
+if (!dryRun && !fromGitHub && !run("git", ["branch", "-r", "--contains", "HEAD"])) {
   fail("this commit isn't pushed, and the release tag points at it. Push it first.");
 }
 // The notes cover every version since the last published release, so one that was never
@@ -71,8 +110,8 @@ const latestTag = run("gh", [
 ]);
 const since = latestTag ? latestTag.replace(/^v/, "") : null;
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
-const notes = releaseNotes(changelog, version, since);
-if (!notes) fail(`CHANGELOG.md has no section for ${version}.`);
+const notes = releaseNotes(changelog, packageVersion, since);
+if (!notes) fail(`CHANGELOG.md has no section for ${packageVersion}.`);
 
 if (!dryRun && run("gh", ["release", "view", tag, "--repo", RELEASES_REPO]) !== null) {
   fail(`${tag} is already published on ${RELEASES_REPO}. Bump the version first.`);
@@ -89,10 +128,11 @@ const keyPath =
   process.env.PHOTO_TRIPS_UPDATER_KEY ?? join(homedir(), ".tauri", "photo-trips-updater.key");
 if (!existsSync(keyPath)) fail(`no signing key at ${keyPath}.`);
 
-// Build with updater artifacts on, which also signs the installer.
+// Build with updater artifacts on, which also signs the installer. The version set here wins
+// over package.json's, which is how a beta gets its "-beta.n".
 const configPath = join(root, "src-tauri", "target", "release-config.json");
 mkdirSync(join(root, "src-tauri", "target"), { recursive: true });
-writeFileSync(configPath, JSON.stringify({ bundle: { createUpdaterArtifacts: true } }));
+writeFileSync(configPath, JSON.stringify({ version, bundle: { createUpdaterArtifacts: true } }));
 console.log(`release: building Pic Cabinet ${version}`);
 const cli = join(root, "node_modules", "@tauri-apps", "cli", "tauri.js");
 const build = spawnSync(process.execPath, [cli, "build", "--config", configPath], {
@@ -121,14 +161,14 @@ const latest = join(stage, "latest.json");
 const announce = manifest({
   version,
   notes,
-  changes: changeHistory(changelog, version),
+  changes: changeHistory(changelog, packageVersion),
   signature: readFileSync(`${built}.sig`, "utf8"),
   url: assetUrl(version, name),
   date: new Date(),
 });
 writeFileSync(latest, `${JSON.stringify(announce, null, 2)}\n`);
 const notesFile = join(stage, "notes.md");
-writeFileSync(notesFile, `${notes}\n`);
+writeFileSync(notesFile, `${withoutMentions(notes)}\n`);
 
 if (dryRun) {
   console.log(`release: dry run, nothing published. Files are in ${stage}`);
@@ -144,12 +184,12 @@ const published = spawnSync(
     "--repo",
     RELEASES_REPO,
     "--title",
-    `Pic Cabinet ${version}`,
+    pull === null ? `Pic Cabinet ${version}` : betaTitle(version, pull),
     "--notes-file",
     notesFile,
     "--target",
     head,
-    "--latest",
+    ...(pull === null ? ["--latest"] : ["--prerelease", "--latest=false"]),
     installer,
     latest,
   ],
@@ -159,20 +199,25 @@ if (published.status !== 0)
   fail("publishing failed. Nothing was released if gh said so; check the releases page.");
 
 // What installed copies will read on their next check. GitHub's latest redirect can lag a new
-// release by a few seconds, so retry for up to a minute before calling it a failure.
+// release by a few seconds, so retry for up to a minute before calling it a failure. A beta is
+// read from its own release until the beta feed is pointed at it.
+const manifestUrl =
+  pull === null
+    ? `https://github.com/${RELEASES_REPO}/releases/latest/download/latest.json`
+    : assetUrl(version, "latest.json");
 let live = null;
 let status = 0;
 for (let attempt = 0; attempt < 6 && live?.version !== version; attempt++) {
   if (attempt > 0) await new Promise((done) => setTimeout(done, 10_000));
-  const check = await fetch(
-    `https://github.com/${RELEASES_REPO}/releases/latest/download/latest.json?t=${Date.now()}`,
-  );
+  const check = await fetch(`${manifestUrl}?t=${Date.now()}`);
   status = check.status;
   live = check.ok ? await check.json() : null;
 }
 if (live?.version !== version) {
-  fail(`published, but the latest release reads ${live?.version ?? `HTTP ${status}`}.`);
+  fail(`published, but ${manifestUrl} reads ${live?.version ?? `HTTP ${status}`}.`);
 }
 console.log(
-  `release: published Pic Cabinet ${version}. Installed copies will offer it within a day.`,
+  pull === null
+    ? `release: published Pic Cabinet ${version}. Installed copies will offer it within a day.`
+    : `release: published beta ${version} for #${pull}.`,
 );

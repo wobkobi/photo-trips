@@ -60,15 +60,101 @@ function compareVersions(a, b) {
 }
 
 /**
+ * Areas of the app in the order release notes list them. A changelog bullet names its area
+ * first ("- **Viewer:** Clicking a photo zooms in"); areas not listed here follow in the order
+ * they first appear, and bullets without one go under General, last.
+ */
+const AREA_ORDER = [
+  "Library",
+  "Viewer",
+  "Trips",
+  "Import",
+  "Phones",
+  "Sort",
+  "Duplicates",
+  "Recycle Bin",
+  "History",
+  "Navigation",
+  "Settings",
+  "Updates",
+];
+
+/** What each changelog heading is called beside a bullet once the notes are grouped by area. */
+const TYPE_LABEL = {
+  Added: "New",
+  Changed: "Changed",
+  Deprecated: "Deprecated",
+  Removed: "Removed",
+  Fixed: "Fixed",
+  Security: "Security",
+};
+
+/**
+ * Regroup changelog notes by area of the app, each bullet labelled with its kind ("- New: ...",
+ * "- Fixed: ..."), so a release reads as what changed where. Notes with no area-tagged bullet
+ * (releases from before areas were used) come back unchanged.
+ * @param {string} notes - "### Added" style groups of single-line bullets
+ * @returns the notes grouped under "### Library" style headings
+ */
+export function byArea(notes) {
+  const lines = notes.split("\n");
+  const tagged = /^- \*\*([^*]+?):\*\*\s+(.*)$/;
+  if (!lines.some((line) => tagged.test(line))) return notes;
+
+  /** @type {Map<string, string[]>} */
+  const areas = new Map();
+  let kind = "";
+  for (const line of lines) {
+    if (line.startsWith("### ")) {
+      kind = line.slice(4).trim();
+      continue;
+    }
+    if (!line.trim()) continue;
+    const match = tagged.exec(line);
+    const area = match ? match[1].trim() : "General";
+    const text = match ? match[2] : line.replace(/^[-*]\s+/, "");
+    const label = TYPE_LABEL[/** @type {keyof typeof TYPE_LABEL} */ (kind)] ?? kind;
+    areas.set(area, [...(areas.get(area) ?? []), label ? `- ${label}: ${text}` : `- ${text}`]);
+  }
+  /**
+   * Where an area sorts: listed areas in {@link AREA_ORDER}, then others, then General.
+   * @param {string} area - area name
+   * @returns {number} its position
+   */
+  const rank = (area) => {
+    if (area === "General") return AREA_ORDER.length + 1;
+    const i = AREA_ORDER.indexOf(area);
+    return i === -1 ? AREA_ORDER.length : i;
+  };
+  return [...areas]
+    .sort(([a], [b]) => rank(a) - rank(b))
+    .map(([area, bullets]) => `### ${area}\n\n${bullets.join("\n")}`)
+    .join("\n\n");
+}
+
+/**
  * Notes for a release: every changelog section after the last published release up to this
  * version, so changes from a version that was never released still reach installed copies.
- * Sections are merged under one heading each ("### Added", "### Fixed"), newest first.
+ * Grouped by area of the app when the changelog names areas, see {@link byArea}.
  * @param {string} changelog - CHANGELOG.md text
  * @param {string} version - version being released
  * @param {string | null} since - last published version, or null to use this version's section alone
  * @returns the notes, or null when the changelog has no section for this version
  */
 export function releaseNotes(changelog, version, since) {
+  const notes = typedNotes(changelog, version, since);
+  return notes && byArea(notes);
+}
+
+/**
+ * {@link releaseNotes} before grouping by area: the sections merged under one heading each
+ * ("### Added", "### Fixed"), newest first.
+ * @param {string} changelog - CHANGELOG.md text
+ * @param {string} version - version being released
+ * @param {string | null} since - last published version, or null for this version's section alone
+ * @returns the notes, or null when the changelog has no section for this version
+ */
+function typedNotes(changelog, version, since) {
   const own = changelogSection(changelog, version);
   if (!own || !since) return own;
   const versions = [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)]
@@ -114,7 +200,7 @@ export function changeHistory(changelog, version) {
     .sort((a, b) => compareVersions(b, a))
     .flatMap((v) => {
       const notes = changelogSection(changelog, v);
-      return notes ? [{ version: v, notes }] : [];
+      return notes ? [{ version: v, notes: byArea(notes) }] : [];
     });
 }
 
@@ -148,4 +234,97 @@ export function manifest({ version, notes, changes, signature, url, date }) {
  */
 export function assetUrl(version, name) {
   return `https://github.com/${RELEASES_REPO}/releases/download/v${version}/${name}`;
+}
+
+/** Release tag whose beta.json asset is the beta channel's update manifest. */
+export const BETA_FEED_TAG = "beta-feed";
+
+/**
+ * Order two release versions, each "x.y.z" or "x.y.z-beta.n". A beta sorts below the release
+ * it leads up to, as semver has it, so a beta tester moves on to the finished version.
+ * @param {string} a - first version
+ * @param {string} b - second version
+ * @returns negative, zero or positive, as a is older than, equal to or newer than b
+ */
+export function compareReleases(a, b) {
+  const [x, y] = [a, b].map(splitRelease);
+  const core = compareVersions(x.core, y.core);
+  if (core !== 0) return core;
+  if (x.beta === y.beta) return 0;
+  return x.beta - y.beta;
+}
+
+/**
+ * Split a release version into its x.y.z and beta number.
+ * @param {string} version - "x.y.z" or "x.y.z-beta.n"
+ * @returns {{ core: string, beta: number }} the beta number is Infinity for a finished release,
+ *   which outranks every beta of it
+ */
+function splitRelease(version) {
+  const match = /^(\d+\.\d+\.\d+)(?:-beta\.(\d+))?$/.exec(version);
+  if (!match) throw new Error(`not a release version: ${version}`);
+  return { core: match[1], beta: match[2] === undefined ? Infinity : Number(match[2]) };
+}
+
+/**
+ * The next beta of a version: one past the highest beta of it already published, so beta numbers
+ * count up across every pull request without gaps.
+ * @param {string} version - package.json version, e.g. "0.31.0"
+ * @param {string[]} tags - tags of the releases already published
+ * @returns the beta version, e.g. "0.31.0-beta.3"
+ */
+export function nextBeta(version, tags) {
+  const prefix = `v${version}-beta.`;
+  const taken = tags
+    .filter((tag) => tag.startsWith(prefix) && /^\d+$/.test(tag.slice(prefix.length)))
+    .map((tag) => Number(tag.slice(prefix.length)));
+  return `${version}-beta.${Math.max(0, ...taken) + 1}`;
+}
+
+/**
+ * Release title of a beta. The pull request number in it is how a closed pull request's betas
+ * are found again, see {@link betaPull}.
+ * @param {string} version - beta version
+ * @param {number} pull - pull request number
+ * @returns the title
+ */
+export function betaTitle(version, pull) {
+  return `Pic Cabinet ${version} from #${pull}`;
+}
+
+/**
+ * The pull request a beta came from, read back from its title.
+ * @param {string} title - release title
+ * @returns the pull request number, or null when the release isn't a beta
+ */
+export function betaPull(title) {
+  const match = /^Pic Cabinet \d+\.\d+\.\d+-beta\.\d+ from #(\d+)$/.exec(title);
+  return match ? Number(match[1]) : null;
+}
+
+/**
+ * Releases the beta feed can point at, newest first: every finished release and beta, but not
+ * the feed's own release or tags that aren't versions.
+ * @param {string[]} tags - tags of the published releases
+ * @returns the versions, without their "v"
+ */
+export function feedCandidates(tags) {
+  return tags
+    .filter((tag) => /^v\d+\.\d+\.\d+(?:-beta\.\d+)?$/.test(tag))
+    .map((tag) => tag.slice(1))
+    .sort((a, b) => compareReleases(b, a));
+}
+
+/**
+ * Release notes made safe for a GitHub release body, where "@word" mentions a user: GitHub lists
+ * them as contributors and notifies them, so a NAS folder like `@eaDir` pinged a stranger. A
+ * zero-width space after the "@" stops the link and reads the same. Code spans are left alone.
+ * @param {string} notes - release notes markdown
+ * @returns the notes with no mentions
+ */
+export function withoutMentions(notes) {
+  return notes
+    .split(/(`[^`]*`)/)
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(/(^|[^\w])@(?=\w)/g, "$1@\u200B")))
+    .join("");
 }
