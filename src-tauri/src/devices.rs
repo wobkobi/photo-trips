@@ -83,9 +83,12 @@ pub fn start(app: &AppHandle) {
         }
         // Still plugged in: check it. Gone: open Import anyway, to pick another source.
         let id = shown.extra().get(DEVICE_KEY).and_then(|v| v.as_str());
-        let device = clicked
-            .try_state::<Devices>()
-            .and_then(|d| d.current.lock().ok().and_then(|c| c.iter().find(|d| Some(d.id.as_str()) == id).cloned()));
+        let device = clicked.try_state::<Devices>().and_then(|d| {
+            d.current
+                .lock()
+                .ok()
+                .and_then(|c| c.iter().find(|d| Some(d.id.as_str()) == id).cloned())
+        });
         tray::open_import_from(&clicked, device);
     });
     let app = app.clone();
@@ -149,7 +152,9 @@ fn notify(app: &AppHandle, device: &Device) {
 /// Removable drives with a DCIM folder, the layout every camera and phone card uses.
 #[cfg(windows)]
 fn drives() -> Vec<Device> {
-    use windows::Win32::Storage::FileSystem::{GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW};
+    use windows::Win32::Storage::FileSystem::{
+        GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW,
+    };
     use windows::core::HSTRING;
 
     let mask = unsafe { GetLogicalDrives() };
@@ -166,7 +171,8 @@ fn drives() -> Vec<Device> {
                 return None;
             }
             let mut label = [0u16; 261];
-            let read = unsafe { GetVolumeInformationW(&wide, Some(&mut label), None, None, None, None) };
+            let read =
+                unsafe { GetVolumeInformationW(&wide, Some(&mut label), None, None, None, None) };
             let end = label.iter().position(|&c| c == 0).unwrap_or(label.len());
             let label = String::from_utf16_lossy(&label[..end]);
             let name = match read {

@@ -95,13 +95,21 @@ mod tests {
         let to = dir.path().join("b.jpg");
         fs::write(&from, vec![7u8; COPY_CHUNK + 5]).unwrap();
         let old = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_600_000_000);
-        File::options().write(true).open(&from).unwrap().set_modified(old).unwrap();
+        File::options()
+            .write(true)
+            .open(&from)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
 
         let hash = copy(&from, &to).unwrap();
         assert_eq!(hash, file(&from).unwrap());
         assert_eq!(file(&to).unwrap(), hash);
         assert_eq!(fs::metadata(&to).unwrap().modified().unwrap(), old);
-        assert!(copy(&from, &to).is_err(), "an existing file is never replaced");
+        assert!(
+            copy(&from, &to).is_err(),
+            "an existing file is never replaced"
+        );
     }
 
     #[test]

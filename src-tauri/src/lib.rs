@@ -22,8 +22,8 @@ mod location;
 mod map;
 mod menu;
 mod metadata;
-mod naming;
 mod mtp;
+mod naming;
 mod organise;
 mod places;
 mod planner;
@@ -107,7 +107,9 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
             let conn = db::open(&data_dir.join("library.db"))?;
             // Settle any file moves a crash or power cut interrupted before anything else runs.
-            if let Err(err) = commands::format_table(&conn).and_then(|t| executor::recover(&conn, &t)) {
+            if let Err(err) =
+                commands::format_table(&conn).and_then(|t| executor::recover(&conn, &t))
+            {
                 log::error!("Couldn't settle unfinished file moves: {err}");
             }
             let library_root = db::get_setting(&conn, "library_root")?;

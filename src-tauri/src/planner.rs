@@ -99,7 +99,8 @@ pub fn plan(
             plan.in_place += 1;
             continue;
         }
-        plan.groups.push(place(group, &dir, table, &mut claimed, exists));
+        plan.groups
+            .push(place(group, &dir, table, &mut claimed, exists));
     }
     plan
 }

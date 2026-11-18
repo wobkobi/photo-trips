@@ -368,10 +368,16 @@ mod tests {
 
         let (plan, label) = without(&pending("organise"), &[1]).unwrap();
         assert_eq!(plan.groups, [group(&[3])]);
-        assert_eq!((plan.in_place, label.as_str()), (5, "Sorted 1 file into their folders"));
+        assert_eq!(
+            (plan.in_place, label.as_str()),
+            (5, "Sorted 1 file into their folders")
+        );
 
         let (all, label) = without(&pending("organise"), &[]).unwrap();
-        assert_eq!((all.file_count(), label.as_str()), (3, "Sorted 3 files into their folders"));
+        assert_eq!(
+            (all.file_count(), label.as_str()),
+            (3, "Sorted 3 files into their folders")
+        );
 
         assert!(without(&pending("organise"), &[1, 3]).is_err());
         assert!(without(&pending("trip"), &[1]).is_err());

@@ -30,16 +30,19 @@ use crate::groups::{self, MediaRow};
 use crate::index::{self, NewRow, Report};
 use crate::jobs;
 use crate::mtp;
+use crate::naming::Naming;
 use crate::organise::{FolderCount, Previews, relative};
 use crate::planner::{self, Rules, is_inside};
 use crate::scan::{self, ScannedFile};
-use crate::naming::Naming;
 use crate::trips::{self, Trip};
-
 
 /// Where to import from, as the Import page asks for it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum SourceSpec {
     /// A folder on this PC. With `move_files`, the files are moved in instead of copied.
     Folder { path: PathBuf, move_files: bool },
@@ -177,7 +180,11 @@ struct LibraryHashes {
 /// Work out which found files are new and where each goes. `exists` says whether a library
 /// path is taken on disk. Only files sharing a size with a library file or another incoming
 /// file are hashed, and library files hashed here keep their hash for the duplicate check.
-pub fn plan(ctx: &Ctx, mut found: Vec<Found>, exists: &dyn Fn(&Path) -> bool) -> Result<ImportPlan> {
+pub fn plan(
+    ctx: &Ctx,
+    mut found: Vec<Found>,
+    exists: &dyn Fn(&Path) -> bool,
+) -> Result<ImportPlan> {
     let mut out = ImportPlan::default();
     // An empty file has nothing to bring in, and no hash to be found by next time, so it would
     // come in again on every check under a new "(n)" name.
@@ -201,8 +208,16 @@ pub fn plan(ctx: &Ctx, mut found: Vec<Found>, exists: &dyn Fn(&Path) -> bool) ->
                 && (library.sizes.contains(&f.file.size) || incoming_sizes[&f.file.size] > 1)
         })
         .collect();
-    let paths: Vec<PathBuf> = to_hash.iter().map(|&i| found[i].file.path.clone()).collect();
-    let hashes = crate::hash::many(&paths, "Comparing with your library", ctx.cancel, ctx.report);
+    let paths: Vec<PathBuf> = to_hash
+        .iter()
+        .map(|&i| found[i].file.path.clone())
+        .collect();
+    let hashes = crate::hash::many(
+        &paths,
+        "Comparing with your library",
+        ctx.cancel,
+        ctx.report,
+    );
     if ctx.cancel.load(Ordering::Relaxed) {
         return Err(Error::msg("Cancelled"));
     }
@@ -317,7 +332,10 @@ pub fn plan(ctx: &Ctx, mut found: Vec<Found>, exists: &dyn Fn(&Path) -> bool) ->
             files,
             renamed: placed.renamed,
         });
-        out.taken.push((dates::format(&group.taken_at), group.date_source == DateSource::Modified));
+        out.taken.push((
+            dates::format(&group.taken_at),
+            group.date_source == DateSource::Modified,
+        ));
     }
     Ok(out)
 }
@@ -340,7 +358,10 @@ pub fn plan_beside(
     late: Vec<Late>,
     exists: &dyn Fn(&Path) -> bool,
 ) -> Result<(Vec<IncomingGroup>, Vec<Found>)> {
-    let files: Vec<&ScannedFile> = late.iter().flat_map(|l| l.found.iter().map(|f| &f.file)).collect();
+    let files: Vec<&ScannedFile> = late
+        .iter()
+        .flat_map(|l| l.found.iter().map(|f| &f.file))
+        .collect();
     let rows = index::read_files(&files, ctx.exiftool, ctx.cancel, ctx.report)?;
     let mut rows = rows.iter();
     let now = db::now();
@@ -360,8 +381,10 @@ pub fn plan_beside(
                         kind: row.kind,
                         ..partner.clone()
                     };
-                    let fits = row.kind == Kind::Companion || groups::belongs_with(partner, &as_row);
-                    let to = beside(partner, &found.file, ctx.table).filter(|to| fits && !exists(to))?;
+                    let fits =
+                        row.kind == Kind::Companion || groups::belongs_with(partner, &as_row);
+                    let to =
+                        beside(partner, &found.file, ctx.table).filter(|to| fits && !exists(to))?;
                     Some(Incoming {
                         from: found.file.path.clone(),
                         origin: found.origin.clone(),
@@ -372,7 +395,10 @@ pub fn plan_beside(
                 .collect()
         });
         match placed {
-            Some(files) => groups.push(IncomingGroup { files, renamed: false }),
+            Some(files) => groups.push(IncomingGroup {
+                files,
+                renamed: false,
+            }),
             None => rest.extend(late.found),
         }
     }
@@ -397,7 +423,13 @@ fn count_already<'a>(plan: &mut ImportPlan, files: impl Iterator<Item = &'a Foun
 }
 
 /// The `media` row a file gets once it lands at `to`, as journal JSON.
-fn row_json(to: &Path, row: &NewRow, hash: Option<&str>, table: &FormatTable, now: i64) -> serde_json::Value {
+fn row_json(
+    to: &Path,
+    row: &NewRow,
+    hash: Option<&str>,
+    table: &FormatTable,
+    now: i64,
+) -> serde_json::Value {
     json!({
         "id": null,
         "path": to.to_string_lossy(),
@@ -441,7 +473,12 @@ fn library_hashes(ctx: &Ctx, sizes_wanted: &HashSet<u64>) -> Result<LibraryHashe
         .map(|(id, path, _, _)| (*id, path.clone()))
         .collect();
     let paths: Vec<PathBuf> = unhashed.iter().map(|(_, p)| p.clone()).collect();
-    let fresh = crate::hash::many(&paths, "Reading library files of the same size", ctx.cancel, ctx.report);
+    let fresh = crate::hash::many(
+        &paths,
+        "Reading library files of the same size",
+        ctx.cancel,
+        ctx.report,
+    );
     if ctx.cancel.load(Ordering::Relaxed) {
         return Err(Error::msg("Cancelled"));
     }
@@ -468,7 +505,10 @@ fn library_hashes(ctx: &Ctx, sizes_wanted: &HashSet<u64>) -> Result<LibraryHashe
         let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get::<_, i64>(1)? as u64)))?;
         rows.filter_map(|r| r.ok()).collect()
     };
-    for (hash, size) in removed.into_iter().filter(|(_, size)| sizes_wanted.contains(size)) {
+    for (hash, size) in removed
+        .into_iter()
+        .filter(|(_, size)| sizes_wanted.contains(size))
+    {
         sizes.insert(size);
         hashes.insert(hash);
     }
@@ -526,7 +566,10 @@ fn copy_off<T>(
     cancel: &AtomicBool,
     mut fetch: impl FnMut(usize, usize) -> Result<Result<T>>,
 ) -> Result<CopiedOff<T>> {
-    let mut out = CopiedOff { files: Vec::new(), unreadable: 0 };
+    let mut out = CopiedOff {
+        files: Vec::new(),
+        unreadable: 0,
+    };
     let (mut done, mut in_a_row) = (0, 0);
     let mut last_failure = None;
     for set in sets {
@@ -579,16 +622,20 @@ pub fn fetch_phone(ctx: &Ctx, id: &str, name: &str, staging: &Path) -> Result<Ph
     let sizes: HashSet<u64> = files.iter().map(|f| f.size).filter(|&s| s > 0).collect();
     let library = library_hashes(ctx, &sizes)?;
     let known_copy = |f: &mtp::PhoneFile| {
-        memo.get(&key_of(&f.path)).is_some_and(|(size, modified, hash)| {
-            *size == f.size && *modified == secs(f.modified) && library.hashes.contains(hash)
-        })
+        memo.get(&key_of(&f.path))
+            .is_some_and(|(size, modified, hash)| {
+                *size == f.size && *modified == secs(f.modified) && library.hashes.contains(hash)
+            })
     };
 
     // Same-name sets (a photo and its Live Photo video) are skipped only as a whole.
     let mut buckets: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for (i, f) in files.iter().enumerate() {
         let kind = ctx.table.kind_of(&f.path).unwrap_or(Kind::Companion);
-        buckets.entry(scan::group_key(&f.path, kind, ctx.table)).or_default().push(i);
+        buckets
+            .entry(scan::group_key(&f.path, kind, ctx.table))
+            .or_default()
+            .push(i);
     }
     let (mut already, mut already_bytes) = (0, 0);
     let mut wanted: Vec<Vec<usize>> = Vec::new();
@@ -647,7 +694,8 @@ pub fn fetch_phone(ctx: &Ctx, id: &str, name: &str, staging: &Path) -> Result<Ph
 /// Phone files hashed before: path key > (size, modified, hash).
 fn load_memo(db: &Mutex<Connection>, device: &str) -> Result<HashMap<String, (u64, i64, String)>> {
     let conn = lock(db)?;
-    let mut stmt = conn.prepare("SELECT path, size, modified, hash FROM device_files WHERE device = ?1")?;
+    let mut stmt =
+        conn.prepare("SELECT path, size, modified, hash FROM device_files WHERE device = ?1")?;
     let rows = stmt.query_map([device], |r| {
         Ok((
             r.get::<_, String>(0)?,
@@ -657,7 +705,14 @@ fn load_memo(db: &Mutex<Connection>, device: &str) -> Result<HashMap<String, (u6
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-fn save_memo(db: &Mutex<Connection>, device: &str, path: &Path, size: u64, modified: i64, hash: &str) -> Result<()> {
+fn save_memo(
+    db: &Mutex<Connection>,
+    device: &str,
+    path: &Path,
+    size: u64,
+    modified: i64,
+    hash: &str,
+) -> Result<()> {
     lock(db)?.execute(
         "INSERT INTO device_files (device, path, size, modified, hash) VALUES (?1, ?2, ?3, ?4, ?5)
          ON CONFLICT(device, path) DO UPDATE SET
@@ -787,11 +842,16 @@ fn look_through(ctx: &Ctx, source: SourceSpec) -> Result<Looked> {
     let (name, source_root, transfer, staging, found, other_files) = match source {
         SourceSpec::Folder { path, move_files } => {
             let (found, other) = scan_folder(ctx, &path)?;
-            let transfer = if move_files { Transfer::Move } else { Transfer::Copy };
+            let transfer = if move_files {
+                Transfer::Move
+            } else {
+                Transfer::Copy
+            };
             // The folder's own name reads better in a headline; a drive root has none.
-            let name = path
-                .file_name()
-                .map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned());
+            let name = path.file_name().map_or_else(
+                || path.display().to_string(),
+                |n| n.to_string_lossy().into_owned(),
+            );
             (name, path, transfer, None, found, other)
         }
         SourceSpec::Drive { path, name } => {
@@ -882,7 +942,11 @@ fn describe(id: u64, looked: &Looked, root: &Path) -> (ImportPreview, Vec<(PathB
             from: relative(&looked.source_root, &leader.origin),
             to: relative(root, &leader.to),
             extra: group.files.len() - 1,
-            bytes: group.files.iter().map(|f| f.row["size"].as_u64().unwrap_or(0)).sum(),
+            bytes: group
+                .files
+                .iter()
+                .map(|f| f.row["size"].as_u64().unwrap_or(0))
+                .sum(),
             taken_at: taken_at.clone(),
             uncertain: *uncertain,
             kind: leader.row["kind"].as_str().unwrap_or("photo").to_owned(),
@@ -916,7 +980,9 @@ fn describe(id: u64, looked: &Looked, root: &Path) -> (ImportPreview, Vec<(PathB
 /// The latest import preview, so the page can show it again after switching away.
 #[tauri::command]
 pub fn import_preview(previews: State<Previews<PendingImport>>) -> Option<ImportPreview> {
-    previews.latest().map(|(_, pending)| pending.preview.clone())
+    previews
+        .latest()
+        .map(|(_, pending)| pending.preview.clone())
 }
 
 /// Drop a preview the user turned away from, with any phone files copied off for it.
@@ -1099,7 +1165,12 @@ pub mod testing {
 
     /// Plan bringing `source` into the library at `root`. Returns the plan and the count of
     /// files that aren't photos or videos.
-    pub fn plan_folder(db: &Mutex<Connection>, root: &Path, source: &Path, trips: &[Trip]) -> (ImportPlan, u64) {
+    pub fn plan_folder(
+        db: &Mutex<Connection>,
+        root: &Path,
+        source: &Path,
+        trips: &[Trip],
+    ) -> (ImportPlan, u64) {
         let table = FormatTable::default();
         let cancel = AtomicBool::new(false);
         let ctx = Ctx {
@@ -1188,13 +1259,21 @@ mod tests {
         write(&dcim.join("100\\IMG_20250401_080000.jpg"), "april");
         write(&dcim.join("101\\IMG_20250401_080000.jpg"), "april");
         write(&dcim.join("100\\IMG_20250502_120000.jpg"), "in japan");
-        write(&dcim.join("100\\IMG_20250301_090000.jpg"), "a different photo");
+        write(
+            &dcim.join("100\\IMG_20250301_090000.jpg"),
+            "a different photo",
+        );
         write(&dcim.join("100\\IMG_20250601_000000.xmp"), "lonely sidecar");
         write(&card.path().join("notes.txt"), "not a photo");
         card
     }
 
-    fn env<'a>(db: &'a Mutex<Connection>, root: &'a Path, table: &'a FormatTable, cancel: &'a AtomicBool) -> Env<'a> {
+    fn env<'a>(
+        db: &'a Mutex<Connection>,
+        root: &'a Path,
+        table: &'a FormatTable,
+        cancel: &'a AtomicBool,
+    ) -> Env<'a> {
         Env {
             db,
             root,
@@ -1284,17 +1363,28 @@ mod tests {
         let cancel = AtomicBool::new(false);
 
         let (plan, _) = plan_folder(&db, root, card.path(), &[japan()]);
-        let summary = executor::import(&env(&db, root, &table, &cancel), &IMPORT_BATCH, &plan.groups, Transfer::Copy).unwrap();
+        let summary = executor::import(
+            &env(&db, root, &table, &cancel),
+            &IMPORT_BATCH,
+            &plan.groups,
+            Transfer::Copy,
+        )
+        .unwrap();
         assert_eq!((summary.moved, summary.failed), (5, 0));
         assert_eq!(snapshot(card.path()), card_before);
         assert_eq!(
-            fs::read_to_string(root.join("Trips\\2025-05-01 Japan\\IMG_20250502_120000.jpg")).unwrap(),
+            fs::read_to_string(root.join("Trips\\2025-05-01 Japan\\IMG_20250502_120000.jpg"))
+                .unwrap(),
             "in japan"
         );
         // Every copy is indexed with its hash.
         let rows = index::load_rows(&db.lock().unwrap()).unwrap();
         assert_eq!(rows.len(), 6);
-        assert!(rows.iter().filter(|r| r.kind != Kind::Companion).all(|r| r.hash.is_some()));
+        assert!(
+            rows.iter()
+                .filter(|r| r.kind != Kind::Companion)
+                .all(|r| r.hash.is_some())
+        );
 
         let (again, _) = plan_folder(&db, root, card.path(), &[japan()]);
         assert_eq!(again.file_count(), 0);
@@ -1333,9 +1423,15 @@ mod tests {
             .find(|i| i.to.ends_with("IMG_20250312_101500.jpg"))
             .unwrap();
         assert_eq!(march.extra, 1);
-        assert_eq!(march.bytes, ("march photo".len() + "march edits".len()) as u64);
+        assert_eq!(
+            march.bytes,
+            ("march photo".len() + "march edits".len()) as u64
+        );
         assert_eq!(march.taken_at, "2025-03-12T10:15:00");
-        assert_eq!((march.uncertain, march.kind.as_str(), march.ext.as_str()), (false, "photo", "jpg"));
+        assert_eq!(
+            (march.uncertain, march.kind.as_str(), march.ext.as_str()),
+            (false, "photo", "jpg")
+        );
     }
 
     #[test]
@@ -1349,17 +1445,33 @@ mod tests {
         let march = plan
             .groups
             .iter()
-            .position(|g| g.files.iter().any(|f| f.to.ends_with("IMG_20250312_101500.jpg")))
+            .position(|g| {
+                g.files
+                    .iter()
+                    .any(|f| f.to.ends_with("IMG_20250312_101500.jpg"))
+            })
             .unwrap();
 
         // An index past the end is ignored rather than failing the import.
         let chosen = chosen_groups(&plan.groups, &[march, 99]);
         assert_eq!(chosen.len(), plan.groups.len() - 1);
         let files: usize = chosen.iter().map(|g| g.files.len()).sum();
-        assert_eq!(import_label(Transfer::Copy, files, "EOS_DIGITAL (E:)"), "Copied 3 files from EOS_DIGITAL (E:)");
-        assert_eq!(import_label(Transfer::Move, 1, "C:\\Old"), "Moved 1 file in from C:\\Old");
+        assert_eq!(
+            import_label(Transfer::Copy, files, "EOS_DIGITAL (E:)"),
+            "Copied 3 files from EOS_DIGITAL (E:)"
+        );
+        assert_eq!(
+            import_label(Transfer::Move, 1, "C:\\Old"),
+            "Moved 1 file in from C:\\Old"
+        );
 
-        let summary = executor::import(&env(&db, root, &table, &cancel), &IMPORT_BATCH, &chosen, Transfer::Copy).unwrap();
+        let summary = executor::import(
+            &env(&db, root, &table, &cancel),
+            &IMPORT_BATCH,
+            &chosen,
+            Transfer::Copy,
+        )
+        .unwrap();
         assert_eq!((summary.moved, summary.failed), (3, 0));
         assert!(!root.join("2025\\2025-03\\IMG_20250312_101500.jpg").exists());
         assert!(!root.join("2025\\2025-03\\IMG_20250312_101500.aae").exists());
@@ -1368,7 +1480,10 @@ mod tests {
         let (again, _) = plan_folder(&db, root, card.path(), &[japan()]);
         assert_eq!(
             destinations(&again, root),
-            ["2025\\2025-03\\IMG_20250312_101500.aae", "2025\\2025-03\\IMG_20250312_101500.jpg"]
+            [
+                "2025\\2025-03\\IMG_20250312_101500.aae",
+                "2025\\2025-03\\IMG_20250312_101500.jpg"
+            ]
         );
     }
 
@@ -1408,7 +1523,13 @@ mod tests {
 
         let table = FormatTable::default();
         let cancel = AtomicBool::new(false);
-        let summary = executor::import(&env(&db, root, &table, &cancel), &IMPORT_BATCH, &plan.groups, Transfer::Copy).unwrap();
+        let summary = executor::import(
+            &env(&db, root, &table, &cancel),
+            &IMPORT_BATCH,
+            &plan.groups,
+            Transfer::Copy,
+        )
+        .unwrap();
         assert_eq!((summary.moved, summary.failed), (1, 1));
         assert!(!root.join("2025\\2025-03\\IMG_20250312_101500.jpg").exists());
         assert!(root.join("2025\\2025-03\\IMG_20250313_101500.jpg").exists());
@@ -1433,7 +1554,10 @@ mod tests {
         let summary = executor::import(&env, &batch, &plan.groups, Transfer::Move).unwrap();
         assert_eq!(summary.moved, 5);
         // Copies of library files and the lone sidecar stay where they were.
-        let left: Vec<String> = snapshot(card.path()).into_iter().map(|(p, _, _)| p).collect();
+        let left: Vec<String> = snapshot(card.path())
+            .into_iter()
+            .map(|(p, _, _)| p)
+            .collect();
         assert_eq!(
             left,
             [
@@ -1459,7 +1583,10 @@ mod tests {
         write(&outer.path().join("IMG_20250312_101500.jpg"), "new");
         let db = Mutex::new(db::open_in_memory().unwrap());
         let (plan, _) = plan_folder(&db, &root, outer.path(), &[]);
-        assert_eq!(destinations(&plan, &root), ["2025\\2025-03\\IMG_20250312_101500.jpg"]);
+        assert_eq!(
+            destinations(&plan, &root),
+            ["2025\\2025-03\\IMG_20250312_101500.jpg"]
+        );
     }
 
     #[test]
@@ -1467,11 +1594,17 @@ mod tests {
         let (lib, db) = library(&[LIBRARY_PHOTO]);
         let root = lib.path();
         let card = tempfile::tempdir().unwrap();
-        write(&card.path().join("DCIM\\IMG_20250312_101500.jpg"), "march photo");
+        write(
+            &card.path().join("DCIM\\IMG_20250312_101500.jpg"),
+            "march photo",
+        );
         // What a copy that didn't finish leaves behind.
         write(&card.path().join("DCIM\\IMG_20250313_101500.jpg"), "");
         let (plan, _) = plan_folder(&db, root, card.path(), &[]);
-        assert_eq!(destinations(&plan, root), ["2025\\2025-03\\IMG_20250312_101500.jpg"]);
+        assert_eq!(
+            destinations(&plan, root),
+            ["2025\\2025-03\\IMG_20250312_101500.jpg"]
+        );
         assert_eq!(plan.empty, 1);
     }
 
@@ -1498,7 +1631,11 @@ mod tests {
     fn a_phone_that_stops_answering_ends_the_check() {
         let sets: Vec<Vec<usize>> = (0..10).map(|i| vec![i]).collect();
         let copied = copy_off(&sets, &AtomicBool::new(false), |i, _| {
-            Ok(if i == 0 { Ok(i) } else { Err(Error::msg("The device is no longer connected")) })
+            Ok(if i == 0 {
+                Ok(i)
+            } else {
+                Err(Error::msg("The device is no longer connected"))
+            })
         });
         let err = copied.err().expect("the check should give up");
         assert!(err.to_string().contains("no longer connected"));
@@ -1508,20 +1645,37 @@ mod tests {
     fn a_phone_that_goes_away_near_the_end_ends_the_check() {
         let sets: Vec<Vec<usize>> = (0..4).map(|i| vec![i]).collect();
         let copied = copy_off(&sets, &AtomicBool::new(false), |i, _| {
-            Ok(if i < 2 { Ok(i) } else { Err(Error::msg("The device is no longer connected")) })
+            Ok(if i < 2 {
+                Ok(i)
+            } else {
+                Err(Error::msg("The device is no longer connected"))
+            })
         });
-        assert!(copied.is_err(), "two failures at the end are a phone gone, not two bad files");
+        assert!(
+            copied.is_err(),
+            "two failures at the end are a phone gone, not two bad files"
+        );
     }
 
     #[test]
     fn a_problem_on_this_pc_stops_the_check_at_once() {
         let sets: Vec<Vec<usize>> = (0..3).map(|i| vec![i]).collect();
         let mut asked = 0;
-        let copied = copy_off(&sets, &AtomicBool::new(false), |_, _| -> Result<Result<usize>> {
-            asked += 1;
-            Err(Error::msg("There is not enough space on the disk"))
-        });
-        assert!(copied.err().unwrap().to_string().contains("not enough space"));
+        let copied = copy_off(
+            &sets,
+            &AtomicBool::new(false),
+            |_, _| -> Result<Result<usize>> {
+                asked += 1;
+                Err(Error::msg("There is not enough space on the disk"))
+            },
+        );
+        assert!(
+            copied
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("not enough space")
+        );
         assert_eq!(asked, 1);
     }
 }

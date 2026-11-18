@@ -332,7 +332,11 @@ pub fn recycle_media(app: AppHandle, state: State<AppState>, ids: Vec<i64>) -> R
 
 /// What an indexed file says about itself beyond what the index keeps: camera, size, settings.
 #[tauri::command(async)]
-pub fn media_details(app: AppHandle, state: State<'_, AppState>, id: i64) -> Result<details::Details> {
+pub fn media_details(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+) -> Result<details::Details> {
     let path = media_path(&state, id)?;
     Ok(details::read(&app, &path))
 }
@@ -388,7 +392,14 @@ mod tests {
             row(4, "2025", "IMG_2.CR2", Kind::Raw, when, DateSource::Exif),
             row(5, "2025", "IMG_2.MOV", Kind::Video, when, DateSource::Exif),
             row(6, "2025", "IMG_3.MP4", Kind::Video, when, DateSource::Exif),
-            row(7, "2025", "IMG_3.THM", Kind::Companion, when, DateSource::Exif),
+            row(
+                7,
+                "2025",
+                "IMG_3.THM",
+                Kind::Companion,
+                when,
+                DateSource::Exif,
+            ),
         ]);
         let by_id = |id: i64| {
             let group = groups.iter().find(|g| g.leader().id == id).unwrap();

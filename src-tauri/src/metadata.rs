@@ -8,7 +8,9 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 
 use chrono::{DateTime, FixedOffset, Local, NaiveDateTime, TimeZone};
-use nom_exif::{ExifTag, GPSInfo, LatRef, LonRef, MediaKind, MediaParser, MediaSource, TrackInfoTag};
+use nom_exif::{
+    ExifTag, GPSInfo, LatRef, LonRef, MediaKind, MediaParser, MediaSource, TrackInfoTag,
+};
 
 use crate::dates::{self, DateSource};
 use crate::formats::{Kind, ext_of};
@@ -37,7 +39,13 @@ pub struct MediaMeta {
 
 impl From<Embedded> for MediaMeta {
     fn from(e: Embedded) -> Self {
-        MediaMeta { taken_at: e.taken_at, offset_min: e.offset_min, source: e.source, lat: e.lat, lon: e.lon }
+        MediaMeta {
+            taken_at: e.taken_at,
+            offset_min: e.offset_min,
+            source: e.source,
+            lat: e.lat,
+            lon: e.lon,
+        }
     }
 }
 
@@ -59,7 +67,9 @@ pub fn read_fast(parser: &mut MediaParser, path: &Path, kind: Kind) -> Option<Em
         return None;
     }
     // A malformed file must never take the app down, so parser panics count as "no date".
-    let nom = catch_unwind(AssertUnwindSafe(|| read_nom_exif(parser, path))).ok().flatten();
+    let nom = catch_unwind(AssertUnwindSafe(|| read_nom_exif(parser, path)))
+        .ok()
+        .flatten();
     nom.or_else(|| read_windows(path))
 }
 
@@ -68,12 +78,27 @@ pub fn finish(path: &Path, mtime: i64, embedded: Option<Embedded>) -> MediaMeta 
     if let Some(e) = embedded {
         return e.into();
     }
-    let name = path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default();
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy())
+        .unwrap_or_default();
     if let Some(taken_at) = dates::from_filename(&name) {
-        return MediaMeta { taken_at, offset_min: None, source: DateSource::Filename, lat: None, lon: None };
+        return MediaMeta {
+            taken_at,
+            offset_min: None,
+            source: DateSource::Filename,
+            lat: None,
+            lon: None,
+        };
     }
     let taken_at = dates::from_unix_local(mtime).unwrap_or_default();
-    MediaMeta { taken_at, offset_min: None, source: DateSource::Modified, lat: None, lon: None }
+    MediaMeta {
+        taken_at,
+        offset_min: None,
+        source: DateSource::Modified,
+        lat: None,
+        lon: None,
+    }
 }
 
 fn read_nom_exif(parser: &mut MediaParser, path: &Path) -> Option<Embedded> {
@@ -126,7 +151,13 @@ fn build(
     lat: Option<f64>,
     lon: Option<f64>,
 ) -> Option<Embedded> {
-    dates::plausible(&taken_at).then_some(Embedded { taken_at, offset_min, source, lat, lon })
+    dates::plausible(&taken_at).then_some(Embedded {
+        taken_at,
+        offset_min,
+        source,
+        lat,
+        lon,
+    })
 }
 
 /// Signed decimal degrees, or `None` for missing or null-island (0, 0) coordinates.
@@ -168,8 +199,12 @@ fn read_windows(path: &Path) -> Option<Embedded> {
             SHGetPropertyStoreFromParsingName(&crate::win::parsing_name(path), None, GPS_DEFAULT)
                 .ok()?;
         for key in [PKEY_Photo_DateTaken, PKEY_Media_DateEncoded] {
-            let Ok(value) = store.GetValue(&key) else { continue };
-            let Ok(ft) = PropVariantToFileTime(&value, PSTF_UTC) else { continue };
+            let Ok(value) = store.GetValue(&key) else {
+                continue;
+            };
+            let Ok(ft) = PropVariantToFileTime(&value, PSTF_UTC) else {
+                continue;
+            };
             // FILETIME counts 100 ns ticks since 1601; Windows stored it as UTC after converting
             // from local time with this PC's zone, so converting back recovers the wall-clock.
             let ticks = (u64::from(ft.dwHighDateTime) << 32) | u64::from(ft.dwLowDateTime);
@@ -195,7 +230,9 @@ mod tests {
     use std::path::PathBuf;
 
     fn fixture(name: &str) -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name)
     }
 
     fn dt(text: &str) -> NaiveDateTime {
@@ -210,7 +247,10 @@ mod tests {
         assert_eq!(e.taken_at, dt("2024-07-15T09:30:00"));
         assert_eq!(e.offset_min, Some(-7 * 60));
         let (lat, lon) = (e.lat.unwrap(), e.lon.unwrap());
-        assert!((lat - 36.1).abs() < 0.01 && (lon + 115.2).abs() < 0.01, "{lat},{lon}");
+        assert!(
+            (lat - 36.1).abs() < 0.01 && (lon + 115.2).abs() < 0.01,
+            "{lat},{lon}"
+        );
     }
 
     #[test]
@@ -239,19 +279,35 @@ mod tests {
         let named = fixture("Screenshot_2024-07-15-10-00-00.png");
         assert_eq!(read_fast(&mut parser, &named, Kind::Photo), None);
         let meta = finish(&named, 0, None);
-        assert_eq!((meta.source, meta.taken_at), (DateSource::Filename, dt("2024-07-15T10:00:00")));
+        assert_eq!(
+            (meta.source, meta.taken_at),
+            (DateSource::Filename, dt("2024-07-15T10:00:00"))
+        );
 
         let unnamed = fixture("plain.png");
-        let meta = finish(&unnamed, 1_700_000_000, read_fast(&mut parser, &unnamed, Kind::Photo));
+        let meta = finish(
+            &unnamed,
+            1_700_000_000,
+            read_fast(&mut parser, &unnamed, Kind::Photo),
+        );
         assert_eq!(meta.source, DateSource::Modified);
-        assert_eq!(meta.taken_at, dates::from_unix_local(1_700_000_000).unwrap());
+        assert_eq!(
+            meta.taken_at,
+            dates::from_unix_local(1_700_000_000).unwrap()
+        );
     }
 
     #[test]
     fn corrupt_files_and_companions_yield_no_embedded_date() {
         let mut parser = MediaParser::new();
-        assert_eq!(read_fast(&mut parser, &fixture("corrupt.jpg"), Kind::Photo), None);
-        assert_eq!(read_fast(&mut parser, &fixture("exif_gps.jpg"), Kind::Companion), None);
+        assert_eq!(
+            read_fast(&mut parser, &fixture("corrupt.jpg"), Kind::Photo),
+            None
+        );
+        assert_eq!(
+            read_fast(&mut parser, &fixture("exif_gps.jpg"), Kind::Companion),
+            None
+        );
     }
 
     #[test]

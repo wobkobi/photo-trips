@@ -66,14 +66,18 @@ impl JobCtx {
     /// Record progress and emit it, throttled. The last step of a stage always gets through.
     pub fn report(&self, stage: &str, done: usize, total: usize) {
         let snapshot = {
-            let Ok(mut progress) = self.progress.lock() else { return };
+            let Ok(mut progress) = self.progress.lock() else {
+                return;
+            };
             progress.stage.clear();
             progress.stage.push_str(stage);
             progress.done = done;
             progress.total = total;
             progress.clone()
         };
-        let Ok(mut last) = self.last_emit.lock() else { return };
+        let Ok(mut last) = self.last_emit.lock() else {
+            return;
+        };
         if done == total || last.elapsed() >= EMIT_EVERY {
             *last = Instant::now();
             let _ = self.app.emit(PROGRESS_EVENT, snapshot);
@@ -139,7 +143,9 @@ where
             return Err(Error::msg("Pic Cabinet is installing an update."));
         }
         if current.is_some() {
-            return Err(Error::msg("Pic Cabinet is busy with another task. Try again when it finishes."));
+            return Err(Error::msg(
+                "Pic Cabinet is busy with another task. Try again when it finishes.",
+            ));
         }
         let ctx = JobCtx {
             app: app.clone(),

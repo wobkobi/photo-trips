@@ -30,12 +30,12 @@ use crate::formats::{FormatTable, Kind};
 use crate::groups::MediaRow;
 use crate::import::{self, Ctx, Found, Late};
 use crate::index;
-use crate::jobs::{self, Jobs};
 use crate::index::path_key;
-use crate::planner::is_inside;
-use crate::scan::{self, ScannedFile};
+use crate::jobs::{self, Jobs};
 use crate::menu;
 use crate::naming::Naming;
+use crate::planner::is_inside;
+use crate::scan::{self, ScannedFile};
 use crate::tray;
 use crate::trips;
 
@@ -99,7 +99,16 @@ impl Arrivals {
                 seen.changed = now;
             }
             None => {
-                self.files.insert(path, Seen { size, mtime, changed: now, first: now, quiet });
+                self.files.insert(
+                    path,
+                    Seen {
+                        size,
+                        mtime,
+                        changed: now,
+                        first: now,
+                        quiet,
+                    },
+                );
             }
         }
     }
@@ -124,7 +133,8 @@ impl Arrivals {
             .files
             .iter()
             .filter(|(_, seen)| {
-                Self::is_quiet(seen, now) && (all_quiet || now.duration_since(seen.first) >= MAX_WAIT)
+                Self::is_quiet(seen, now)
+                    && (all_quiet || now.duration_since(seen.first) >= MAX_WAIT)
             })
             .map(|(path, _)| path.clone())
             .collect();
@@ -165,7 +175,11 @@ impl Inner {
 
     /// The inbox folder holding `path`, unless it is inside the library or a skipped folder.
     fn inbox_of(&self, path: &Path) -> Option<&PathBuf> {
-        if self.root.as_deref().is_some_and(|root| is_inside(path, root)) {
+        if self
+            .root
+            .as_deref()
+            .is_some_and(|root| is_inside(path, root))
+        {
             return None;
         }
         let folder = self.folders.iter().find(|f| is_inside(path, f))?;
@@ -188,7 +202,9 @@ pub struct Watch {
 
 impl Watch {
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, Inner>> {
-        self.inner.lock().map_err(|_| Error::msg("Watcher lock poisoned"))
+        self.inner
+            .lock()
+            .map_err(|_| Error::msg("Watcher lock poisoned"))
     }
 }
 
@@ -229,7 +245,8 @@ fn try_reload(app: &AppHandle) -> Result<()> {
         )
     };
     let watch = app.state::<Watch>();
-    let (existing, missing): (Vec<PathBuf>, Vec<PathBuf>) = folders.into_iter().partition(|f| f.is_dir());
+    let (existing, missing): (Vec<PathBuf>, Vec<PathBuf>) =
+        folders.into_iter().partition(|f| f.is_dir());
     // Without a library there is nowhere to sort into.
     let watcher = if root.is_some() && !existing.is_empty() {
         let events = watch.events.clone();
@@ -272,8 +289,8 @@ pub fn inbox_folders(conn: &Connection) -> Result<Vec<PathBuf>> {
     if text.trim().is_empty() {
         return Ok(Vec::new());
     }
-    let list: Vec<String> =
-        serde_json::from_str(&text).map_err(|err| Error::msg(format!("Inbox folders aren't readable: {err}")))?;
+    let list: Vec<String> = serde_json::from_str(&text)
+        .map_err(|err| Error::msg(format!("Inbox folders aren't readable: {err}")))?;
     Ok(list.into_iter().map(PathBuf::from).collect())
 }
 
@@ -281,8 +298,8 @@ pub fn inbox_folders(conn: &Connection) -> Result<Vec<PathBuf>> {
 /// the library and not inside another inbox folder. Folders being added must exist; ones already
 /// in `saved` may be missing (a drive that's unplugged), so the rest of the list can still change.
 pub fn check_folders(text: &str, root: Option<&Path>, saved: &[PathBuf]) -> Result<()> {
-    let list: Vec<String> =
-        serde_json::from_str(text).map_err(|_| Error::msg("Inbox folders must be a list of folders"))?;
+    let list: Vec<String> = serde_json::from_str(text)
+        .map_err(|_| Error::msg("Inbox folders must be a list of folders"))?;
     let folders: Vec<PathBuf> = list.into_iter().map(PathBuf::from).collect();
     for (i, folder) in folders.iter().enumerate() {
         let shown = folder.display();
@@ -321,7 +338,11 @@ pub fn watch_status(watch: State<Watch>) -> Result<WatchStatus> {
 pub fn set_watch_paused(app: AppHandle, paused: bool) -> Result<WatchStatus> {
     {
         let state = app.state::<AppState>();
-        db::set_setting(&*lock_db(&state)?, PAUSED_KEY, if paused { "true" } else { "false" })?;
+        db::set_setting(
+            &*lock_db(&state)?,
+            PAUSED_KEY,
+            if paused { "true" } else { "false" },
+        )?;
     }
     let watch = app.state::<Watch>();
     {
@@ -409,7 +430,10 @@ fn came_or_went(watched: &[PathBuf], missing: &[PathBuf]) -> bool {
 /// Note the files an event mentions. A folder moved in whole is looked through, since only the
 /// folder itself is reported.
 fn note_event(app: &AppHandle, event: &Event) {
-    if !matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_) | EventKind::Any) {
+    if !matches!(
+        event.kind,
+        EventKind::Create(_) | EventKind::Modify(_) | EventKind::Any
+    ) {
         return;
     }
     let watch = app.state::<Watch>();
@@ -422,18 +446,28 @@ fn note_event(app: &AppHandle, event: &Event) {
         if inner.inbox_of(path).is_none() {
             continue;
         }
-        let Ok(meta) = fs::metadata(path) else { continue };
+        let Ok(meta) = fs::metadata(path) else {
+            continue;
+        };
         if meta.is_dir() {
             let found = scan::scan(path, &inner.table, &AtomicBool::new(false));
             for file in found.map(|r| r.files).unwrap_or_default() {
                 if inner.inbox_of(&file.path).is_some() {
                     let quiet = quiet_for(&file.path, &inner.table);
-                    inner.arrivals.see(file.path, file.size, file.mtime, quiet, now);
+                    inner
+                        .arrivals
+                        .see(file.path, file.size, file.mtime, quiet, now);
                 }
             }
         } else if scan::file_kind(path, &inner.table).is_some() {
             let quiet = quiet_for(path, &inner.table);
-            inner.arrivals.see(path.clone(), meta.len(), scan::mtime_secs(&meta), quiet, now);
+            inner.arrivals.see(
+                path.clone(),
+                meta.len(),
+                scan::mtime_secs(&meta),
+                quiet,
+                now,
+            );
         }
     }
 }
@@ -448,7 +482,13 @@ fn tick(app: &AppHandle) -> Result<()> {
             send_status(app);
             return Ok(());
         }
-        std::mem::take(&mut inner.catch_up).then(|| (inner.folders.clone(), inner.root.clone(), inner.table.clone()))
+        std::mem::take(&mut inner.catch_up).then(|| {
+            (
+                inner.folders.clone(),
+                inner.root.clone(),
+                inner.table.clone(),
+            )
+        })
     };
     // Everything already in the folders, e.g. saved while Pic Cabinet was closed. The walk
     // happens outside the lock so events keep flowing.
@@ -466,7 +506,9 @@ fn tick(app: &AppHandle) -> Result<()> {
         for file in files {
             if inner.inbox_of(&file.path).is_some() {
                 let quiet = quiet_for(&file.path, &inner.table);
-                inner.arrivals.see(file.path, file.size, file.mtime, quiet, now);
+                inner
+                    .arrivals
+                    .see(file.path, file.size, file.mtime, quiet, now);
             }
         }
     }
@@ -479,8 +521,18 @@ fn tick(app: &AppHandle) -> Result<()> {
             match fs::metadata(&path) {
                 Ok(meta) if meta.is_file() => {
                     // Already waiting, so its quiet period was set when it was first seen.
-                    inner.arrivals.see(path.clone(), meta.len(), scan::mtime_secs(&meta), QUIET, now);
-                    let quiet = inner.arrivals.files.get(&path).is_some_and(|s| Arrivals::is_quiet(s, now));
+                    inner.arrivals.see(
+                        path.clone(),
+                        meta.len(),
+                        scan::mtime_secs(&meta),
+                        QUIET,
+                        now,
+                    );
+                    let quiet = inner
+                        .arrivals
+                        .files
+                        .get(&path)
+                        .is_some_and(|s| Arrivals::is_quiet(s, now));
                     if quiet && being_written(&path) {
                         inner.arrivals.still_changing(&path, now);
                     }
@@ -507,7 +559,9 @@ fn tick(app: &AppHandle) -> Result<()> {
         for path in ready {
             if let Ok(meta) = fs::metadata(&path) {
                 let quiet = quiet_for(&path, &inner.table);
-                inner.arrivals.see(path, meta.len(), scan::mtime_secs(&meta), quiet, now);
+                inner
+                    .arrivals
+                    .see(path, meta.len(), scan::mtime_secs(&meta), quiet, now);
             }
         }
     }
@@ -530,7 +584,11 @@ fn being_written(path: &Path) -> bool {
     const FILE_SHARE_READ: u32 = 1;
     const ERROR_SHARING_VIOLATION: i32 = 32;
     // Asking to share with readers only fails when someone else can write to it.
-    match fs::OpenOptions::new().read(true).share_mode(FILE_SHARE_READ).open(path) {
+    match fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ)
+        .open(path)
+    {
         Ok(_) => false,
         Err(err) => err.raw_os_error() == Some(ERROR_SHARING_VIOLATION),
     }
@@ -626,7 +684,9 @@ fn sort_in(ctx: &Ctx, inboxes: &[PathBuf], paths: &[PathBuf]) -> Result<Option<A
         .filter_map(|f| inboxes.iter().find(|inbox| is_inside(&f.origin, inbox)))
         .collect();
     let label = match from.iter().next() {
-        Some(inbox) if from.len() == 1 => format!("Moved {files} in from the inbox {}", inbox.display()),
+        Some(inbox) if from.len() == 1 => {
+            format!("Moved {files} in from the inbox {}", inbox.display())
+        }
         _ => format!("Moved {files} in from {} inbox folders", from.len()),
     };
     let env = Env {
@@ -656,10 +716,16 @@ const LATE_WINDOW_SECS: i64 = 60 * 60;
 /// A set is late only when it holds nothing the filed files already have: an arriving photo
 /// beside a filed photo is a new picture, and any clip or sidecar that came with it belongs to
 /// it, not to the old one.
-fn split_late(conn: &Connection, found: Vec<Found>, table: &FormatTable) -> Result<(Vec<Late>, Vec<Found>)> {
+fn split_late(
+    conn: &Connection,
+    found: Vec<Found>,
+    table: &FormatTable,
+) -> Result<(Vec<Late>, Vec<Found>)> {
     let mut sets: BTreeMap<String, Vec<Found>> = BTreeMap::new();
     for f in found {
-        sets.entry(scan::group_key(&f.file.path, f.file.kind, table)).or_default().push(f);
+        sets.entry(scan::group_key(&f.file.path, f.file.kind, table))
+            .or_default()
+            .push(f);
     }
     let mut filed: HashMap<String, Vec<MediaRow>> = HashMap::new();
     let mut stmt = conn.prepare(
@@ -668,7 +734,11 @@ fn split_late(conn: &Connection, found: Vec<Found>, table: &FormatTable) -> Resu
            AND b.created_at >= ?1",
     )?;
     let rows = stmt.query_map([db::now() - LATE_WINDOW_SECS], |r| {
-        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?))
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, String>(1)?,
+            r.get::<_, i64>(2)?,
+        ))
     })?;
     for (src, dst, id) in rows.filter_map(|r| r.ok()) {
         let src = Path::new(&src);
@@ -695,7 +765,10 @@ fn split_late(conn: &Connection, found: Vec<Found>, table: &FormatTable) -> Resu
             .filter(|f| f.file.kind != Kind::Companion)
             .all(|f| kinds.insert(f.file.kind) && rows.iter().all(|r| r.kind != f.file.kind));
         if fits {
-            late.push(Late { found: files, filed: rows });
+            late.push(Late {
+                found: files,
+                filed: rows,
+            });
         } else {
             rest.extend(files);
         }
@@ -706,8 +779,11 @@ fn split_late(conn: &Connection, found: Vec<Found>, table: &FormatTable) -> Resu
 /// Files that an undone move-in put back, by path (as [`path_key`]), size and modified time.
 /// A file changed since then counts as new.
 fn put_back_by_undo(conn: &Connection) -> Result<HashSet<(String, u64, i64)>> {
-    let mut stmt = conn.prepare("SELECT src, media_row FROM journal WHERE op = 'import' AND status = 'undone'")?;
-    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?)))?;
+    let mut stmt = conn
+        .prepare("SELECT src, media_row FROM journal WHERE op = 'import' AND status = 'undone'")?;
+    let rows = stmt.query_map([], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?))
+    })?;
     let mut kept = HashSet::new();
     for (src, row) in rows.filter_map(|r| r.ok()) {
         let Some(row) = row.and_then(|r| serde_json::from_str::<serde_json::Value>(&r).ok()) else {
@@ -784,10 +860,18 @@ mod tests {
         let mut arrivals = Arrivals::default();
         let photo = PathBuf::from("C:\\Inbox\\IMG_0001.jpg");
         arrivals.see(photo.clone(), 100, 1, QUIET, start);
-        assert!(arrivals.take_ready(start + Duration::from_secs(4)).is_empty());
+        assert!(
+            arrivals
+                .take_ready(start + Duration::from_secs(4))
+                .is_empty()
+        );
         // Still growing: the wait starts again.
         arrivals.see(photo.clone(), 200, 2, QUIET, start + Duration::from_secs(4));
-        assert!(arrivals.take_ready(start + Duration::from_secs(8)).is_empty());
+        assert!(
+            arrivals
+                .take_ready(start + Duration::from_secs(8))
+                .is_empty()
+        );
         assert_eq!(arrivals.take_ready(start + Duration::from_secs(9)), [photo]);
         assert!(arrivals.files.is_empty());
     }
@@ -801,8 +885,15 @@ mod tests {
         arrivals.see(photo.clone(), 100, 1, QUIET, start);
         arrivals.see(video.clone(), 10, 1, QUIET, start + Duration::from_secs(3));
         // The photo has settled but its video is still copying.
-        assert!(arrivals.take_ready(start + Duration::from_secs(6)).is_empty());
-        assert_eq!(arrivals.take_ready(start + Duration::from_secs(8)), [photo, video]);
+        assert!(
+            arrivals
+                .take_ready(start + Duration::from_secs(6))
+                .is_empty()
+        );
+        assert_eq!(
+            arrivals.take_ready(start + Duration::from_secs(8)),
+            [photo, video]
+        );
     }
 
     #[test]
@@ -814,9 +905,18 @@ mod tests {
         arrivals.see(photo.clone(), 100, 1, QUIET, start);
         arrivals.see(video.clone(), 1, 1, QUIET, start);
         for second in 1..=60 {
-            arrivals.see(video.clone(), 1 + second, 1, QUIET, start + Duration::from_secs(second));
+            arrivals.see(
+                video.clone(),
+                1 + second,
+                1,
+                QUIET,
+                start + Duration::from_secs(second),
+            );
         }
-        assert_eq!(arrivals.take_ready(start + Duration::from_secs(60)), [photo]);
+        assert_eq!(
+            arrivals.take_ready(start + Duration::from_secs(60)),
+            [photo]
+        );
         assert_eq!(arrivals.files.len(), 1);
     }
 
@@ -832,10 +932,21 @@ mod tests {
         let mut arrivals = Arrivals::default();
         arrivals.see(photo.clone(), 100, 1, LEAD_QUIET, start);
         // Its Live Photo video starts copying ten seconds later, and both go in together.
-        assert!(arrivals.take_ready(start + Duration::from_secs(9)).is_empty());
+        assert!(
+            arrivals
+                .take_ready(start + Duration::from_secs(9))
+                .is_empty()
+        );
         arrivals.see(video.clone(), 10, 1, QUIET, start + Duration::from_secs(10));
-        assert!(arrivals.take_ready(start + Duration::from_secs(16)).is_empty());
-        assert_eq!(arrivals.take_ready(start + Duration::from_secs(20)), [photo, video]);
+        assert!(
+            arrivals
+                .take_ready(start + Duration::from_secs(16))
+                .is_empty()
+        );
+        assert_eq!(
+            arrivals.take_ready(start + Duration::from_secs(20)),
+            [photo, video]
+        );
     }
 
     #[test]
@@ -845,8 +956,15 @@ mod tests {
         let photo = PathBuf::from("C:\\Inbox\\IMG_0001.jpg");
         arrivals.see(photo.clone(), 100, 1, QUIET, start);
         arrivals.still_changing(&photo, start + Duration::from_secs(5));
-        assert!(arrivals.take_ready(start + Duration::from_secs(9)).is_empty());
-        assert_eq!(arrivals.take_ready(start + Duration::from_secs(10)), [photo]);
+        assert!(
+            arrivals
+                .take_ready(start + Duration::from_secs(9))
+                .is_empty()
+        );
+        assert_eq!(
+            arrivals.take_ready(start + Duration::from_secs(10)),
+            [photo]
+        );
     }
 
     #[cfg(windows)]
@@ -870,7 +988,11 @@ mod tests {
 
         assert!(check_folders(&list(&[inbox.path()]), Some(lib.path()), &[]).is_ok());
         assert!(check_folders("[]", Some(lib.path()), &[]).is_ok());
-        let err = |text: &str| check_folders(text, Some(lib.path()), &[]).unwrap_err().to_string();
+        let err = |text: &str| {
+            check_folders(text, Some(lib.path()), &[])
+                .unwrap_err()
+                .to_string()
+        };
         assert!(err(&list(&[lib.path()])).contains("inside your library"));
         assert!(err(&list(&[&lib.path().join("2025")])).contains("can't be found"));
         assert!(err(&list(&[inbox.path(), &inner])).contains("already watched as part of"));
@@ -883,7 +1005,10 @@ mod tests {
         let gone = PathBuf::from("Q:\\Unplugged\\Camera");
         let here = here.path().to_path_buf();
 
-        assert!(!came_or_went(std::slice::from_ref(&here), std::slice::from_ref(&gone)));
+        assert!(!came_or_went(
+            std::slice::from_ref(&here),
+            std::slice::from_ref(&gone)
+        ));
         assert!(came_or_went(&[], std::slice::from_ref(&here)));
         assert!(came_or_went(&[gone], &[]));
     }
@@ -940,22 +1065,48 @@ mod tests {
         write(&inbox.path().join("Phone\\IMG_20250520_080000.jpg"), "may");
         write(&inbox.path().join("copy of march.jpg"), &copy);
         write(&inbox.path().join("notes.txt"), "not a photo");
-        write(&inbox.path().join(".hidden\\IMG_20250601_000000.jpg"), "hidden");
+        write(
+            &inbox.path().join(".hidden\\IMG_20250601_000000.jpg"),
+            "hidden",
+        );
 
         let summary = sort_all(&db, root, inbox.path()).unwrap();
         assert_eq!((summary.moved, summary.failed), (3, 0));
-        let left: Vec<String> = snapshot(inbox.path()).into_iter().map(|(p, _, _)| p).collect();
-        assert_eq!(left, [".hidden\\IMG_20250601_000000.jpg", "copy of march.jpg", "notes.txt"]);
-        assert!(root.join("2025\\2025-04\\IMG_20250412_101500.aae").is_file());
-        assert!(root.join("2025\\2025-05\\IMG_20250520_080000.jpg").is_file());
+        let left: Vec<String> = snapshot(inbox.path())
+            .into_iter()
+            .map(|(p, _, _)| p)
+            .collect();
+        assert_eq!(
+            left,
+            [
+                ".hidden\\IMG_20250601_000000.jpg",
+                "copy of march.jpg",
+                "notes.txt"
+            ]
+        );
+        assert!(
+            root.join("2025\\2025-04\\IMG_20250412_101500.aae")
+                .is_file()
+        );
+        assert!(
+            root.join("2025\\2025-05\\IMG_20250520_080000.jpg")
+                .is_file()
+        );
         assert_eq!(index::load_rows(&db.lock().unwrap()).unwrap().len(), 4);
 
         let label: String = db
             .lock()
             .unwrap()
-            .query_row("SELECT label FROM batches WHERE id = ?1", [summary.batch_id], |r| r.get(0))
+            .query_row(
+                "SELECT label FROM batches WHERE id = ?1",
+                [summary.batch_id],
+                |r| r.get(0),
+            )
             .unwrap();
-        assert_eq!(label, format!("Moved 3 files in from the inbox {}", inbox.path().display()));
+        assert_eq!(
+            label,
+            format!("Moved 3 files in from the inbox {}", inbox.path().display())
+        );
         // Only the copy is left, and it is already in the library.
         assert!(sort_all(&db, root, inbox.path()).is_none());
     }
@@ -967,7 +1118,10 @@ mod tests {
         let inbox = tempfile::tempdir().unwrap();
         let photo = inbox.path().join("IMG_20250412_101500.jpg");
         write(&photo, "april");
-        write(&inbox.path().join("IMG_20250413_101500.jpg"), "the next day");
+        write(
+            &inbox.path().join("IMG_20250413_101500.jpg"),
+            "the next day",
+        );
         let before = snapshot(inbox.path());
 
         let summary = sort_all(&db, root, inbox.path()).unwrap();
@@ -1010,7 +1164,10 @@ mod tests {
 
         write(&inbox.path().join("IMG_20250412_101500.mov"), "april clip");
         assert_eq!(sort_all(&db, root, inbox.path()).unwrap().moved, 1);
-        assert!(root.join("2025\\2025-04\\IMG_20250412_101500 (1).mov").is_file());
+        assert!(
+            root.join("2025\\2025-04\\IMG_20250412_101500 (1).mov")
+                .is_file()
+        );
         assert!(!root.join("2025\\2025-04\\IMG_20250412_101500.mov").exists());
     }
 
@@ -1024,7 +1181,10 @@ mod tests {
 
         write(&inbox.path().join("IMG_20250412_101500.aae"), "april edits");
         assert_eq!(sort_all(&db, root, inbox.path()).unwrap().moved, 1);
-        assert!(root.join("2025\\2025-04\\IMG_20250412_101500.aae").is_file());
+        assert!(
+            root.join("2025\\2025-04\\IMG_20250412_101500.aae")
+                .is_file()
+        );
         assert!(snapshot(inbox.path()).is_empty());
     }
 
@@ -1036,7 +1196,10 @@ mod tests {
         write(&inbox.path().join("IMG_20250412_101500.jpg"), "april");
         sort_all(&db, root, inbox.path()).unwrap();
 
-        write(&inbox.path().join("IMG_20250412_101500.png"), "a screenshot");
+        write(
+            &inbox.path().join("IMG_20250412_101500.png"),
+            "a screenshot",
+        );
         assert_eq!(sort_all(&db, root, inbox.path()).unwrap().moved, 1);
         let rows = index::load_rows(&db.lock().unwrap()).unwrap();
         let (groups, _) = crate::groups::build(rows);
@@ -1051,7 +1214,10 @@ mod tests {
         write(&inbox.path().join("IMG_20250412_101500.jpg"), "april");
         sort_all(&db, root, inbox.path()).unwrap();
 
-        write(&inbox.path().join("IMG_20250412_101500.jpg"), "april, edited");
+        write(
+            &inbox.path().join("IMG_20250412_101500.jpg"),
+            "april, edited",
+        );
         write(&inbox.path().join("IMG_20250412_101500.aae"), "the edits");
         assert_eq!(sort_all(&db, root, inbox.path()).unwrap().moved, 2);
         let month = root.join("2025\\2025-04");
@@ -1072,9 +1238,16 @@ mod tests {
             .execute("UPDATE batches SET created_at = created_at - 2 * 3600", [])
             .unwrap();
 
-        write(&inbox.path().join("IMG_20250412_101500.mov"), "a clip from another day");
+        write(
+            &inbox.path().join("IMG_20250412_101500.mov"),
+            "a clip from another day",
+        );
         sort_all(&db, root, inbox.path()).unwrap();
-        assert!(!root.join("2025\\2025-04\\IMG_20250412_101500 (1).mov").exists());
+        assert!(
+            !root
+                .join("2025\\2025-04\\IMG_20250412_101500 (1).mov")
+                .exists()
+        );
     }
 
     #[test]
@@ -1089,15 +1262,21 @@ mod tests {
         let id: i64 = {
             let conn = db.lock().unwrap();
             let id = conn
-                .query_row("SELECT id FROM media WHERE path = ?1", [first.to_string_lossy()], |r| {
-                    r.get(0)
-                })
+                .query_row(
+                    "SELECT id FROM media WHERE path = ?1",
+                    [first.to_string_lossy()],
+                    |r| r.get(0),
+                )
                 .unwrap();
-            conn.execute("DELETE FROM media WHERE id = ?1", [id]).unwrap();
+            conn.execute("DELETE FROM media WHERE id = ?1", [id])
+                .unwrap();
             id
         };
         fs::remove_file(&first).unwrap();
-        write(&inbox.path().join("IMG_20250412_111500.jpg"), "an hour later");
+        write(
+            &inbox.path().join("IMG_20250412_111500.jpg"),
+            "an hour later",
+        );
         sort_all(&db, root, inbox.path()).unwrap();
         let reused: String = db
             .lock()
@@ -1106,7 +1285,10 @@ mod tests {
             .unwrap();
         assert!(reused.ends_with("IMG_20250412_111500.jpg"), "{reused}");
 
-        write(&inbox.path().join("IMG_20250412_101500.aae"), "edits of the first");
+        write(
+            &inbox.path().join("IMG_20250412_101500.aae"),
+            "edits of the first",
+        );
         sort_all(&db, root, inbox.path());
         assert!(!root.join("2025\\2025-04\\IMG_20250412_111500.aae").exists());
     }

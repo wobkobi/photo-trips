@@ -46,7 +46,9 @@ pub fn installed_extensions(app: tauri::AppHandle) -> Vec<&'static str> {
         .filter(|(_, families)| families.iter().any(|family| package_installed(family)))
         .map(|(codec, _)| *codec)
         .collect();
-    let mut last = LAST_FOUND.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut last = LAST_FOUND
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     if last.as_ref().is_some_and(|before| *before != found) {
         app.state::<crate::thumbs::Pool>().forget_failures();
     }

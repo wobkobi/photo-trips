@@ -243,8 +243,14 @@ mod tests {
         // stored as its wall-clock time read as UTC; afterwards it must match what the phone
         // reader now gives for the same file.
         let walls = [
-            NaiveDate::from_ymd_opt(2026, 11, 14).unwrap().and_hms_opt(13, 36, 13).unwrap(),
-            NaiveDate::from_ymd_opt(2025, 6, 2).unwrap().and_hms_opt(8, 5, 0).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 11, 14)
+                .unwrap()
+                .and_hms_opt(13, 36, 13)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2025, 6, 2)
+                .unwrap()
+                .and_hms_opt(8, 5, 0)
+                .unwrap(),
         ];
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(
@@ -259,8 +265,11 @@ mod tests {
             )
             .unwrap();
         }
-        conn.execute("INSERT INTO device_files VALUES ('phone', 'none', 1, 0, 'h')", [])
-            .unwrap();
+        conn.execute(
+            "INSERT INTO device_files VALUES ('phone', 'none', 1, 0, 'h')",
+            [],
+        )
+        .unwrap();
         conn.execute_batch(MIGRATIONS[PHONE_TIMES]).unwrap();
         for (i, wall) in walls.iter().enumerate() {
             let stored: i64 = conn
@@ -270,11 +279,19 @@ mod tests {
                     |r| r.get(0),
                 )
                 .unwrap();
-            let moment = Local.from_local_datetime(wall).earliest().unwrap().timestamp();
+            let moment = Local
+                .from_local_datetime(wall)
+                .earliest()
+                .unwrap()
+                .timestamp();
             assert_eq!(stored, moment, "{wall}");
         }
         let unset: i64 = conn
-            .query_row("SELECT modified FROM device_files WHERE path = 'none'", [], |r| r.get(0))
+            .query_row(
+                "SELECT modified FROM device_files WHERE path = 'none'",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(unset, 0);
     }
