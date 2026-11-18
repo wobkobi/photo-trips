@@ -11,7 +11,7 @@ use crate::AppState;
 use crate::commands;
 use crate::commands::lock_db;
 use crate::db;
-use crate::devices::Device;
+use crate::devices::{self, Device};
 use crate::import;
 use crate::watch;
 
@@ -79,6 +79,47 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Key in a notification's extra data naming what a click on it opens, one of the `OPENS_*`
+/// values below. A notification carries no callback of its own, so [`handle_clicks`] reads this.
+pub const OPENS_KEY: &str = "opens";
+/// Import, checking the card or phone named under [`devices::DEVICE_KEY`].
+pub const OPENS_IMPORT: &str = "import";
+/// Settings > About, where a waiting update can be installed.
+pub const OPENS_UPDATES: &str = "updates";
+/// History, where a batch the inbox watcher sorted can be undone.
+pub const OPENS_HISTORY: &str = "history";
+/// Just the window.
+pub const OPENS_WINDOW: &str = "window";
+
+/// Act on a click on any of the app's notifications. Windows reports clicks only for the
+/// installed app, which has a registered app id, so in a dev build they do nothing. A
+/// notification without a known target still brings the window back, so no click goes nowhere.
+pub fn handle_clicks(app: &AppHandle) {
+    let handle = app.clone();
+    let _ = app.notification().on_action(move |performed| {
+        if performed.action_id() != "tap" {
+            return;
+        }
+        let extra = performed.notification().map(|shown| shown.extra());
+        let get = |key: &str| extra.and_then(|e| e.get(key)).and_then(|v| v.as_str());
+        match get(OPENS_KEY) {
+            // Still plugged in: check it. Gone: open Import anyway, to pick another source.
+            Some(OPENS_IMPORT) => {
+                open_import_from(
+                    &handle,
+                    devices::connected(&handle, get(devices::DEVICE_KEY)),
+                );
+            }
+            Some(OPENS_UPDATES) => open_updates(&handle),
+            Some(OPENS_HISTORY) => {
+                show_main(&handle);
+                let _ = handle.emit("navigate", "history");
+            }
+            _ => show_main(&handle),
+        }
+    });
+}
+
 /// Show the Import page and, when a card or phone is on offer, start checking it for new
 /// photos. A job already running means the page lists the device for later instead.
 pub fn open_import(app: &AppHandle) {
@@ -128,6 +169,7 @@ pub fn notify_hidden_once(app: &AppHandle) {
         .builder()
         .title("Pic Cabinet is still running")
         .body("Open it again from the tray icon, or choose Quit there to close it.")
+        .extra(OPENS_KEY, OPENS_WINDOW)
         .show();
     match shown {
         Ok(()) => {

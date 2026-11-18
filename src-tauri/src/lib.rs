@@ -140,6 +140,8 @@ pub fn run() {
             {
                 log::warn!("Startup index skipped: {err}");
             }
+            // Before anything can show a notification, so every click is caught.
+            tray::handle_clicks(app.handle());
             devices::start(app.handle());
             watch::start(app.handle());
             updater::start(app.handle());

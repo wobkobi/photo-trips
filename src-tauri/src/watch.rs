@@ -809,7 +809,13 @@ fn notify_sorted(app: &AppHandle, moved: usize) {
         return;
     }
     let (title, body) = sorted_message(moved);
-    let shown = app.notification().builder().title(title).body(body).show();
+    let shown = app
+        .notification()
+        .builder()
+        .title(title)
+        .body(body)
+        .extra(crate::tray::OPENS_KEY, crate::tray::OPENS_HISTORY)
+        .show();
     if let Err(err) = shown {
         log::warn!("Couldn't show the inbox notification: {err}");
     }

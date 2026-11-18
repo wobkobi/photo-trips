@@ -270,7 +270,8 @@ fn notify_once(app: &AppHandle, found: &Available) {
         .notification()
         .builder()
         .title(format!("Pic Cabinet {} is ready to install", found.version))
-        .body("Choose Install update in the Pic Cabinet tray menu to see what's new.")
+        .body("Click to see what's new and install it.")
+        .extra(crate::tray::OPENS_KEY, crate::tray::OPENS_UPDATES)
         .show();
     match shown {
         Ok(()) => {
