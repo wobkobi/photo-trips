@@ -81,7 +81,11 @@ if (pull !== null) {
   if (tags.split("\n").includes(`v${packageVersion}`)) {
     fail(`${packageVersion} is already released. Bump the version for a beta.`);
   }
-  version = nextBeta(packageVersion, tags.split("\n"));
+  // A deleted beta's tag can outlive its release, so its number counts as taken too
+  const gitTags = (run("git", ["ls-remote", "--tags", "origin", "refs/tags/v*"]) ?? "")
+    .split("\n")
+    .map((line) => line.split("refs/tags/")[1] ?? "");
+  version = nextBeta(packageVersion, [...tags.split("\n"), ...gitTags]);
 }
 const tag = `v${version}`;
 

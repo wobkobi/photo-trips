@@ -1,7 +1,8 @@
 # Publishes a beta of every push to an open pull request, e.g. 0.31.0-beta.2, for copies with
 # Beta updates on. Betas are GitHub pre-releases, never the latest release, so everyone else
 # keeps getting only what's merged into main. Closing the pull request (merged or not) deletes
-# its betas.
+# its betas. scripts/beta-feed.mjs then points beta.json, on the update-feed branch, at the
+# newest release of any kind; that file is what copies with Beta updates on read.
 #
 # A pull request that leaves the version at one already released (CI or docs only) builds no
 # beta, since it would sort below the release and no copy would take it. Pull requests from
