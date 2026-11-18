@@ -1,0 +1,313 @@
+{
+  "version": "0.32.0",
+  "notes": "### Added\n\n- Right-click on the open photo in the viewer shows the same menu as its tile; while a menu is open, Delete and the arrow keys no longer act behind it\n- In the Library's viewer, Delete or the bin button asks, then sends the photo to the Recycle Bin; the viewer stays open on the next photo\n- Each linked file in the viewer's details opens with a click, and a RAW copy can be shown in its folder; a Live Photo plays its clip from the viewer bar; tiles mark Live Photos with a ring and RAW pairs with RAW; the name search finds a photo by its linked files' names too\n- The photo menu starts with View and shows each item's shortcut; Delete and Ctrl+C act on the focused photo when nothing is selected, and no longer reach the page behind a dialog\n- F or F11 shows the open photo or video fullscreen, with the menu bar hidden; Esc leaves fullscreen first, and closing the viewer or hiding to the tray leaves it too\n- The Recycle Bin question and Set date open as dialogs above the photo viewer and menus; Enter answers, Esc cancels, and keys no longer act on the page behind\n- The viewer shows how far a photo is zoomed as a percent of its real size; 1 or a click goes to exactly 100%, 0 fits, and Ctrl+wheel or a touchpad pinch zooms smoothly around the pointer\n- The viewer's details panel opens and closes with I, and stays as you left it; the photo uses the full space beside it\n- The viewer has a slim bar over the photo: Back, the file name and date, \"N of M\", and buttons for Zoom, Rotate, Show in folder, Copy, Open and Info. It fades while the mouse rests and comes back when you move it. The same bar shows wherever photos open, including Import and Duplicates.\n- The details panel is shorter: \"4032 × 3024 · 12 MP\", a video's length as a clock time such as 2:14, and the camera settings on one line with no \"More details\" to open.\n\n### Fixed\n\n- Fixed: Enter no longer cancels the Recycle Bin question while another job runs, and a held Enter answers it once; photos sent to the Recycle Bin no longer flash back when two go in quick succession; keys no longer zoom or turn the photo behind the viewer's menu; Ctrl+C copies the open photo; a zoomed photo refits after turning it or hiding the details; quitting in fullscreen keeps the window's own size",
+  "changes": [
+    {
+      "version": "0.32.0",
+      "notes": "### Added\n\n- Right-click on the open photo in the viewer shows the same menu as its tile; while a menu is open, Delete and the arrow keys no longer act behind it\n- In the Library's viewer, Delete or the bin button asks, then sends the photo to the Recycle Bin; the viewer stays open on the next photo\n- Each linked file in the viewer's details opens with a click, and a RAW copy can be shown in its folder; a Live Photo plays its clip from the viewer bar; tiles mark Live Photos with a ring and RAW pairs with RAW; the name search finds a photo by its linked files' names too\n- The photo menu starts with View and shows each item's shortcut; Delete and Ctrl+C act on the focused photo when nothing is selected, and no longer reach the page behind a dialog\n- F or F11 shows the open photo or video fullscreen, with the menu bar hidden; Esc leaves fullscreen first, and closing the viewer or hiding to the tray leaves it too\n- The Recycle Bin question and Set date open as dialogs above the photo viewer and menus; Enter answers, Esc cancels, and keys no longer act on the page behind\n- The viewer shows how far a photo is zoomed as a percent of its real size; 1 or a click goes to exactly 100%, 0 fits, and Ctrl+wheel or a touchpad pinch zooms smoothly around the pointer\n- The viewer's details panel opens and closes with I, and stays as you left it; the photo uses the full space beside it\n- The viewer has a slim bar over the photo: Back, the file name and date, \"N of M\", and buttons for Zoom, Rotate, Show in folder, Copy, Open and Info. It fades while the mouse rests and comes back when you move it. The same bar shows wherever photos open, including Import and Duplicates.\n- The details panel is shorter: \"4032 × 3024 · 12 MP\", a video's length as a clock time such as 2:14, and the camera settings on one line with no \"More details\" to open.\n\n### Fixed\n\n- Fixed: Enter no longer cancels the Recycle Bin question while another job runs, and a held Enter answers it once; photos sent to the Recycle Bin no longer flash back when two go in quick succession; keys no longer zoom or turn the photo behind the viewer's menu; Ctrl+C copies the open photo; a zoomed photo refits after turning it or hiding the details; quitting in fullscreen keeps the window's own size"
+    },
+    {
+      "version": "0.31.0",
+      "notes": "### Added\n\n- Settings reopens on the tab you left, History keeps the batch you had open, and Duplicates keeps the copies you chose to keep. Each page opens at its top, and the Library header no longer flashes a 0 while it loads.\n- Back and Forward move between the pages you've visited, keeping each page's filter: Alt+Left and Alt+Right, or the mouse's side buttons. Inside a step such as a trip review, Back steps out of that first.\n- The menu is in groups: Library, then Trips with your newest trips listed under it, then Import, Sort, Suggestions and Duplicates. History, Settings and Help are small buttons at the bottom. Ctrl+1 to Ctrl+7 follow the new order (Ctrl+2 is Trips), and opening the Library always shows the whole library.\n- Opening a trip shows it as its own place: its name and dates as the title, a back arrow to where you came from, and Edit. The Trip drop-down is gone; \"Not on a trip\" is a switch beside \"Uncertain dates\", and \"Clear filters\" keeps the trip. An empty trip says so.\n- A trip review, a trip being edited, an import preview and the other in-between steps have a back arrow before their name, and Esc or Alt+Left steps back. Each step names itself in the title, such as \"Edit Japan\" or \"Preview\".\n- The Library opens scrolled to where you left it, including after a trip review, and resizing the window keeps the same photos at the top.\n- Coming back to the Library finds it as you left it: same filter, same selection, same open photo, with no wait for the photos to load again.\n\n### Fixed\n\n- Back from a trip returns to the page it was opened from, Esc and Alt+Left no longer drop an unsaved trip or import, and focus lands on the page title after Back\n- The photo open in the viewer, and where a Shift-click range starts, stay the same when photos arrive or leave in the background."
+    },
+    {
+      "version": "0.30.7",
+      "notes": "### Fixed\n\n- Retrying thumbnails reloads only the blank tiles, and the Import preview retries once an extension is installed. The Busy tooltip shows only on buttons waiting for a job, and the window colour follows Windows when it switches between light and dark."
+    },
+    {
+      "version": "0.30.6",
+      "notes": "### Changed\n\n- Standard words throughout: Select all / Select none, Deselect, Rotate, Open, Refresh, Import 12 items, and Undo / Cancel in History. Selections count items, and stray sidecars read as having no matching photo or video."
+    },
+    {
+      "version": "0.30.5",
+      "notes": "### Fixed\n\n- The Store extension hint no longer blames a codec for one damaged file: it waits for three files of a type to fail (or all of them when there are fewer), ignores empty files, and also shows on the Import preview. A photo the viewer can't show offers the extension it needs."
+    },
+    {
+      "version": "0.30.4",
+      "notes": "### Fixed\n\n- Photos and videos Windows couldn't preview get their thumbnails as soon as the missing Store extension is installed, and are tried again when you come back to the window a minute or more later, instead of staying blank until Pic Cabinet restarts."
+    },
+    {
+      "version": "0.30.3",
+      "notes": "### Changed\n\n- Hovering a photo outlines it instead of fading it, buttons and menu rows darken while pressed, and hover and press changes happen at once rather than easing in."
+    },
+    {
+      "version": "0.30.2",
+      "notes": "### Changed\n\n- Buttons, boxes, switches, menu rows and the sidebar are tighter, about 34px tall, like other desktop apps; text stays the same size."
+    },
+    {
+      "version": "0.30.1",
+      "notes": "### Fixed\n\n- The warning mark for a guessed date no longer sits on every such photo: it shows when the photo is hovered or focused, and on all of them while the Uncertain dates filter is on. The tooltip says Date uncertain too."
+    },
+    {
+      "version": "0.30.0",
+      "notes": "### Added\n\n- Hovering a photo in the grid shows its file name, when it was taken and its trip, and screen readers hear the file name too."
+    },
+    {
+      "version": "0.29.2",
+      "notes": "### Fixed\n\n- Changing a Library filter shows the grid from the top, rather than somewhere in the middle of the new list."
+    },
+    {
+      "version": "0.29.1",
+      "notes": "### Fixed\n\n- Closing the viewer brings the grid to the last photo it showed and puts the focus on it, instead of going back to wherever the viewer was opened."
+    },
+    {
+      "version": "0.29.0",
+      "notes": "### Added\n\n- The window opens at the size and place it was left, maximised if it was, including after hiding to the tray."
+    },
+    {
+      "version": "0.28.0",
+      "notes": "### Added\n\n- The browser's own keys (print, reload, find bar, view source) no longer do anything in the app. Ctrl+F, also View > Find, opens the Library and puts the cursor in its search box."
+    },
+    {
+      "version": "0.27.0",
+      "notes": "### Added\n\n- Moving files, sending them to the Recycle Bin or putting them back can be stopped from the page showing its progress, and a button that waits for a running job says which job in its tooltip."
+    },
+    {
+      "version": "0.26.2",
+      "notes": "### Fixed\n\n- The menu down the left no longer repeats the app's name, which the title bar already shows, and the button that narrows it sits at its top."
+    },
+    {
+      "version": "0.26.1",
+      "notes": "### Fixed\n\n- HEIC, RAW and TIFF photos open in the viewer showing their thumbnail straight away instead of a blank screen, with a small busy mark if the full picture takes a moment."
+    },
+    {
+      "version": "0.26.0",
+      "notes": "### Added\n\n- Clicking a photo in the viewer zooms in where you clicked, and clicking again fits it to the window. Opening it in another app is the button only."
+    },
+    {
+      "version": "0.25.20",
+      "notes": "### Fixed\n\n- The window opens in the theme's own colour, with no white flash before the page draws."
+    },
+    {
+      "version": "0.25.19",
+      "notes": "### Fixed\n\n- Right-clicking anywhere but on text no longer shows the browser's own menu with Back, Reload and Print."
+    },
+    {
+      "version": "0.25.18",
+      "notes": "### Fixed\n\n- A job that finishes after an earlier result was dismissed is always noticed, so pages that refresh when a job ends no longer miss it."
+    },
+    {
+      "version": "0.25.17",
+      "notes": "### Fixed\n\n- A phone unplugged or locked near the end of a check now ends it with an error instead of reporting the last files as unreadable, and a problem on this PC (a full disk) stops the check at once instead of being blamed on the phone."
+    },
+    {
+      "version": "0.25.16",
+      "notes": "### Fixed\n\n- Transport-stream recordings that start mid-packet or use 204-byte packets are recognised as videos, while source files with a few stray G's are not. A folder whose listing fails partway through a refresh no longer drops the photos it didn't get to."
+    },
+    {
+      "version": "0.25.15",
+      "notes": "### Fixed\n\n- Choosing which copy of a duplicated Live Photo or RAW pair to keep carries over to the pair's other set even when one set has an extra copy, such as a third copy of the photo without its clip."
+    },
+    {
+      "version": "0.25.14",
+      "notes": "### Fixed\n\n- A file arriving in an inbox only joins a same-name photo filed in the last hour, and only when nothing of its kind came with that photo, so an edited photo keeps the sidecar it arrived with and a camera's reused file name never joins an old picture."
+    },
+    {
+      "version": "0.25.13",
+      "notes": "### Fixed\n\n- Photos copied off a phone that carry no date of their own are dated at the time they were taken, not hours later; the phone's file times are its local time, which were being read as UTC. Files already seen on the phone are still recognised and aren't copied again."
+    },
+    {
+      "version": "0.25.12",
+      "notes": "### Fixed\n\n- Duplicates keep a copied Live Photo or RAW+JPEG pair whole: its photo and clip sets suggest the same pair, choosing a keeper in one carries over to the other, and the viewer shows the exact copy being judged."
+    },
+    {
+      "version": "0.25.11",
+      "notes": "### Fixed\n\n- In an inbox folder, a Live Photo video, RAW or sidecar saved after its photo was already filed now goes beside that photo under the photo's name, so the two show as one tile again. A late sidecar used to stay in the inbox for good. Photos and RAW files also wait a little longer before they are filed, so files saved a few seconds apart usually go in together."
+    },
+    {
+      "version": "0.25.10",
+      "notes": "### Fixed\n\n- Empty (0 byte) files, usually left by a copy that didn't finish, are no longer brought in on every check under a new number. The import preview counts them, and an empty file already in the library says so in the viewer, with Show in folder, instead of offering to open it in another app."
+    },
+    {
+      "version": "0.25.9",
+      "notes": "### Fixed\n\n- When a phone refuses to hand over a file, Pic Cabinet asks once more, then leaves that file and the files that go with it on the phone and carries on with the rest. The import preview says how many couldn't be read, with the iPhone setting that usually fixes it (Settings > Photos > Transfer to Mac or PC > Keep Originals). The check only stops if the phone stops answering altogether."
+    },
+    {
+      "version": "0.25.8",
+      "notes": "### Fixed\n\n- Undoing a Recycle Bin batch now finds a file that was edited in another program after the last refresh. It used to say the file was no longer in the Recycle Bin."
+    },
+    {
+      "version": "0.25.7",
+      "notes": "### Fixed\n\n- When one file of a photo can't go to the Recycle Bin (a RAW open in another program, say), the files that already went come back out, so the photo stays whole with its Live Photo video, RAW and sidecars. History names the file that held it back."
+    },
+    {
+      "version": "0.25.6",
+      "notes": "### Fixed\n\n- When a folder in the library can't be read during a refresh (a drive that dropped out, a permission problem), its photos stay listed with their set dates and trips instead of dropping out of the library. If the whole library folder has gone, nothing is dropped. The Library says how many folders couldn't be read."
+    },
+    {
+      "version": "0.25.5",
+      "notes": "### Fixed\n\n- Edit files that RawTherapee (.pp3), DxO (.dop), Adobe Camera Raw (.acr), ON1 (.on1), AfterShot (.arp) and Capture One (.cos) keep beside a RAW now move, import and go to the Recycle Bin with it, instead of being left behind."
+    },
+    {
+      "version": "0.25.4",
+      "notes": "### Fixed\n\n- Photos deleted on an Android phone (kept as .trashed files for 30 days), half-saved .pending files and other hidden dot-files are no longer imported. NAS recycle and thumbnail folders (#recycle, @eaDir, @Recycle, #snapshot) and Sony cards' thumbnail and proxy folders are skipped. Phones now get the same checks as folders and cards."
+    },
+    {
+      "version": "0.25.3",
+      "notes": "### Fixed\n\n- Files ending in .ts, .mts or .m2ts only count as videos when they really are video streams, so code files in a folder inside the library or an inbox are no longer moved by Sort. node_modules folders are skipped."
+    },
+    {
+      "version": "0.25.2",
+      "notes": "### Fixed\n\n- Before sending a photo to the Recycle Bin, Pic Cabinet now names the files that go with it (\"IMG_1.MOV and IMG_1.AAE go with it\") and says videos or items rather than photos when that is what is selected."
+    },
+    {
+      "version": "0.25.1",
+      "notes": "### Fixed\n\n- Two different pictures or videos with the same name in one folder (image.jpg and image.png, a film and its trailer) are now separate tiles with their own dates, instead of one hiding the other and going to the Recycle Bin with it. Sidecars stay with the file they belong to."
+    },
+    {
+      "version": "0.25.0",
+      "notes": "### Added\n\n- Right-clicking a photo in the Library offers Open, Show in folder and Copy path.\n- A photo that has gone from disk has a button to look for new photos.\n- Settings can open the library folder, asks before switching to another one, and can show the missing extension tip again once it's hidden.\n- After an import, See in Library goes straight to the new photos.\n- History can show or open each file wherever it is now, lists older changes on request rather than stopping at 200, and offers to sort or import again when some files failed.\n- Arrow keys move between photos in the grid, Ctrl+A picks every photo shown, Home and End go to the first and last photo in the viewer, and Help lists them.\n- The Library can find photos by any part of their file name.\n- Sort can leave photos where they are: untick them in the list before moving.\n- Photos can go to the Recycle Bin from the Library's right-click menu or the Delete key, with the files that go with them, after a confirm. History can undo it.\n- Zoom into a photo in the viewer with the mouse wheel, the + and - keys or the buttons under it, drag to look around, and turn it with R. Copy puts a photo on the clipboard to paste into a folder, email or chat, from the viewer or the Library's right-click menu.\n- Set the date of a photo whose own date is wrong or only a guess: Change date in the viewer, or Set date from the Library's right-click menu for several at once. Pic Cabinet keeps the new date and the file isn't changed, so other apps still show its own. Undo it from the banner or History, or go back with Use the file's date.\n- Picked photos in the Library can be taken out of their trip, put back in, or added to a trip within two weeks of them, from the header or the right-click menu. The viewer shows each photo's trip with the same choices.\n\n### Changed\n\n- Smoother, more consistent icons throughout the app.\n\n### Fixed\n\n- Small or transparent photos no longer flash up stretched across the viewer before shrinking to their real size."
+    },
+    {
+      "version": "0.24.0",
+      "notes": "### Added\n\n- One busy day away from home is suggested as a day trip.\n- Suggestion previews are much bigger, filling the card with photos spread through the trip; the buttons drop under the words in a narrow window.\n- A trip over New Year gets both years in its folder, such as Tairua 2025-26, and each suggestion is titled the way its trip folder will be.\n- The trip editor shows the folder a trip will get, Settings shows how a trip over New Year is named, and a suggestion with no place is called Trip so its folder doesn't repeat the dates."
+    },
+    {
+      "version": "0.23.0",
+      "notes": "### Added\n\n- A Theme choice in Settings > Display: Light, Dark, or System to follow Windows. The window's title bar and menus follow it too.\n- Settings > Suggestions has a Use my location button that asks Windows where you are, once, and saves that as home.\n- A date rail beside the photo grid: drag or click it to jump to a month, or use the arrow and Page keys.\n\n### Changed\n\n- A new look that reads more like a photo app: a dark grey theme, a slim toolbar along the top of each page, Windows' own font, a quieter menu, and photos packed closer together in the grid.\n- The Library's filters sit in one slim row, and Look for new photos is the refresh button beside Make a trip.\n- Trips show as album cards, each with a cover made from its photos.\n- Settings are split into groups (Display, Library, Inbox, Suggestions, File types, Window, About), picked from a list down the side.\n- Sort, Duplicates, History, Help and Import are quieter: short headings, a one-line summary with the fuller notes under Details, and the job status in the menu with a plain Stop button.\n- The magnifier on a photo only shows when the mouse is over it.\n- The map in the photo viewer is a real street map from OpenFreeMap, light or dark to match the theme, and it can be dragged. Open in Google Maps replaces Open in OpenStreetMap. Without an internet connection the drawn map is shown instead.\n- The photo viewer's side panel is shorter: where a date came from shows on hover, folders read from the library folder, and the map has its own zoom buttons. Stepping between photos is quicker, since the next and previous ones load ahead and the map stays put.\n- Photos in the viewer show at once: the grid thumbnail fills in while the full picture loads, and the next two photos each way, with their suburb names, load ahead.\n- The viewer's side panel no longer jumps while stepping through photos: it lays out once, with Taken, File and Camera first and the map below them.\n- Clicking a photo in the viewer opens it in its app.\n- The viewer's map draws straight away when stepping between photos: the map tiles around the next photos are fetched ahead.\n- Videos in the viewer start at 40% volume instead of full, and keep whatever volume or mute was last set.\n- A date taken from when the file last changed is no longer flagged as a warning. Downloads, screenshots and photos from some apps have no date of their own; the reason shows on hover.\n- Videos have their own control bar under the picture: play, a seek bar, mute and volume. Click the video or press Space to play and pause.\n- The viewer's arrows are small round buttons instead of labelled ones.\n- The menu and About show the Pic Cabinet icon, matching the taskbar; the To the Point Tech chip sits by the copyright, in russian-violet on light and white on dark as on the website.\n- Settings has a gear icon in the menu.\n- Suggestions leave out busy days at home, and trim home days off either end of a trip.\n- Suggested trip names fit how far the photos spread: the town for a stay in one place, the region for a road trip, then two towns, then the country.\n\n### Fixed\n\n- Checking an import with lots of notes left the photos in a short strip at the bottom. The notes now fold away under Details, and the photos fill the window once you scroll down to them.\n- The dark map in the photo viewer was too dim to read. It now has light labels and roads that stand out.\n- Where a photo was taken now names the suburb, such as Flat Bush rather than Manukau City. The name is looked up from OpenStreetMap; without an internet connection the nearest town is shown as before.\n- The map's credits no longer pop open over the map each time you move to another photo.\n- A photo or video deleted or moved while the viewer is open says so instead of showing a broken picture.\n- Checking a locked phone says to unlock it instead of reporting nothing new.\n- The Import review counts photos everywhere: the button, the title and the folder list now match the tick count and the month headings. The total of files, with the videos and edits that go with them, shows when you hover over the button.\n- Review pages with a photo grid don't scroll the whole page when everything fits.\n- A photo opened for the first time sharpens sooner: its full picture is drawn before the ones fetched ahead and before grid tiles.\n- A settings text box shows a value saved from a button beside it, such as Use my location, instead of staying empty.\n- Home, and trips around a city, go by the city (Auckland) rather than the nearest suburb in the place list."
+    },
+    {
+      "version": "0.22.0",
+      "notes": "### Added\n\n- A Help page in the menu says what each page is for, with a button to open it, and lists the keyboard shortcuts. F1 or Help > Pic Cabinet help opens it.\n- A short tour of the menu shows once after setup, pointing at each page in turn. Skip it any time, or take it again from Help."
+    },
+    {
+      "version": "0.21.1",
+      "notes": "### Changed\n\n- The Library's filter menus are shorter: each starts with All, and the rest read No trip, Photos, Videos and Uncertain dates. The button that resets them is Clear filters."
+    },
+    {
+      "version": "0.21.0",
+      "notes": "### Added\n\n- When an update skips versions, for example going from 0.18.0 straight to 0.21.0, Settings > About lists the changes from every version in between, not just the newest. This starts with the update after this one, since the copy already installed does the listing."
+    },
+    {
+      "version": "0.20.1",
+      "notes": "### Changed\n\n- Behind the scenes only: the code now follows the same formatting and documentation checks as the To the Point Tech website, and Tailwind classes use their standard names. Nothing changes in how the app works."
+    },
+    {
+      "version": "0.20.0",
+      "notes": "### Changed\n\n- Trips always cover whole days: the start and end times are gone from the trip editor. A trip saved with times takes in the whole of its first and last days the next time it's saved."
+    },
+    {
+      "version": "0.19.1",
+      "notes": "### Fixed\n\n- At a large text size or on a small window, the photos on the Library, Trips, Import and Duplicates pages, and the list of files on the review pages, could shrink to nothing under the writing above them, and the mouse wheel did nothing. They now always keep a usable height and the page scrolls instead.\n- Buttons at the top of a page move onto a new line when they don't fit, instead of squeezing their words, and settings put their controls under the words when the window is narrow.\n- History, the Trips list and the Import review show whole folder paths instead of cutting them off, and long file and folder names elsewhere show in full when the mouse rests on them.\n- The viewer's Newer and Older buttons show just their arrows on a narrow window, so they no longer cover the photo, and the details panel gives the photo more room.\n- The Tick all and Untick all buttons beside each month are shorter (\"Tick month\"), so a long month name can't push them over the photos above.\n- On a small window, or at a large text size, the menu down the left narrows to just its icons by itself.\n- On a narrower window, or at a large text size, the folder list beside an import's photos folds away above the photos under \"Where they go\", instead of disappearing.\n- The job progress and its Stop button at the bottom of the menu stay in view on a short window; only the list of pages scrolls."
+    },
+    {
+      "version": "0.19.0",
+      "notes": "### Added\n\n- The folder list beside an import's photos is clickable: clicking a month or trip scrolls to the photos going into it.\n- The menu down the left can be narrowed to just its icons, giving the pages more room. The button for it is at the bottom of the menu, and the choice is remembered."
+    },
+    {
+      "version": "0.18.0",
+      "notes": "### Added\n\n- The Library can show just one trip, one year, photos or videos, or the photos whose dates may be wrong. Clicking a trip on the Trips page, or its See in Library button, opens the Library at that trip.\n- The viewer shows where a photo was taken on a built-in map with the town's name, the camera or phone, the picture's size or video's length, and the camera settings under More details. Open in OpenStreetMap shows the spot online, only when clicked.\n\n### Changed\n\n- The library folder at the bottom of the sidebar shows just its name, and clicking it opens it in File Explorer."
+    },
+    {
+      "version": "0.17.0",
+      "notes": "### Added\n\n- A magnifier on each photo opens it full size while picking photos for an import or a trip, and in Duplicates; the photos on trip and suggestion cards open with a click. The viewer has its own tick (or Keep button), and can open the file in its Windows app or show it in its folder.\n- The viewer's open buttons name the app Windows uses for the file, such as \"Open in Photos\" or \"Open in VLC media player\", or say \"Open in default app\" when there isn't one. A file Pic Cabinet can't show or play gets the same button in place of the picture."
+    },
+    {
+      "version": "0.16.2",
+      "notes": "### Changed\n\n- Settings > About > Third-party notices opens the list installed with the app, so it works offline and always matches the installed version."
+    },
+    {
+      "version": "0.16.1",
+      "notes": "### Fixed\n\n- If the window stays blank for 30 seconds after starting, Pic Cabinet restarts itself once. Overlay or screen-recording software such as RivaTuner can crash the part of Windows that draws the window as it opens, and a fresh start usually gets past it. If it's still blank after the restart, Pic Cabinet stays open and names the likely cause in its log. Release notes now include every version since the last release, so this one also lists the folder naming choices from 0.16.0, which was never released."
+    },
+    {
+      "version": "0.16.0",
+      "notes": "### Added\n\n- Choose how folders are named in Settings: month folders as 2026\\2026-03, 2026\\03 March or 2026\\March 2026, and trip folders as 2026-03-12 Japan, Japan 2026 or 2026 Japan. Each drop-down shows example folders and a sentence shows where a photo and a trip would go. A change renames the folders already in the library as one previewed batch that can be undone, and trips that would share a name get (2) added."
+    },
+    {
+      "version": "0.15.0",
+      "notes": "### Added\n\n- Leave photos out of a trip. The trip form shows every photo from its dates with a tick; unticked photos stay in their month folders, stay out when the dates change, and can be ticked again by editing the trip. Photos picked in the Library start as the only ones ticked, and a suggestion's Change or pick photos button opens the same form."
+    },
+    {
+      "version": "0.14.0",
+      "notes": "### Added\n\n- Choose which photos to bring in. After a check, every new photo is shown with a tick; untick any you don't want, or untick a whole month, and only the ticked ones are copied or moved in. Unticked photos stay where they are and show up again on the next check."
+    },
+    {
+      "version": "0.13.0",
+      "notes": "### Added\n\n- Bigger text, buttons and photos throughout, with stronger contrast. Settings > Display has a Text size (Standard to Largest) and a Photo size (Small, Medium, Large). The Library has a Pick photos for a trip button, so making a trip no longer needs right-click or Ctrl-click. Switches say On or Off, and the photo viewer's buttons are labelled."
+    },
+    {
+      "version": "0.12.0",
+      "notes": "### Added\n\n- Renamed to Pic Cabinet. Installing it replaces an installed Photo Trips, keeps your library, settings and history, and keeps Start with Windows on if it was.\n- A licence, privacy policy and third-party notices. The installer shows the licence and installs it with the notices, and Settings > About links to all three. The README now describes what the app does."
+    },
+    {
+      "version": "0.11.1",
+      "notes": "### Fixed\n\n- Updated a tool used to check the code, fixing a security alert. The app itself is unchanged."
+    },
+    {
+      "version": "0.11.0",
+      "notes": "### Added\n\n- Updates. Settings > About checks for a newer version, shows what changed and installs it with Install and restart. The app also checks once a day and says so once per version, and the tray and Help menu have Check for updates. Updates are signed, and one signed for a different version is refused. npm run release publishes a version."
+    },
+    {
+      "version": "0.10.1",
+      "notes": "### Fixed\n\n- Importing from an iPhone found nothing. Its photos have no display name, only a file name, and the phone reader stopped at the first one; there is also no DCIM folder, as an iPhone keeps its month folders straight under its storage. Phones are now read through Windows directly, by file name, from DCIM where a phone has it and the whole storage where it doesn't, and only ever read-only."
+    },
+    {
+      "version": "0.10.0",
+      "notes": "### Added\n\n- A menu bar on the window: File (import, refresh, open the library folder, close, quit), View (every page, with Ctrl+1 to Ctrl+7), Options (settings, pause watching, keep running in the tray, start with Windows) and Help (log folder, About). Settings has an About section with the version."
+    },
+    {
+      "version": "0.9.4",
+      "notes": "### Fixed\n\n- Thumbnails of transparent images had the old dark theme colour behind them. Thumbnails now use the light tile colour and full-size previews the viewer's black, and thumbnails cached with the old colour are made again."
+    },
+    {
+      "version": "0.9.3",
+      "notes": "### Fixed\n\n- The Library's codec hint suggested extensions that were already installed, and linked only the free HEVC listing, which the Store doesn't offer on every PC. It now suggests only missing extensions, suggests HEVC for HEIC photos as well as HEIF, and links the paid HEVC listing for PCs the free one isn't offered on."
+    },
+    {
+      "version": "0.9.2",
+      "notes": "### Changed\n\n- The To the Point Tech chip logo is drawn from the website's own logo file, so the two match."
+    },
+    {
+      "version": "0.9.1",
+      "notes": "### Fixed\n\n- The installer's exe showed the previous version in its file details after a version-only change. The build now reruns when package.json changes."
+    },
+    {
+      "version": "0.9.0",
+      "notes": "### Changed\n\n- Photo Trips wears the To the Point Tech brand: Exo type, a russian-violet sidebar with the chip mark, seasalt pages with white panels and violet headings, and moonstone for selection and focus. Photos opened large still sit on a dark ground. Trip colours come from the brand palette, and the app icon is redrawn in brand colours."
+    },
+    {
+      "version": "0.8.1",
+      "notes": "### Fixed\n\n- The inbox notification says \"It came from an inbox folder\" when a single file comes in, instead of \"They came\"."
+    },
+    {
+      "version": "0.8.0",
+      "notes": "### Added\n\n- Inbox folders. New photos and videos put in a watched folder move into the library by themselves once they finish copying, each to its month or trip folder. Copies of photos already in the library stay where they are, and each batch can be undone from History.\n- A notification says how many files came in from an inbox while Photo Trips is in the tray or behind other windows.\n- Pause watching from the tray or from Settings. Anything put in an inbox while paused, or while Photo Trips wasn't running, moves in on resuming or at the next start.\n- An inbox folder on a drive that's unplugged shows as missing in Settings and is watched again within about 30 seconds of the drive coming back.\n- Settings for trip suggestions: how many photos and videos make a busy day, and where home is. Home is pasted from a map as latitude and longitude, and the nearest town is shown to confirm it.\n- Extra photo and video file types can be added in Settings.\n- An app icon and a Windows installer.\n- A log file in the app's data folder (`logs\\Photo Trips.log`) records problems with background work like the inbox watcher."
+    },
+    {
+      "version": "0.7.0",
+      "notes": "### Added\n\n- Suggestions page that finds trips you haven't made yet. Two or more busy days in a row (15 or more photos and videos each, with up to one quiet day between) make a suggestion.\n- Days spent more than 50 km from home are suggested too, however few photos they have. Home is worked out from where photos were taken on the most days, and the page says where that is.\n- Each suggestion is named after where its photos were taken, like \"Tokyo\" or \"Kyoto and Tokyo\", with no internet needed. Without locations it's named by its dates, like \"Trip 1-2 Feb 2025\".\n- Each suggestion shows its dates, why it was suggested, and some of its photos. Create trip previews the moves like any new trip, and the result can be undone. Change lets you rename it or move its first and last days first, with a live count of the photos those days take in.\n- Not a trip hides a suggestion, and hidden ones can be shown again. Days already in a trip are never suggested."
+    },
+    {
+      "version": "0.6.0",
+      "notes": "### Added\n\n- Import page that brings in photos and videos from a memory card, a phone or a folder on this PC. A check lists what's new first, with every incoming file and the folder it goes to, and nothing comes in until you choose to.\n- Anything already in your library stays out, even under a different name. Checking the same card again finds nothing new.\n- New photos go straight into their trip's folder, or the folder for the month they were taken, with their companion files. Name clashes get a number added, so no file in the library is ever replaced.\n- Cards and phones are copied from and never changed. A folder on this PC can be copied or moved in; when moving, copies of photos you already have stay behind.\n- Memory cards (a removable drive with a DCIM folder) and phones or cameras connected by cable show up on the Import page by themselves. Plugging one in shows a notification, and the tray menu offers \"Import from <name>...\", which opens the Import page and starts the check.\n- Phone photos are read onto this PC to compare them, and what was read is remembered, so later checks of the same phone are quicker.\n- The Library's empty state offers Import photos, and the first-run screen mentions bringing in photos kept elsewhere.\n- Undoing an import from History sends the copies to the Recycle Bin (the originals stay where they were), or puts moved files back where they came from. An import interrupted by a crash is settled the next time Photo Trips starts."
+    },
+    {
+      "version": "0.5.0",
+      "notes": "### Added\n\n- Duplicates page that finds photos and videos that are exact copies of each other, even under different names. Only files that share a size with another file are read, so checking a large library is quick.\n- Each set suggests which copy to keep: the one already in its trip or month folder, otherwise the oldest. Click another copy to keep it instead, or Keep all to leave a set alone.\n- Extra copies go to the Recycle Bin, never deleted outright, along with sidecar files that only belonged to them. Each copy and the copy being kept are checked again just before, so a file that changed since the check is kept.\n- Undoing a clean-up from History takes the copies back out of the Recycle Bin and puts them back in the library."
+    },
+    {
+      "version": "0.4.0",
+      "notes": "### Added\n\n- Trips page: give a trip a name and dates (with optional times for travel days), and every photo and video taken during it moves into its own folder, `Trips\\2025-03-12 Japan`. The form shows a live count and sample photos for the dates, and refuses dates that overlap another trip.\n- Editing a trip's name renames its folder; changing its dates moves only the photos that join or leave it; deleting a trip puts its photos back in their month folders. Each change is previewed first and can be undone from History, which also puts the trip back as it was.\n- Trip photos show a coloured band in the Library. Ctrl-click, Shift-click or right-click selects photos, and \"Create trip\" starts a trip covering the selected days.\n\n### Changed\n\n- Sort puts photos taken during a trip into the trip's folder instead of their month folder."
+    },
+    {
+      "version": "0.3.0",
+      "notes": "### Added\n\n- Sort page that moves every photo and video into a folder for the month it was taken (`2025\\2025-03`), with a full preview of every move before anything happens.\n- Companion files (Live Photo videos, RAW twins, sidecars) always move with their photo; if one can't move, the rest of its group goes back.\n- Name clashes get a number added (`IMG_1 (1).jpg`) across the whole group, so no file is ever replaced.\n- History page listing every change, with the files each one moved and why any couldn't be, and undo for each change.\n- Moves are logged before they run, so a change interrupted by a crash or power cut is settled the next time Photo Trips starts.\n- Moves to another drive copy the file, check the copy matches, then remove the original.\n- Folders left empty by a move are removed (inside the library folder only)."
+    },
+    {
+      "version": "0.2.0",
+      "notes": "### Added\n\n- Library index that finds when every photo and video was taken: camera data, video metadata, Windows file properties, the bundled ExifTool, the file name, then the modified time as a last resort. Indexing never changes a file.\n- Library timeline grouped by month, with Windows thumbnails for every format Windows can preview and a \"date uncertain\" badge on guessed dates.\n- Live Photo videos, RAW+JPEG pairs and sidecar files shown as one tile so they always move together.\n- Viewer with full-size previews for formats the window can't draw itself (TIFF, HEIC, RAW) and an \"Open with Windows\" fallback for videos it can't play.\n- Progress and cancel for background tasks in the sidebar.\n- Hint pointing to the free Microsoft Store codec extensions when Windows can't preview some files."
+    },
+    {
+      "version": "0.1.0",
+      "notes": "### Added\n\n- Tauri app shell with system tray, close-to-tray, single instance and start with Windows.\n- First-run library folder picker and settings page.\n- Pinned ExifTool download for the installer."
+    }
+  ],
+  "pub_date": "2026-11-18T04:16:47.992Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUa2JqNDlENUphR1Q3Z2gvTnlwbE5qSkkxem1NdGxISkhNYTFsZVRvTTZIdWxBWGdrMkJyNFBFYnR6ZEFWS25sNVYzTEp2NjNZWnFiTHdzRWNiU3RwZkRSRVRNZHRONHdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0OTc1NDA3CWZpbGU6UGljIENhYmluZXRfMC4zMi4wX3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjMyLjAKSm0vMW1rZFRlamRMclhyTkpCWTM1SEk5WGFBVDlvVDNNS0ZhMTMvZllNUTZDdENrZmN6SEZiMnZNakxPOEtERmZWcWQ2SmRaay8xUEJWMHNwbVJmQ1E9PQo=",
+      "url": "https://github.com/wobkobi/pic-cabinet/releases/download/v0.32.0/Pic-Cabinet_0.32.0_x64-setup.exe"
+    }
+  }
+}
