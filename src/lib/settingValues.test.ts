@@ -64,9 +64,9 @@ describe("normaliseExtensions", () => {
 });
 
 describe("device notifications", () => {
-  it("defaults to once a week", () => {
-    expect(deviceNotifyOf(null)).toBe("week");
-    expect(deviceNotifyOf({ device_notify: "hourly" })).toBe("week");
+  it("defaults to once a day", () => {
+    expect(deviceNotifyOf(null)).toBe("day");
+    expect(deviceNotifyOf({ device_notify: "hourly" })).toBe("day");
   });
 
   it("keeps a saved choice", () => {

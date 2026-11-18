@@ -17,11 +17,11 @@ export const DEVICE_NOTIFY: { value: string; label: string }[] = [
 /**
  * How often a plugged-in card or phone gets a notification.
  * @param settings - the saved settings
- * @returns one of the {@link DEVICE_NOTIFY} values, once a week when unset
+ * @returns one of the {@link DEVICE_NOTIFY} values, once a day when unset
  */
 export function deviceNotifyOf(settings: Settings | null): string {
   const saved = settings?.device_notify ?? "";
-  return DEVICE_NOTIFY.some((choice) => choice.value === saved) ? saved : "week";
+  return DEVICE_NOTIFY.some((choice) => choice.value === saved) ? saved : "day";
 }
 
 /** Choices in the busy-day dropdown on the Settings page, as photos per day. */

@@ -148,13 +148,13 @@ pub const NOTIFY_SETTING: &str = "device_notify";
 pub const NOTIFY_CHOICES: &[&str] = &["always", "day", "week", "never"];
 
 /// Seconds a device must wait between notifications, from the setting, or `None` for never.
-/// Unset or unknown means once a week.
+/// Unset or unknown means once a day.
 fn notify_gap(setting: Option<&str>) -> Option<u64> {
     match setting {
         Some("always") => Some(0),
-        Some("day") => Some(24 * 60 * 60),
+        Some("week") => Some(7 * 24 * 60 * 60),
         Some("never") => None,
-        _ => Some(7 * 24 * 60 * 60),
+        _ => Some(24 * 60 * 60),
     }
 }
 
@@ -312,16 +312,16 @@ mod tests {
     }
 
     #[test]
-    fn the_setting_picks_the_gap_and_defaults_to_a_week() {
+    fn the_setting_picks_the_gap_and_defaults_to_a_day() {
         assert_eq!(notify_gap(Some("always")), Some(0));
-        assert_eq!(notify_gap(Some("day")), Some(86_400));
+        assert_eq!(notify_gap(Some("week")), Some(604_800));
         assert_eq!(notify_gap(Some("never")), None);
-        assert_eq!(notify_gap(None), Some(604_800));
-        assert_eq!(notify_gap(Some("week")), notify_gap(None));
+        assert_eq!(notify_gap(None), Some(86_400));
+        assert_eq!(notify_gap(Some("day")), notify_gap(None));
         assert!(
             NOTIFY_CHOICES
                 .iter()
-                .all(|c| *c == "week" || notify_gap(Some(c)) != notify_gap(None))
+                .all(|c| *c == "day" || notify_gap(Some(c)) != notify_gap(None))
         );
     }
 
