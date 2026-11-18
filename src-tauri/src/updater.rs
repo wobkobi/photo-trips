@@ -47,8 +47,8 @@ const NOTIFIED_KEY: &str = "update_notified";
 /// The Settings switch for pre-release updates, stored as "true"/"false"; off when unset.
 pub const BETA_KEY: &str = "beta_updates";
 /// Always names the newest release, beta or stable. The stable address is in tauri.conf.json.
-const BETA_FEED: &str =
-    "https://github.com/wobkobi/pic-cabinet/releases/download/beta-feed/beta.json";
+/// It's on a branch because published releases are immutable, so a release file can't be updated.
+const BETA_FEED: &str = "https://raw.githubusercontent.com/wobkobi/pic-cabinet/update-feed/beta.json";
 
 /// A newer version on offer.
 #[derive(Debug, Clone, Serialize)]
@@ -420,7 +420,7 @@ mod tests {
         assert_eq!(feed_override(false), None);
         let feed = feed_override(true).unwrap();
         assert!(Url::parse(feed).is_ok());
-        assert!(feed.starts_with("https://github.com/wobkobi/pic-cabinet/releases/"));
+        assert!(feed.starts_with("https://raw.githubusercontent.com/wobkobi/pic-cabinet/"));
         assert!(feed.ends_with("/beta.json"));
     }
 
