@@ -4,7 +4,32 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [0.47.1] - 2026-11-18
+## [0.32.0] - 2026-11-18
+
+### Added
+
+- Right-click on the open photo in the viewer shows the same menu as its tile; while a menu is open,
+  Delete and the arrow keys no longer act behind it
+- In the Library's viewer, Delete or the bin button asks, then sends the photo to the Recycle Bin;
+  the viewer stays open on the next photo
+- Each linked file in the viewer's details opens with a click, and a RAW copy can be shown in its
+  folder; a Live Photo plays its clip from the viewer bar; tiles mark Live Photos with a ring and
+  RAW pairs with RAW; the name search finds a photo by its linked files' names too
+- The photo menu starts with View and shows each item's shortcut; Delete and Ctrl+C act on the
+  focused photo when nothing is selected, and no longer reach the page behind a dialog
+- F or F11 shows the open photo or video fullscreen, with the menu bar hidden; Esc leaves fullscreen
+  first, and closing the viewer or hiding to the tray leaves it too
+- The Recycle Bin question and Set date open as dialogs above the photo viewer and menus; Enter
+  answers, Esc cancels, and keys no longer act on the page behind
+- The viewer shows how far a photo is zoomed as a percent of its real size; 1 or a click goes to
+  exactly 100%, 0 fits, and Ctrl+wheel or a touchpad pinch zooms smoothly around the pointer
+- The viewer's details panel opens and closes with I, and stays as you left it; the photo uses the
+  full space beside it
+- The viewer has a slim bar over the photo: Back, the file name and date, "N of M", and buttons for
+  Zoom, Rotate, Show in folder, Copy, Open and Info. It fades while the mouse rests and comes back
+  when you move it. The same bar shows wherever photos open, including Import and Duplicates.
+- The details panel is shorter: "4032 × 3024 · 12 MP", a video's length as a clock time such as
+  2:14, and the camera settings on one line with no "More details" to open.
 
 ### Fixed
 
@@ -14,144 +39,35 @@ All notable changes to this project are documented here. The format follows
   photo; a zoomed photo refits after turning it or hiding the details; quitting in fullscreen keeps
   the window's own size
 
-## [0.47.0] - 2026-11-18
-
-### Added
-
-- Right-click on the open photo in the viewer shows the same menu as its tile; while a menu is open,
-  Delete and the arrow keys no longer act behind it
-
-## [0.46.0] - 2026-11-18
-
-### Added
-
-- In the Library's viewer, Delete or the bin button asks, then sends the photo to the Recycle Bin;
-  the viewer stays open on the next photo
-
-## [0.45.0] - 2026-11-18
-
-### Added
-
-- Each linked file in the viewer's details opens with a click, and a RAW copy can be shown in its
-  folder; a Live Photo plays its clip from the viewer bar; tiles mark Live Photos with a ring and
-  RAW pairs with RAW; the name search finds a photo by its linked files' names too
-
-## [0.44.0] - 2026-11-18
-
-### Added
-
-- The photo menu starts with View and shows each item's shortcut; Delete and Ctrl+C act on the
-  focused photo when nothing is selected, and no longer reach the page behind a dialog
-
-## [0.43.0] - 2026-11-18
-
-### Added
-
-- F or F11 shows the open photo or video fullscreen, with the menu bar hidden; Esc leaves fullscreen
-  first, and closing the viewer or hiding to the tray leaves it too
-
-## [0.42.0] - 2026-11-18
-
-### Added
-
-- The Recycle Bin question and Set date open as dialogs above the photo viewer and menus; Enter
-  answers, Esc cancels, and keys no longer act on the page behind
-
-## [0.41.0] - 2026-11-18
-
-### Added
-
-- The viewer shows how far a photo is zoomed as a percent of its real size; 1 or a click goes to
-  exactly 100%, 0 fits, and Ctrl+wheel or a touchpad pinch zooms smoothly around the pointer
-
-## [0.40.0] - 2026-11-18
-
-### Added
-
-- The viewer's details panel opens and closes with I, and stays as you left it; the photo uses the
-  full space beside it
-
-## [0.39.0] - 2026-11-18
-
-### Added
-
-- The viewer has a slim bar over the photo: Back, the file name and date, "N of M", and buttons for
-  Zoom, Rotate, Show in folder, Copy, Open and Info. It fades while the mouse rests and comes back
-  when you move it. The same bar shows wherever photos open, including Import and Duplicates.
-
-## [0.38.0] - 2026-11-18
-
-### Added
-
-- The details panel is shorter: "4032 × 3024 · 12 MP", a video's length as a clock time such as
-  2:14, and the camera settings on one line with no "More details" to open.
-
-## [0.37.1] - 2026-11-18
-
-### Fixed
-
-- Back from a trip returns to the page it was opened from, Esc and Alt+Left no longer drop an
-  unsaved trip or import, and focus lands on the page title after Back
-
-## [0.37.0] - 2026-11-18
+## [0.31.0] - 2026-11-18
 
 ### Added
 
 - Settings reopens on the tab you left, History keeps the batch you had open, and Duplicates keeps
   the copies you chose to keep. Each page opens at its top, and the Library header no longer flashes
   a 0 while it loads.
-
-## [0.36.0] - 2026-11-18
-
-### Added
-
 - Back and Forward move between the pages you've visited, keeping each page's filter: Alt+Left and
   Alt+Right, or the mouse's side buttons. Inside a step such as a trip review, Back steps out of
   that first.
-
-## [0.35.0] - 2026-11-18
-
-### Added
-
 - The menu is in groups: Library, then Trips with your newest trips listed under it, then Import,
   Sort, Suggestions and Duplicates. History, Settings and Help are small buttons at the bottom.
   Ctrl+1 to Ctrl+7 follow the new order (Ctrl+2 is Trips), and opening the Library always shows the
   whole library.
-
-## [0.34.0] - 2026-11-18
-
-### Added
-
 - Opening a trip shows it as its own place: its name and dates as the title, a back arrow to where
   you came from, and Edit. The Trip drop-down is gone; "Not on a trip" is a switch beside "Uncertain
   dates", and "Clear filters" keeps the trip. An empty trip says so.
-
-## [0.33.0] - 2026-11-18
-
-### Added
-
 - A trip review, a trip being edited, an import preview and the other in-between steps have a back
   arrow before their name, and Esc or Alt+Left steps back. Each step names itself in the title, such
   as "Edit Japan" or "Preview".
-
-## [0.32.0] - 2026-11-18
-
-### Added
-
 - The Library opens scrolled to where you left it, including after a trip review, and resizing the
   window keeps the same photos at the top.
-
-## [0.31.0] - 2026-11-18
-
-### Added
-
 - Coming back to the Library finds it as you left it: same filter, same selection, same open photo,
   with no wait for the photos to load again.
 
-## [0.30.8] - 2026-11-18
-
 ### Fixed
 
+- Back from a trip returns to the page it was opened from, Esc and Alt+Left no longer drop an
+  unsaved trip or import, and focus lands on the page title after Back
 - The photo open in the viewer, and where a Shift-click range starts, stay the same when photos
   arrive or leave in the background.
 
