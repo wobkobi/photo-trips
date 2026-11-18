@@ -39,105 +39,112 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- With several photos selected, the tile menu leaves out View, Open, Show in folder and Copy path
-  rather than greying them out
-- Import, Sort, Duplicates, Settings, Suggestions and Trips show their results as toasts too, in
-  place of the banner on each page, so a result that lands after you've moved on still shows
-- Results of a Recycle Bin, date or trip change in the Library, and the codec hint, show as a toast
-  at the bottom of the window with Undo where it can be undone; they show over the viewer too
-- Hovering a tile in the Library shows a tick that starts selecting; the toolbar button is now
-  Select, and the selection bar's Copy puts every selected photo on the clipboard at once
-- Month headings in the Library offer Select month; Shift-click selects from the focused photo when
-  nothing is selected yet, and Shift with the arrow keys grows the selection
-- The Library's grid is a single Tab stop with the arrow keys, Page Up and Page Down moving within
-  it, and it takes focus when the Library opens; while the viewer is open, Tab and screen readers
-  stay inside it
-- Ctrl+Z opens History on the newest change that can be undone and asks before undoing it
-- The date rail sits over the right edge of the Library's grid in place of the scrollbar, and the
-  month you're in stays pinned to the top of the grid
-- The Library's filters sit in its toolbar: a search box, All / Photos / Videos, and one Filter
-  button for year and uncertain dates, with a chip for each filter that is on
-- Shorter text on Setup, Inbox and Suggestions settings, Busy days and empty pages, with the fuller
-  text under Details; an "Update ready" row in the sidebar; the first time closing hides to the
-  tray, a notice says so
-- Dropping a folder on the window opens Import on that folder
-- A photo size control on the Library's toolbar, and Ctrl+wheel over the grid, make the tiles bigger
-  or smaller and remember the size
+- **Library:** Hovering a tile shows a tick that starts selecting. The toolbar button is now Select,
+  and the selection bar's Copy puts every selected photo on the clipboard at once.
+- **Library:** Month headings offer Select month. Shift-click selects from the focused photo when
+  nothing is selected yet, and Shift with the arrow keys grows the selection.
+- **Library:** With several photos selected, the tile menu leaves out View, Open, Show in folder and
+  Copy path rather than greying them out.
+- **Library:** The filters sit in the toolbar: a search box, All / Photos / Videos, and one Filter
+  button for year and uncertain dates, with a chip for each filter that is on.
+- **Library:** A photo size control on the toolbar, and Ctrl+wheel over the grid, make the tiles
+  bigger or smaller and remember the size.
+- **Library:** The date rail sits over the right edge of the grid in place of the scrollbar, and the
+  month you're in stays pinned to the top of the grid.
+- **Library:** The grid is a single Tab stop with the arrow keys, Page Up and Page Down moving
+  within it, and it takes focus when the Library opens. While the viewer is open, Tab and screen
+  readers stay inside it.
+- **Library:** Results of a Recycle Bin, date or trip change, and the codec hint, show as a toast at
+  the bottom of the window with Undo where it can be undone. They show over the viewer too.
+- **Import:** Dropping a folder on the window opens Import on that folder.
+- **History:** Ctrl+Z opens History on the newest change that can be undone and asks before undoing
+  it.
+- **General:** Import, Sort, Duplicates, Settings, Suggestions and Trips show their results as
+  toasts in place of the banner on each page, so a result that lands after you've moved on still
+  shows.
+- **General:** Shorter text on Setup, Inbox and Suggestions settings, Busy days and empty pages,
+  with the fuller text under Details. An "Update ready" row shows in the sidebar, and the first time
+  closing hides to the tray, a notice says so.
 
 ### Fixed
 
-- Ctrl+Z and dropping a folder no longer leave the trip editor, an import review or Sort with
-  unsaved changes; a folder dropped over the viewer or a dialog is ignored, and dropping files says
-  to drop a folder; a failed date change shows in the dialog or as a toast; Alt+Left and Alt+Right
-  on the Library's kind and size controls go back and forward; choosing the filter already in use
-  keeps your place
+- **Import:** A folder dropped over the viewer or a dialog is ignored, dropping files says to drop a
+  folder, and Ctrl+Z or dropping a folder no longer leaves the trip editor, an import review or Sort
+  with unsaved changes.
+- **Library:** A failed date change shows in the dialog or as a toast, Alt+Left and Alt+Right on the
+  kind and size controls go back and forward, and choosing the filter already in use keeps your
+  place.
 
 ## [0.32.0] - 2026-11-18
 
 ### Added
 
-- Right-click on the open photo in the viewer shows the same menu as its tile; while a menu is open,
-  Delete and the arrow keys no longer act behind it
-- In the Library's viewer, Delete or the bin button asks, then sends the photo to the Recycle Bin;
-  the viewer stays open on the next photo
-- Each linked file in the viewer's details opens with a click, and a RAW copy can be shown in its
-  folder; a Live Photo plays its clip from the viewer bar; tiles mark Live Photos with a ring and
-  RAW pairs with RAW; the name search finds a photo by its linked files' names too
-- The photo menu starts with View and shows each item's shortcut; Delete and Ctrl+C act on the
-  focused photo when nothing is selected, and no longer reach the page behind a dialog
-- F or F11 shows the open photo or video fullscreen, with the menu bar hidden; Esc leaves fullscreen
-  first, and closing the viewer or hiding to the tray leaves it too
-- The Recycle Bin question and Set date open as dialogs above the photo viewer and menus; Enter
-  answers, Esc cancels, and keys no longer act on the page behind
-- The viewer shows how far a photo is zoomed as a percent of its real size; 1 or a click goes to
-  exactly 100%, 0 fits, and Ctrl+wheel or a touchpad pinch zooms smoothly around the pointer
-- The viewer's details panel opens and closes with I, and stays as you left it; the photo uses the
-  full space beside it
-- The viewer has a slim bar over the photo: Back, the file name and date, "N of M", and buttons for
+- **Library:** Tiles mark Live Photos with a ring and RAW pairs with RAW, and the name search finds
+  a photo by its linked files' names too.
+- **Library:** The photo menu starts with View and shows each item's shortcut. Delete and Ctrl+C act
+  on the focused photo when nothing is selected, and no longer reach the page behind a dialog.
+- **Viewer:** A slim bar over the photo: Back, the file name and date, "N of M", and buttons for
   Zoom, Rotate, Show in folder, Copy, Open and Info. It fades while the mouse rests and comes back
   when you move it. The same bar shows wherever photos open, including Import and Duplicates.
-- The details panel is shorter: "4032 × 3024 · 12 MP", a video's length as a clock time such as
-  2:14, and the camera settings on one line with no "More details" to open.
+- **Viewer:** Delete or the bin button asks, then sends the photo to the Recycle Bin, and the viewer
+  stays open on the next photo.
+- **Viewer:** Right-click on the open photo shows the same menu as its tile. While a menu is open,
+  Delete and the arrow keys no longer act behind it.
+- **Viewer:** F or F11 shows the open photo or video fullscreen, with the menu bar hidden. Esc
+  leaves fullscreen first, and closing the viewer or hiding to the tray leaves it too.
+- **Viewer:** Shows how far a photo is zoomed as a percent of its real size. 1 or a click goes to
+  exactly 100%, 0 fits, and Ctrl+wheel or a touchpad pinch zooms smoothly around the pointer.
+- **Viewer:** The details panel opens and closes with I and stays as you left it, and the photo uses
+  the full space beside it.
+- **Viewer:** The details panel is shorter: "4032 × 3024 · 12 MP", a video's length as a clock time
+  such as 2:14, and the camera settings on one line with no "More details" to open.
+- **Viewer:** Each linked file in the details opens with a click, a RAW copy can be shown in its
+  folder, and a Live Photo plays its clip from the viewer bar.
+- **Recycle Bin:** The Recycle Bin question and Set date open as dialogs above the photo viewer and
+  menus. Enter answers, Esc cancels, and keys no longer act on the page behind.
 
 ### Fixed
 
-- Fixed: Enter no longer cancels the Recycle Bin question while another job runs, and a held Enter
-  answers it once; photos sent to the Recycle Bin no longer flash back when two go in quick
-  succession; keys no longer zoom or turn the photo behind the viewer's menu; Ctrl+C copies the open
-  photo; a zoomed photo refits after turning it or hiding the details; quitting in fullscreen keeps
-  the window's own size
+- **Recycle Bin:** Enter no longer cancels the Recycle Bin question while another job runs, a held
+  Enter answers it once, and photos sent to the Recycle Bin no longer flash back when two go in
+  quick succession.
+- **Viewer:** Keys no longer zoom or turn the photo behind the viewer's menu, Ctrl+C copies the open
+  photo, a zoomed photo refits after turning it or hiding the details, and quitting in fullscreen
+  keeps the window's own size.
 
 ## [0.31.0] - 2026-11-18
 
 ### Added
 
-- Settings reopens on the tab you left, History keeps the batch you had open, and Duplicates keeps
-  the copies you chose to keep. Each page opens at its top, and the Library header no longer flashes
-  a 0 while it loads.
-- Back and Forward move between the pages you've visited, keeping each page's filter: Alt+Left and
-  Alt+Right, or the mouse's side buttons. Inside a step such as a trip review, Back steps out of
-  that first.
-- The menu is in groups: Library, then Trips with your newest trips listed under it, then Import,
-  Sort, Suggestions and Duplicates. History, Settings and Help are small buttons at the bottom.
-  Ctrl+1 to Ctrl+7 follow the new order (Ctrl+2 is Trips), and opening the Library always shows the
-  whole library.
-- Opening a trip shows it as its own place: its name and dates as the title, a back arrow to where
-  you came from, and Edit. The Trip drop-down is gone; "Not on a trip" is a switch beside "Uncertain
-  dates", and "Clear filters" keeps the trip. An empty trip says so.
-- A trip review, a trip being edited, an import preview and the other in-between steps have a back
-  arrow before their name, and Esc or Alt+Left steps back. Each step names itself in the title, such
-  as "Edit Japan" or "Preview".
-- The Library opens scrolled to where you left it, including after a trip review, and resizing the
-  window keeps the same photos at the top.
-- Coming back to the Library finds it as you left it: same filter, same selection, same open photo,
-  with no wait for the photos to load again.
+- **Library:** Coming back to the Library finds it as you left it: same filter, same selection, same
+  open photo, with no wait for the photos to load again.
+- **Library:** The Library opens scrolled to where you left it, including after a trip review, and
+  resizing the window keeps the same photos at the top.
+- **Trips:** Opening a trip shows it as its own place: its name and dates as the title, a back arrow
+  to where you came from, and Edit. The Trip drop-down is gone; "Not on a trip" is a switch beside
+  "Uncertain dates", and "Clear filters" keeps the trip. An empty trip says so.
+- **Duplicates:** Duplicates keeps the copies you chose to keep while you visit other pages.
+- **History:** History keeps the batch you had open while you visit other pages.
+- **Navigation:** Back and Forward move between the pages you've visited, keeping each page's
+  filter: Alt+Left and Alt+Right, or the mouse's side buttons. Inside a step such as a trip review,
+  Back steps out of that first.
+- **Navigation:** The menu is in groups: Library, then Trips with your newest trips listed under it,
+  then Import, Sort, Suggestions and Duplicates. History, Settings and Help are small buttons at the
+  bottom. Ctrl+1 to Ctrl+7 follow the new order (Ctrl+2 is Trips), and opening the Library always
+  shows the whole library.
+- **Navigation:** A trip review, a trip being edited, an import preview and the other in-between
+  steps have a back arrow before their name, and Esc or Alt+Left steps back. Each step names itself
+  in the title, such as "Edit Japan" or "Preview".
+- **Navigation:** Each page opens at its top.
+- **Settings:** Settings reopens on the tab you left.
 
 ### Fixed
 
-- Back from a trip returns to the page it was opened from, Esc and Alt+Left no longer drop an
-  unsaved trip or import, and focus lands on the page title after Back
-- The photo open in the viewer, and where a Shift-click range starts, stay the same when photos
-  arrive or leave in the background.
+- **Library:** The header no longer flashes a 0 while the Library loads.
+- **Library:** The photo open in the viewer, and where a Shift-click range starts, stay the same
+  when photos arrive or leave in the background.
+- **Navigation:** Back from a trip returns to the page it was opened from, Esc and Alt+Left no
+  longer drop an unsaved trip or import, and focus lands on the page title after Back.
 
 ## [0.30.7] - 2026-11-18
 
