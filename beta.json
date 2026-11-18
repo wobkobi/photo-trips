@@ -1,7 +1,11 @@
 {
-  "version": "0.35.0",
-  "notes": "### Trips\n\n- New: Suggestions offers folders that look like trips Pic Cabinet doesn't know about, such as one left behind by a deleted trip or one made by hand, to make into a trip. Sort normally leaves the folder to the usual sort instead.\n- New: A suggestion's name can be changed on its card before making the trip, and the card shows the folder name it will get.\n\n### Import\n\n- New: Clicking the notification for a card or phone opens Import and checks that device.\n- New: A card or phone plugged in again is announced at most once a day, so plugging a phone in to charge doesn't bring a notification each time. Settings > Window can change it to every time, once a week or never.\n\n### Sort\n\n- New: Names the folders that look like trips before spreading their files into month folders, with a button to make them trips first.\n\n### Duplicates\n\n- Fixed: Copies removed in Duplicates no longer come back with the next import from the phone or card they came from, when their details differed from the copy kept.\n\n### Display\n\n- Changed: Buttons are square, with an outline for the less important ones, and Settings sections and folder lists are headed by small uppercase labels, matching the To the Point Tech site.",
+  "version": "0.36.0",
+  "notes": "### Notifications\n\n- New: Clicking the update notification opens Settings > About to install it, clicking the inbox notification opens History, and clicking the tray notice opens the window.\n\n### Toasts\n\n- Fixed: Sending photos to the Recycle Bin one after another shows one result instead of a pile covering the photo; earlier ones can still be undone from History.",
   "changes": [
+    {
+      "version": "0.36.0",
+      "notes": "### Notifications\n\n- New: Clicking the update notification opens Settings > About to install it, clicking the inbox notification opens History, and clicking the tray notice opens the window.\n\n### Toasts\n\n- Fixed: Sending photos to the Recycle Bin one after another shows one result instead of a pile covering the photo; earlier ones can still be undone from History."
+    },
     {
       "version": "0.35.0",
       "notes": "### Trips\n\n- New: Suggestions offers folders that look like trips Pic Cabinet doesn't know about, such as one left behind by a deleted trip or one made by hand, to make into a trip. Sort normally leaves the folder to the usual sort instead.\n- New: A suggestion's name can be changed on its card before making the trip, and the card shows the folder name it will get.\n\n### Import\n\n- New: Clicking the notification for a card or phone opens Import and checks that device.\n- New: A card or phone plugged in again is announced at most once a day, so plugging a phone in to charge doesn't bring a notification each time. Settings > Window can change it to every time, once a week or never.\n\n### Sort\n\n- New: Names the folders that look like trips before spreading their files into month folders, with a button to make them trips first.\n\n### Duplicates\n\n- Fixed: Copies removed in Duplicates no longer come back with the next import from the phone or card they came from, when their details differed from the copy kept.\n\n### Display\n\n- Changed: Buttons are square, with an outline for the less important ones, and Settings sections and folder lists are headed by small uppercase labels, matching the To the Point Tech site."
@@ -315,11 +319,11 @@
       "notes": "### Added\n\n- Tauri app shell with system tray, close-to-tray, single instance and start with Windows.\n- First-run library folder picker and settings page.\n- Pinned ExifTool download for the installer."
     }
   ],
-  "pub_date": "2026-11-18T09:24:26.589Z",
+  "pub_date": "2026-11-18T12:31:17.831Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUa2JqNDlENUphR1VIVmZlanVKeFJZUndLTnJUdGpzQjdEUWpRd082Rks5QTkwcVVoTHZiM1AyZm9sZGd2MUJrVFNTOGRGRkZMd2pTR21KR01adURhd0hpOHlzbGtnS3dRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0OTkzODY2CWZpbGU6UGljIENhYmluZXRfMC4zNS4wX3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjM1LjAKUmlndEdzTkFqQWgvTUJhWHJHSEJ5bFJRTkoxTWE1SlRka0VZYmg1VDJVSXNOTFZIQVpsUnA1VFdIOHhXVG9kR1hyaUxyMWVJSzNQdkNqcitiTVZBQ0E9PQo=",
-      "url": "https://github.com/wobkobi/pic-cabinet/releases/download/v0.35.0/Pic-Cabinet_0.35.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUa2JqNDlENUphR2VFSDBabE14Y3kwSy9Jam9Nc2JHenVOMXhITkNCS3NwdFJ5MnVNQlRISjFBMG5kcU4wdnY4eTB5OXVicHYwNnB0SzVPV1ZVbDBHNTRVcVJTQjRsVndjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1MDA1MDc3CWZpbGU6UGljIENhYmluZXRfMC4zNi4wX3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjM2LjAKeUNEcllQbitpdlExaDNhOHlQakgveThVcVFTYWUvYkZ1aCtRdlNBcU9Udys4VDBZYlAySDN4bjl1U3Fidkp1MmdqaHFIdmRzVUY5cHhJTHoxM1NrQVE9PQo=",
+      "url": "https://github.com/wobkobi/pic-cabinet/releases/download/v0.36.0/Pic-Cabinet_0.36.0_x64-setup.exe"
     }
   }
 }
