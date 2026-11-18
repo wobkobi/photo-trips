@@ -211,13 +211,18 @@ fn exiftool_pass(
     report: Report,
 ) -> Result<Vec<Option<Embedded>>> {
     let pending: Vec<usize> = (0..files.len())
-        .filter(|&i| embedded[i].is_none() && metadata::worth_exiftool(&files[i].path, files[i].kind))
+        .filter(|&i| {
+            embedded[i].is_none() && metadata::worth_exiftool(&files[i].path, files[i].kind)
+        })
         .collect();
     let Some(exe) = exe.filter(|_| !pending.is_empty()) else {
         return Ok(embedded);
     };
     let Ok(mut tool) = ExifTool::start(exe) else {
-        log::warn!("ExifTool failed to start; dates for {} files fall back", pending.len());
+        log::warn!(
+            "ExifTool failed to start; dates for {} files fall back",
+            pending.len()
+        );
         return Ok(embedded);
     };
     for (n, &i) in pending.iter().enumerate() {
@@ -257,7 +262,11 @@ pub fn load_row(conn: &Connection, id: i64) -> Result<Option<MediaRow>> {
     Ok(query_rows(conn, "WHERE id = ?1", [id])?.pop())
 }
 
-fn query_rows(conn: &Connection, filter: &str, args: impl rusqlite::Params) -> Result<Vec<MediaRow>> {
+fn query_rows(
+    conn: &Connection,
+    filter: &str,
+    args: impl rusqlite::Params,
+) -> Result<Vec<MediaRow>> {
     let mut stmt = conn.prepare(&format!(
         "SELECT id, path, group_key, kind, size, mtime, COALESCE(date_set, taken_at),
                 CASE WHEN date_set IS NULL THEN date_source ELSE 'set' END, lat, lon, hash
@@ -293,7 +302,10 @@ fn known_files(conn: &Connection) -> Result<HashMap<String, (u64, i64)>> {
     let mut stmt = conn.prepare("SELECT path, size, mtime FROM media")?;
     let rows = stmt.query_map([], |row| {
         let path: String = row.get(0)?;
-        Ok((path_key(Path::new(&path)), (row.get::<_, i64>(1)? as u64, row.get(2)?)))
+        Ok((
+            path_key(Path::new(&path)),
+            (row.get::<_, i64>(1)? as u64, row.get(2)?),
+        ))
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
@@ -370,7 +382,14 @@ mod tests {
     fn indexes_fixtures_without_touching_disk_and_refreshes_incrementally() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
-        for name in ["exif_gps.jpg", "apple.mov", "utc.mp4", "old.avi", "plain.png", "raw.dng"] {
+        for name in [
+            "exif_gps.jpg",
+            "apple.mov",
+            "utc.mp4",
+            "old.avi",
+            "plain.png",
+            "raw.dng",
+        ] {
             fs::copy(fixtures().join(name), root.join(name)).unwrap();
         }
         fs::write(root.join("notes.txt"), "x").unwrap();
@@ -379,8 +398,19 @@ mod tests {
         let db = Mutex::new(db::open_in_memory().unwrap());
         let table = FormatTable::default();
         let cancel = AtomicBool::new(false);
-        let summary = run(&db, root, &table, exiftool().as_deref(), &cancel, &no_report).unwrap();
-        assert_eq!((summary.files, summary.added, summary.other_files), (6, 6, 1));
+        let summary = run(
+            &db,
+            root,
+            &table,
+            exiftool().as_deref(),
+            &cancel,
+            &no_report,
+        )
+        .unwrap();
+        assert_eq!(
+            (summary.files, summary.added, summary.other_files),
+            (6, 6, 1)
+        );
         assert_eq!(snapshot(root), before, "indexing must not change any file");
 
         let rows = load_rows(&db.lock().unwrap()).unwrap();

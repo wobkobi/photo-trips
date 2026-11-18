@@ -9,6 +9,9 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_notification::NotificationExt;
 
+use crate::AppState;
+use crate::commands::lock_db;
+use crate::db;
 use crate::import::SourceSpec;
 use crate::mtp;
 use crate::tray;
@@ -64,8 +67,33 @@ pub fn import_sources(devices: State<Devices>) -> Vec<Device> {
     devices.list()
 }
 
+/// Marks the import notification, so a click on it opens Import rather than just the window.
+const OPENS: (&str, &str) = ("opens", "import");
+/// The notification's device id, so a click checks that device even after another arrives.
+const DEVICE_KEY: &str = "device";
+
 /// Start checking for cards and phones in the background.
 pub fn start(app: &AppHandle) {
+    let clicked = app.clone();
+    // Windows only reports clicks for the installed app, which has a registered app id.
+    let _ = app.notification().on_action(move |performed| {
+        let Some(shown) = performed.notification() else {
+            return;
+        };
+        let ours = shown.extra().get(OPENS.0).is_some_and(|v| v == OPENS.1);
+        if !ours || performed.action_id() != "tap" {
+            return;
+        }
+        // Still plugged in: check it. Gone: open Import anyway, to pick another source.
+        let id = shown.extra().get(DEVICE_KEY).and_then(|v| v.as_str());
+        let device = clicked.try_state::<Devices>().and_then(|d| {
+            d.current
+                .lock()
+                .ok()
+                .and_then(|c| c.iter().find(|d| Some(d.id.as_str()) == id).cloned())
+        });
+        tray::open_import_from(&clicked, device);
+    });
     let app = app.clone();
     let spawned = std::thread::Builder::new()
         .name("devices".into())
@@ -110,15 +138,94 @@ fn watch(app: &AppHandle) {
     }
 }
 
+/// When each device was last announced, one "key<tab>unix seconds" per line. A card or phone
+/// plugged in again before the gap in Settings is up (to charge, say) isn't announced again;
+/// the tray menu's Import item still offers it.
+const NOTIFIED_KEY: &str = "notified_devices";
+/// How often a device may be announced: "always", "day", "week" or "never".
+pub const NOTIFY_SETTING: &str = "device_notify";
+/// The choices for [`NOTIFY_SETTING`]. Must match DEVICE_NOTIFY in settingValues.ts.
+pub const NOTIFY_CHOICES: &[&str] = &["always", "day", "week", "never"];
+
+/// Seconds a device must wait between notifications, from the setting, or `None` for never.
+/// Unset or unknown means once a day.
+fn notify_gap(setting: Option<&str>) -> Option<u64> {
+    match setting {
+        Some("always") => Some(0),
+        Some("week") => Some(7 * 24 * 60 * 60),
+        Some("never") => None,
+        _ => Some(24 * 60 * 60),
+    }
+}
+
+/// What identifies a device across plug-ins: a phone's Windows id, or a card's name, since a
+/// card's id is only its drive letter and different cards share one.
+fn notified_key(device: &Device) -> String {
+    let which = if device.kind == "phone" {
+        &device.id
+    } else {
+        &device.name
+    };
+    format!("{}|{which}", device.kind)
+}
+
+/// `known` with `key` stamped `now`, when `key` is due a notification: never announced, or
+/// last announced at least `gap` seconds ago. `None` when it was announced too recently.
+/// Unreadable lines are dropped.
+fn due(known: &str, key: &str, now: u64, gap: u64) -> Option<String> {
+    let mut lines: Vec<(&str, u64)> = known
+        .lines()
+        .filter_map(|line| {
+            let (k, at) = line.split_once('\t')?;
+            Some((k, at.parse().ok()?))
+        })
+        .collect();
+    if let Some((_, at)) = lines.iter().find(|(k, _)| *k == key)
+        && now.saturating_sub(*at) < gap
+    {
+        return None;
+    }
+    lines.retain(|(k, _)| *k != key);
+    lines.push((key, now));
+    Some(
+        lines
+            .iter()
+            .map(|(k, at)| format!("{k}\t{at}"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+}
+
+/// Say a device can be imported from, unless Settings says not to or it was said too recently.
 fn notify(app: &AppHandle, device: &Device) {
+    {
+        let state = app.state::<AppState>();
+        let Ok(conn) = lock_db(&state) else { return };
+        let setting = db::get_setting(&conn, NOTIFY_SETTING).ok().flatten();
+        let Some(gap) = notify_gap(setting.as_deref()) else {
+            return;
+        };
+        let known = db::get_setting(&conn, NOTIFIED_KEY)
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let Some(updated) = due(&known, &notified_key(device), now, gap) else {
+            return;
+        };
+        if let Err(err) = db::set_setting(&conn, NOTIFIED_KEY, &updated) {
+            log::warn!("Couldn't note the device notification: {err}");
+        }
+    }
     let shown = app
         .notification()
         .builder()
         .title(format!("Import photos from {}?", device.name))
-        .body(format!(
-            "Choose Import from {} in the Pic Cabinet tray menu to see what's new.",
-            device.name
-        ))
+        .body("Click to see what's new.")
+        .extra(OPENS.0, OPENS.1)
+        .extra(DEVICE_KEY, &device.id)
         .show();
     if let Err(err) = shown {
         log::warn!("Couldn't show the import notification: {err}");
@@ -128,7 +235,9 @@ fn notify(app: &AppHandle, device: &Device) {
 /// Removable drives with a DCIM folder, the layout every camera and phone card uses.
 #[cfg(windows)]
 fn drives() -> Vec<Device> {
-    use windows::Win32::Storage::FileSystem::{GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW};
+    use windows::Win32::Storage::FileSystem::{
+        GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW,
+    };
     use windows::core::HSTRING;
 
     let mask = unsafe { GetLogicalDrives() };
@@ -145,7 +254,8 @@ fn drives() -> Vec<Device> {
                 return None;
             }
             let mut label = [0u16; 261];
-            let read = unsafe { GetVolumeInformationW(&wide, Some(&mut label), None, None, None, None) };
+            let read =
+                unsafe { GetVolumeInformationW(&wide, Some(&mut label), None, None, None, None) };
             let end = label.iter().position(|&c| c == 0).unwrap_or(label.len());
             let label = String::from_utf16_lossy(&label[..end]);
             let name = match read {
@@ -164,4 +274,61 @@ fn drives() -> Vec<Device> {
 #[cfg(not(windows))]
 fn drives() -> Vec<Device> {
     Vec::new()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn device(kind: &'static str, id: &str, name: &str) -> Device {
+        Device {
+            kind,
+            id: id.into(),
+            name: name.into(),
+        }
+    }
+
+    #[test]
+    fn a_device_is_announced_again_only_after_the_gap() {
+        let gap = 600;
+        let phone = notified_key(&device("phone", r"\\?\usb#1", "Pixel 8"));
+        let known = due("", &phone, 1_000, gap).unwrap();
+        assert_eq!(due(&known, &phone, 1_000 + gap - 1, gap), None);
+        let again = due(&known, &phone, 1_000 + gap, gap).unwrap();
+        assert_eq!(again, format!("{phone}\t{}", 1_000 + gap));
+        assert!(due(&known, &phone, 1_000, 0).is_some(), "every time");
+    }
+
+    #[test]
+    fn each_device_keeps_its_own_time() {
+        let phone = notified_key(&device("phone", r"\\?\usb#1", "Pixel 8"));
+        let card = notified_key(&device("drive", r"E:\", "CANON_DC"));
+        let known = due("", &phone, 1_000, 600).unwrap();
+        let known = due(&known, &card, 2_000, 600).unwrap();
+        assert_eq!(known.lines().count(), 2);
+        assert_eq!(due(&known, &phone, 1_500, 600), None);
+        assert!(due(&known, &phone, 1_600, 600).is_some());
+        assert_eq!(due(&known, &card, 2_500, 600), None);
+    }
+
+    #[test]
+    fn the_setting_picks_the_gap_and_defaults_to_a_day() {
+        assert_eq!(notify_gap(Some("always")), Some(0));
+        assert_eq!(notify_gap(Some("week")), Some(604_800));
+        assert_eq!(notify_gap(Some("never")), None);
+        assert_eq!(notify_gap(None), Some(86_400));
+        assert_eq!(notify_gap(Some("day")), notify_gap(None));
+        assert!(
+            NOTIFY_CHOICES
+                .iter()
+                .all(|c| *c == "day" || notify_gap(Some(c)) != notify_gap(None))
+        );
+    }
+
+    #[test]
+    fn cards_are_told_apart_by_name_not_drive_letter() {
+        let a = notified_key(&device("drive", r"E:\", "CANON_DC"));
+        let b = notified_key(&device("drive", r"E:\", "NIKON"));
+        assert_ne!(a, b);
+    }
 }

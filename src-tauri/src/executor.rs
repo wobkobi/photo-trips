@@ -423,7 +423,11 @@ pub fn remove(env: &Env, batch: &NewBatch, removals: &[Removal]) -> Result<Apply
                         )?;
                     }
                     set_entry(&conn, id, "done", None)?;
-                    binned.push(Binned { path: &file.path, id, size });
+                    binned.push(Binned {
+                        path: &file.path,
+                        id,
+                        size,
+                    });
                 }
                 Err(err) => {
                     set_entry(&conn, id, "failed", Some(&err.to_string()))?;
@@ -436,7 +440,12 @@ pub fn remove(env: &Env, batch: &NewBatch, removals: &[Removal]) -> Result<Apply
                 }
             }
         }
-        emptied.extend(binned.iter().filter_map(|b| b.path.parent()).map(Path::to_path_buf));
+        emptied.extend(
+            binned
+                .iter()
+                .filter_map(|b| b.path.parent())
+                .map(Path::to_path_buf),
+        );
         summary.moved += binned.len();
         summary.failed += removal.files.len() - binned.len();
         (env.report)(stage, summary.moved + summary.failed, total);
@@ -457,7 +466,10 @@ struct Binned<'a> {
 /// follow them, newest first, and index them again. Returns those that couldn't come back:
 /// they stay binned and their entries say why, so an undo can still try.
 fn unbin<'a>(env: &Env, binned: Vec<Binned<'a>>, blocked: &Path) -> Result<Vec<Binned<'a>>> {
-    let reason = format!("Put back because {} couldn't go to the Recycle Bin", file_name(blocked));
+    let reason = format!(
+        "Put back because {} couldn't go to the Recycle Bin",
+        file_name(blocked)
+    );
     // A fresh listing, since every file here went in after any earlier one was read.
     let mut bin = recycle::Bin::default();
     let mut stuck = Vec::new();
@@ -602,7 +614,10 @@ fn take_back(
         let conn = lock(env.db)?;
         match outcome {
             Ok(()) => {
-                conn.execute("DELETE FROM media WHERE path = ?1", [file.to.to_string_lossy()])?;
+                conn.execute(
+                    "DELETE FROM media WHERE path = ?1",
+                    [file.to.to_string_lossy()],
+                )?;
                 set_entry(&conn, id, "failed", Some(&reason))?;
             }
             // Stuck in the library: the journal says so, and undo can still take it out.
@@ -1511,8 +1526,13 @@ mod tests {
             kind: "import",
             ..TEST_BATCH
         };
-        let (batch_id, _) =
-            begin_imports(&mut db.lock().unwrap(), &batch, &plan.groups, Transfer::Copy).unwrap();
+        let (batch_id, _) = begin_imports(
+            &mut db.lock().unwrap(),
+            &batch,
+            &plan.groups,
+            Transfer::Copy,
+        )
+        .unwrap();
         let file = |i: usize| plan.groups[i].files[0].clone();
         fs::create_dir_all(file(0).to.parent().unwrap()).unwrap();
         // First: the verified copy took its name, then the app died before the journal said so.
@@ -1674,7 +1694,10 @@ mod tests {
         // Edited in another program after the last refresh, so the index has the old size.
         fs::write(&rows[0].path, "edited, and longer than before").unwrap();
         let removal = Removal {
-            files: vec![BinFile { media_id: rows[0].id, path: rows[0].path.clone() }],
+            files: vec![BinFile {
+                media_id: rows[0].id,
+                path: rows[0].path.clone(),
+            }],
             keeper: None,
         };
         let cancel = AtomicBool::new(false);
@@ -1690,7 +1713,10 @@ mod tests {
 
         let undone = undo(&env, summary.batch_id).unwrap();
         assert_eq!((undone.restored, undone.failed), (1, 0));
-        assert_eq!(fs::read_to_string(&rows[0].path).unwrap(), "edited, and longer than before");
+        assert_eq!(
+            fs::read_to_string(&rows[0].path).unwrap(),
+            "edited, and longer than before"
+        );
     }
 
     /// Windows refuses to rename a file held open with no sharing, which stands in for a RAW
@@ -1709,11 +1735,18 @@ mod tests {
         let removal = Removal {
             files: [photo, sidecar]
                 .iter()
-                .map(|r| BinFile { media_id: r.id, path: r.path.clone() })
+                .map(|r| BinFile {
+                    media_id: r.id,
+                    path: r.path.clone(),
+                })
                 .collect(),
             keeper: None,
         };
-        let lock = fs::OpenOptions::new().read(true).share_mode(0).open(&sidecar.path).unwrap();
+        let lock = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(&sidecar.path)
+            .unwrap();
         let cancel = AtomicBool::new(false);
         let env = Env {
             db: &db,
@@ -1733,7 +1766,11 @@ mod tests {
         let error: String = db
             .lock()
             .unwrap()
-            .query_row("SELECT error FROM journal WHERE media_id = ?1", [photo.id], |r| r.get(0))
+            .query_row(
+                "SELECT error FROM journal WHERE media_id = ?1",
+                [photo.id],
+                |r| r.get(0),
+            )
             .unwrap();
         assert!(error.contains("IMG_20250312_101500.aae"), "{error}");
     }

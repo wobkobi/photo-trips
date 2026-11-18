@@ -59,15 +59,28 @@ impl ExifTool {
             command.creation_flags(0x0800_0000);
         }
         let mut child = command.spawn()?;
-        let stdin = child.stdin.take().ok_or_else(|| Error::msg("ExifTool stdin unavailable"))?;
-        let stdout = child.stdout.take().ok_or_else(|| Error::msg("ExifTool stdout unavailable"))?;
-        Ok(Self { child, stdin, stdout: BufReader::new(stdout) })
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| Error::msg("ExifTool stdin unavailable"))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| Error::msg("ExifTool stdout unavailable"))?;
+        Ok(Self {
+            child,
+            stdin,
+            stdout: BufReader::new(stdout),
+        })
     }
 
     /// Read the capture date and GPS of one file. `Ok(None)` means ExifTool found no date.
     pub fn read(&mut self, path: &Path) -> Result<Option<Embedded>> {
-        let tags: Vec<&str> =
-            DATE_TAGS.iter().copied().chain(["OffsetTimeOriginal", "GPSLatitude", "GPSLongitude"]).collect();
+        let tags: Vec<&str> = DATE_TAGS
+            .iter()
+            .copied()
+            .chain(["OffsetTimeOriginal", "GPSLatitude", "GPSLongitude"])
+            .collect();
         Ok(parse_output(&self.tags(path, &tags)?))
     }
 
@@ -88,11 +101,17 @@ impl ExifTool {
     /// than one request per file. A file ExifTool couldn't open (gone, locked) gets None, so it
     /// is tried again later.
     pub fn pictures(&mut self, paths: &[PathBuf]) -> Result<Vec<Option<Picture>>> {
-        let mut args: Vec<String> =
-            ["-json", "-api", "ImageHashType=SHA256", "-ImageDataHash", "-Make", "-Model"]
-                .into_iter()
-                .map(String::from)
-                .collect();
+        let mut args: Vec<String> = [
+            "-json",
+            "-api",
+            "ImageHashType=SHA256",
+            "-ImageDataHash",
+            "-Make",
+            "-Model",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
         args.extend(paths.iter().map(|p| p.to_string_lossy().into_owned()));
         Ok(parse_pictures(&self.execute(&args)?, paths))
     }
@@ -170,7 +189,10 @@ fn parse_output(json: &str) -> Option<Embedded> {
         .filter_map(|tag| entry.get(*tag)?.as_str())
         .find_map(parse_date)?;
     let offset_min = offset_min.or_else(|| {
-        entry.get("OffsetTimeOriginal")?.as_str().and_then(parse_offset)
+        entry
+            .get("OffsetTimeOriginal")?
+            .as_str()
+            .and_then(parse_offset)
     });
     let coords = entry
         .get("GPSLatitude")
@@ -237,7 +259,10 @@ pub fn pictures_with(
     match session.as_mut()?.pictures(paths) {
         Ok(found) => Some(found),
         Err(err) => {
-            log::warn!("ExifTool failed fingerprinting {} files: {err}", paths.len());
+            log::warn!(
+                "ExifTool failed fingerprinting {} files: {err}",
+                paths.len()
+            );
             *session = None;
             None
         }
@@ -246,7 +271,10 @@ pub fn pictures_with(
 
 /// Path of the bundled ExifTool, when it is present.
 pub fn locate(resource_dir: &Path) -> Option<PathBuf> {
-    let exe = resource_dir.join("resources").join("exiftool").join("exiftool.exe");
+    let exe = resource_dir
+        .join("resources")
+        .join("exiftool")
+        .join("exiftool.exe");
     exe.is_file().then_some(exe)
 }
 
@@ -269,7 +297,10 @@ mod tests {
 
     #[test]
     fn parses_date_variants() {
-        assert_eq!(parse_date("2024:07:15 09:34:00"), Some((dt("2024-07-15T09:34:00"), None)));
+        assert_eq!(
+            parse_date("2024:07:15 09:34:00"),
+            Some((dt("2024-07-15T09:34:00"), None))
+        );
         assert_eq!(
             parse_date("2024:07:15 09:31:00-07:00"),
             Some((dt("2024-07-15T09:31:00"), Some(-420)))
@@ -279,7 +310,12 @@ mod tests {
             Some((dt("2024-07-15T09:31:00"), Some(330)))
         );
         let utc = parse_date("2024:07:15 16:33:00Z").unwrap();
-        assert_eq!(utc.0, Local.from_utc_datetime(&dt("2024-07-15T16:33:00")).naive_local());
+        assert_eq!(
+            utc.0,
+            Local
+                .from_utc_datetime(&dt("2024-07-15T16:33:00"))
+                .naive_local()
+        );
         assert_eq!(parse_date("0000:00:00 00:00:00"), None);
         assert_eq!(parse_date("garbage"), None);
     }
@@ -355,8 +391,14 @@ mod tests {
         assert_eq!(
             found,
             [
-                Some(Picture { fingerprint: None, camera: false }),
-                Some(Picture { fingerprint: Some("bb".into()), camera: true }),
+                Some(Picture {
+                    fingerprint: None,
+                    camera: false
+                }),
+                Some(Picture {
+                    fingerprint: Some("bb".into()),
+                    camera: true
+                }),
             ]
         );
         assert_eq!(parse_pictures("not json", &paths), [None, None]);

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { INPUT } from "../components/Field";
 import { MovingProgress, PlanView } from "../components/PlanPreview";
 import { SampleStrip } from "../components/SampleStrip";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { api, errorText, type Preview, type Suggestion, type Suggestions } from "../lib/api";
 import { count } from "../lib/format";
-import { namingOf, tripTitle } from "../lib/naming";
+import { cleanName, namingOf, tripTitle } from "../lib/naming";
 import { formFromSuggestion, howFound, reasonText, suggestionKey } from "../lib/suggestions";
 import { rangeText, toDraft, type TripForm, type TripStart } from "../lib/trips";
 import { useJobDone, useJobs } from "../lib/useJobs";
@@ -203,9 +204,12 @@ export function SuggestionsPage({
                   key={key}
                   suggestion={suggestion}
                   busy={busy}
-                  onCreate={() => reviewCreate(formFromSuggestion(suggestion))}
-                  onChange={() =>
-                    onCreateTrip({ form: formFromSuggestion(suggestion), picked: null })
+                  onCreate={(name) => reviewCreate({ ...formFromSuggestion(suggestion), name })}
+                  onChange={(name) =>
+                    onCreateTrip({
+                      form: { ...formFromSuggestion(suggestion), name },
+                      picked: null,
+                    })
                   }
                   onDismiss={() => dismiss(suggestion)}
                 />
@@ -230,9 +234,9 @@ export function SuggestionsPage({
  * @param props - Component props.
  * @param props.suggestion - the suggestion
  * @param props.busy - a job or check is running, so the buttons wait
- * @param props.onCreate - preview it as a trip as it is
- * @param props.onChange - open it in the trip editor, to change the name or dates or untick
- *   photos first
+ * @param props.onCreate - preview it as a trip, with the name typed on the card
+ * @param props.onChange - open it in the trip editor with the name typed on the card, to change
+ *   the dates or untick photos first
  * @param props.onDismiss - stop suggesting these days
  * @returns the list item
  */
@@ -245,34 +249,50 @@ function SuggestionCard({
 }: {
   suggestion: Suggestion;
   busy: boolean;
-  onCreate: () => void;
-  onChange: () => void;
+  onCreate: (name: string) => void;
+  onChange: (name: string) => void;
   onDismiss: () => void;
 }): ReactElement {
   const { settings } = useSettings();
-  // Titled as the trip's folder will be, so it follows the folder name setting.
+  const [name, setName] = useState(suggestion.name);
+  const named = cleanName(name) !== "";
+  // Shown as the trip's folder will be, so it follows the folder name setting.
   const style = namingOf(settings).trips;
-  const title = tripTitle(style, suggestion.startDay, suggestion.name, suggestion.endDay);
+  const folder = tripTitle(style, suggestion.startDay, name, suggestion.endDay);
   return (
     <li className="flex flex-col gap-3 rounded-md border border-dashed border-line bg-surface p-4">
       {/* The buttons drop under the words when both can't share a line, rather than squeezing the
           words into a narrow column. */}
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1 basis-72">
-          <p className="text-[17px] leading-tight font-semibold">{title}</p>
+          <input
+            aria-label="Trip name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && named && !busy) onCreate(name);
+            }}
+            className={`${INPUT} w-full max-w-md text-[17px] font-semibold`}
+          />
+          {named && <p className="mt-1 text-[15px] text-muted">Folder: {folder}</p>}
           <p className="mt-1 text-[15px] text-muted">
             <span className="mr-4">{rangeText(suggestion.startDay, suggestion.endDay)}</span>
             {reasonText(suggestion)}
           </p>
+          {suggestion.folder && (
+            <p className="mt-1 text-[15px] break-all text-muted">
+              From the folder {suggestion.folder}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-1">
           <Button variant="ghost" onClick={onDismiss} busy={busy}>
-            Not a trip
+            {suggestion.folder ? "Sort normally" : "Not a trip"}
           </Button>
-          <Button variant="ghost" onClick={onChange} busy={busy}>
+          <Button variant="ghost" onClick={() => onChange(name)} busy={busy}>
             Change or select photos
           </Button>
-          <Button variant="primary" onClick={onCreate} busy={busy}>
+          <Button variant="primary" onClick={() => onCreate(name)} busy={busy} disabled={!named}>
             Create trip
           </Button>
         </div>

@@ -34,9 +34,9 @@ use crate::groups::{self, MediaRow};
 use crate::hash;
 use crate::index::{self, Report, path_key};
 use crate::jobs;
+use crate::naming::Naming;
 use crate::organise::relative;
 use crate::planner::{Rules, same_path};
-use crate::naming::Naming;
 use crate::trips;
 
 /// Files read per ExifTool request: enough to spare most of each request's overhead, few
@@ -196,8 +196,65 @@ pub fn remove_duplicates(
             label: &label,
             on_begin: None,
         };
+        remember_removed(
+            &state.db,
+            &removals,
+            ctx.cancel_flag(),
+            &|stage, done, total| ctx.report(stage, done, total),
+        )?;
         executor::remove(&env, &batch, &removals)
     })
+}
+
+/// Note the hash and size of each copy about to go, for Import to leave out (see
+/// `removed_copies` in db.rs). Copies with no hash yet are read now, while they're still there.
+fn remember_removed(
+    db: &Mutex<Connection>,
+    removals: &[Removal],
+    cancel: &AtomicBool,
+    report: Report,
+) -> Result<()> {
+    let ids: Vec<i64> = removals
+        .iter()
+        .filter(|r| r.keeper.is_some())
+        .filter_map(|r| r.files.first().map(|f| f.media_id))
+        .collect();
+    let rows: Vec<(PathBuf, i64, Option<String>)> = {
+        let conn = lock(db)?;
+        let mut stmt = conn.prepare("SELECT path, size, hash FROM media WHERE id = ?1")?;
+        ids.iter()
+            .filter_map(|id| {
+                stmt.query_row([id], |r| {
+                    Ok((PathBuf::from(r.get::<_, String>(0)?), r.get(1)?, r.get(2)?))
+                })
+                .ok()
+            })
+            .collect()
+    };
+    let unhashed: Vec<PathBuf> = rows
+        .iter()
+        .filter(|(_, _, hash)| hash.is_none())
+        .map(|(path, _, _)| path.clone())
+        .collect();
+    let mut fresh = hash::many(&unhashed, "Noting the copies going", cancel, report).into_iter();
+    let found: Vec<(String, i64)> = rows
+        .into_iter()
+        .filter_map(|(_, size, hash)| Some((hash.or_else(|| fresh.next().flatten())?, size)))
+        .collect();
+    if cancel.load(Ordering::Relaxed) {
+        return Err(Error::msg("Cancelled"));
+    }
+    let mut conn = lock(db)?;
+    let tx = conn.transaction()?;
+    {
+        let mut insert =
+            tx.prepare("INSERT OR IGNORE INTO removed_copies (hash, size) VALUES (?1, ?2)")?;
+        for (hash, size) in &found {
+            insert.execute(params![hash, size])?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
 }
 
 fn locate_exiftool(app: &AppHandle) -> Option<PathBuf> {
@@ -338,7 +395,12 @@ fn read_pictures(
                         let Some(batch) = batches.get(at) else { break };
                         let pictures = read_batch(&mut session, exiftool, batch);
                         let start = at * PICTURES_PER_REQUEST;
-                        found.extend(pictures.into_iter().enumerate().map(|(i, p)| (start + i, p)));
+                        found.extend(
+                            pictures
+                                .into_iter()
+                                .enumerate()
+                                .map(|(i, p)| (start + i, p)),
+                        );
                         let n = done.fetch_add(batch.len(), Ordering::Relaxed) + batch.len();
                         report(STAGE, n, total);
                     }
@@ -435,7 +497,12 @@ pub fn report(
         let dir = rules.target_dir(group);
         let leader = group.leader();
         let in_place = leader.path.parent().is_some_and(|p| same_path(p, &dir));
-        let tile = Rc::new(Tile::new(leader, group.members.len(), in_place, group.taken_at));
+        let tile = Rc::new(Tile::new(
+            leader,
+            group.members.len(),
+            in_place,
+            group.taken_at,
+        ));
         for member in &group.members {
             info.insert(member.id, Rc::clone(&tile));
         }
@@ -454,7 +521,10 @@ pub fn report(
     let mut by_picture: HashMap<(Kind, &str), Vec<&MediaRow>> = HashMap::new();
     for &row in &present {
         if let Some(&(fingerprint, _)) = prints.get(&row.id) {
-            by_picture.entry((row.kind, fingerprint)).or_default().push(row);
+            by_picture
+                .entry((row.kind, fingerprint))
+                .or_default()
+                .push(row);
         }
     }
     by_picture.retain(|_, copies| distinct_contents(copies) > 1);
@@ -469,10 +539,12 @@ pub fn report(
     }
 
     let details = |row: &MediaRow| details_of(row, prints.get(&row.id).is_some_and(|p| p.1));
-    let picture_sets = by_picture.into_iter().map(|((_, fingerprint), mut copies)| {
-        copies.sort_by_cached_key(|row| (Reverse(details(row).len()), place(row).rank.clone()));
-        (format!("picture:{fingerprint}"), true, copies)
-    });
+    let picture_sets = by_picture
+        .into_iter()
+        .map(|((_, fingerprint), mut copies)| {
+            copies.sort_by_cached_key(|row| (Reverse(details(row).len()), place(row).rank.clone()));
+            (format!("picture:{fingerprint}"), true, copies)
+        });
     let exact_sets = by_hash
         .into_iter()
         .filter(|(_, copies)| copies.len() > 1)
@@ -501,7 +573,11 @@ pub fn report(
                             in_place: tile.in_place,
                             extra: tile.members - 1,
                             group: tile.leader,
-                            details: if details_differ { details(row) } else { Vec::new() },
+                            details: if details_differ {
+                                details(row)
+                            } else {
+                                Vec::new()
+                            },
                         }
                     })
                     .collect(),
@@ -601,7 +677,8 @@ pub fn plan_removals(
             if !comparable(copy) || keepers.contains(id) || !removing.insert(*id) {
                 return Err(stale());
             }
-            let identical = keeper.hash.is_some() && copy.hash == keeper.hash && copy.size == keeper.size;
+            let identical =
+                keeper.hash.is_some() && copy.hash == keeper.hash && copy.size == keeper.size;
             let same = if identical {
                 Same::Bytes(keeper.hash.clone().unwrap_or_default())
             } else {
@@ -705,7 +782,9 @@ fn pending_pictures<'a>(rows: &'a [MediaRow], pictures: &Pictures) -> Vec<&'a Me
     let shared = shared_pictures(rows, pictures);
     rows.iter()
         .filter(|r| {
-            candidates.contains(&r.id) && !pictures.contains_key(&r.id) && !shared.contains_key(&r.id)
+            candidates.contains(&r.id)
+                && !pictures.contains_key(&r.id)
+                && !shared.contains_key(&r.id)
         })
         .collect()
 }
@@ -725,8 +804,8 @@ fn shared_pictures<'a>(rows: &[MediaRow], pictures: &'a Pictures) -> HashMap<i64
     }
     rows.iter()
         .filter_map(|row| {
-            let found = own(row)
-                .or_else(|| by_bytes.get(&(row.hash.as_deref()?, row.size)).copied())?;
+            let found =
+                own(row).or_else(|| by_bytes.get(&(row.hash.as_deref()?, row.size)).copied())?;
             Some((row.id, found))
         })
         .collect()
@@ -850,7 +929,10 @@ mod tests {
     fn listing_pictures(db: &Mutex<Connection>, root: &Path) -> DupReport {
         let (rows, pictures) = {
             let conn = db.lock().unwrap();
-            (index::load_rows(&conn).unwrap(), load_pictures(&conn).unwrap())
+            (
+                index::load_rows(&conn).unwrap(),
+                load_pictures(&conn).unwrap(),
+            )
         };
         let rules = Rules {
             root,
@@ -985,7 +1067,13 @@ mod tests {
         let found = check(&db, root);
         let rows_before = index::load_rows(&db.lock().unwrap()).unwrap();
         let photos: Vec<&DupSet> = found.sets.iter().filter(|s| s.kind == "photo").collect();
-        let removals = plan_removals(rows_before.clone(), &Pictures::new(), &keep_suggested(&photos), None).unwrap();
+        let removals = plan_removals(
+            rows_before.clone(),
+            &Pictures::new(),
+            &keep_suggested(&photos),
+            None,
+        )
+        .unwrap();
         // The in\ copy was the only photo in its group, so its sidecar goes with it.
         let sizes: Vec<usize> = removals.iter().map(|r| r.files.len()).collect();
         assert_eq!(sizes, [2, 1, 1]);
@@ -1075,7 +1163,13 @@ mod tests {
         let rows = index::load_rows(&db.lock().unwrap()).unwrap();
         let id = |name: &str| rows.iter().find(|r| r.path.ends_with(name)).unwrap().id;
         let refused = |keep: i64, remove: Vec<i64>| {
-            plan_removals(rows.clone(), &Pictures::new(), &[Choice { keep, remove }], None).is_err()
+            plan_removals(
+                rows.clone(),
+                &Pictures::new(),
+                &[Choice { keep, remove }],
+                None,
+            )
+            .is_err()
         };
         assert!(!refused(id("a.jpg"), vec![id("b.jpg")]));
         assert!(
@@ -1101,7 +1195,11 @@ mod tests {
         let found = check(&db, root);
         assert_eq!(found.sets.len(), 2);
         let folder = |path: &str| path.split('\\').next().unwrap().to_owned();
-        let kept: Vec<String> = found.sets.iter().map(|s| folder(&s.copies[0].path)).collect();
+        let kept: Vec<String> = found
+            .sets
+            .iter()
+            .map(|s| folder(&s.copies[0].path))
+            .collect();
         assert_eq!(kept, ["a", "a"]);
         // Each copy names its tile, so the page can tell which copies are one pair.
         for set in &found.sets {
@@ -1161,8 +1259,11 @@ mod tests {
         save_picture(&db, r"in\v.mp4", "P1", false);
         let (a, b) = (id_of(&db, r"in\a.jpg"), id_of(&db, r"in\b.jpg"));
         let conn = db.lock().unwrap();
-        conn.execute("UPDATE media SET lat = -36.85, lon = 174.76 WHERE id = ?1", [a])
-            .unwrap();
+        conn.execute(
+            "UPDATE media SET lat = -36.85, lon = 174.76 WHERE id = ?1",
+            [a],
+        )
+        .unwrap();
         conn.execute("UPDATE media SET date_source = 'exif' WHERE id = ?1", [b])
             .unwrap();
         drop(conn);
@@ -1193,7 +1294,10 @@ mod tests {
         // b has a date and a camera, a only a location, and c only b's camera.
         assert_eq!(paths(set), [r"in\b.jpg", r"in\a.jpg", r"in\c.jpg"]);
         let details: Vec<&[&str]> = set.copies.iter().map(|c| c.details.as_slice()).collect();
-        assert_eq!(details, [&["date", "camera"][..], &["location"], &["camera"]]);
+        assert_eq!(
+            details,
+            [&["date", "camera"][..], &["location"], &["camera"]]
+        );
         let sizes: Vec<u64> = set.copies.iter().map(|c| c.size).collect();
         assert_eq!(sizes, [31, 24, 31]);
         assert_eq!((found.extra, found.bytes), (2, 24 + 31));
@@ -1213,7 +1317,12 @@ mod tests {
         let pictures = load_pictures(&db.lock().unwrap()).unwrap();
         let id = |rel: &str| id_of(&db, rel);
         let plan = |keep: i64, remove: Vec<i64>, exiftool: Option<&Path>| {
-            plan_removals(rows.clone(), &pictures, &[Choice { keep, remove }], exiftool)
+            plan_removals(
+                rows.clone(),
+                &pictures,
+                &[Choice { keep, remove }],
+                exiftool,
+            )
         };
         let (a, b, c, d, v) = (
             id(r"in\a.jpg"),
@@ -1224,18 +1333,32 @@ mod tests {
         );
 
         let removals = plan(b, vec![a, c], Some(exe)).unwrap();
-        let checks: Vec<&Same> =
-            removals.iter().map(|r| &r.keeper.as_ref().unwrap().same).collect();
-        let hash_b = rows.iter().find(|r| r.id == b).unwrap().hash.clone().unwrap();
+        let checks: Vec<&Same> = removals
+            .iter()
+            .map(|r| &r.keeper.as_ref().unwrap().same)
+            .collect();
+        let hash_b = rows
+            .iter()
+            .find(|r| r.id == b)
+            .unwrap()
+            .hash
+            .clone()
+            .unwrap();
         let picture = Same::Picture {
             fingerprint: "P1".into(),
             exiftool: exe.to_path_buf(),
         };
         assert_eq!(checks, [&picture, &Same::Bytes(hash_b)]);
-        assert!(plan(b, vec![a], None).is_err(), "no ExifTool to check again");
+        assert!(
+            plan(b, vec![a], None).is_err(),
+            "no ExifTool to check again"
+        );
         assert!(plan(b, vec![d], Some(exe)).is_err(), "another picture");
         assert!(plan(b, vec![v], Some(exe)).is_err(), "another kind");
-        assert!(plan(d, vec![a], Some(exe)).is_err(), "the keeper is another picture");
+        assert!(
+            plan(d, vec![a], Some(exe)).is_err(),
+            "the keeper is another picture"
+        );
         assert!(plan(a, vec![a], Some(exe)).is_err(), "the keeper itself");
 
         // A file that changes loses its fingerprint at the next refresh, and with it the match.
@@ -1277,8 +1400,22 @@ mod tests {
             row(3, r"c\x.jpg", Kind::Photo, 50, day, Some("h3")),
             row(4, r"d\x.jpg", Kind::Photo, 50, day, Some("h3")),
             // A numbered copy that lost its date and changed size.
-            row(5, r"e\IMG_9.jpg", Kind::Photo, 70, "2026-07-02T10:00:00", None),
-            row(6, r"f\IMG_9 (2).jpg", Kind::Photo, 80, "2026-07-03T10:00:00", None),
+            row(
+                5,
+                r"e\IMG_9.jpg",
+                Kind::Photo,
+                70,
+                "2026-07-02T10:00:00",
+                None,
+            ),
+            row(
+                6,
+                r"f\IMG_9 (2).jpg",
+                Kind::Photo,
+                80,
+                "2026-07-03T10:00:00",
+                None,
+            ),
             // The clips' date, but a photo.
             row(7, r"g\y.jpg", Kind::Photo, 90, clip, Some("h7")),
             // The exact copies' date, but empty, so never compared.
@@ -1291,7 +1428,12 @@ mod tests {
 
     #[test]
     fn plain_names_drop_copy_marks() {
-        for name in ["IMG_1.jpg", "IMG_1 (2).jpg", "img_1 - Copy.JPG", "Copy of IMG_1.jpg"] {
+        for name in [
+            "IMG_1.jpg",
+            "IMG_1 (2).jpg",
+            "img_1 - Copy.JPG",
+            "Copy of IMG_1.jpg",
+        ] {
             assert_eq!(plain_name(Path::new(name)), "img_1", "{name}");
         }
         assert_eq!(plain_name(Path::new("Trip (Japan).jpg")), "trip (japan)");
@@ -1323,8 +1465,14 @@ mod tests {
         let cancel = AtomicBool::new(false);
         hash_pending(&db, &cancel, &no_report).unwrap();
         // Same name, so both are read, and nothing is read twice.
-        assert_eq!(fingerprint_pending(&db, &exe, &cancel, &no_report).unwrap(), 2);
-        assert_eq!(fingerprint_pending(&db, &exe, &cancel, &no_report).unwrap(), 0);
+        assert_eq!(
+            fingerprint_pending(&db, &exe, &cancel, &no_report).unwrap(),
+            2
+        );
+        assert_eq!(
+            fingerprint_pending(&db, &exe, &cancel, &no_report).unwrap(),
+            0
+        );
         let found = listing_pictures(&db, root);
         assert_eq!((found.sets.len(), found.unchecked), (1, 0));
         let set = &found.sets[0];
@@ -1335,8 +1483,7 @@ mod tests {
 
         let rows = index::load_rows(&db.lock().unwrap()).unwrap();
         let pictures = load_pictures(&db.lock().unwrap()).unwrap();
-        let removals =
-            plan_removals(rows, &pictures, &keep_suggested(&[set]), Some(&exe)).unwrap();
+        let removals = plan_removals(rows, &pictures, &keep_suggested(&[set]), Some(&exe)).unwrap();
         // Another picture in the copy's place since the check: it stays.
         let copy_bytes = fs::read(&stripped).unwrap();
         fs::copy(manifest.join(r"tests\fixtures\plain.png"), &stripped).unwrap();
@@ -1348,5 +1495,36 @@ mod tests {
         let summary = run_removals(&db, root, &removals);
         assert_eq!((summary.moved, summary.failed), (1, 0));
         assert!(!stripped.exists() && fake::holds(&stripped) && kept.exists());
+    }
+
+    #[test]
+    fn removed_copies_are_noted_for_import_to_leave_out() {
+        let (dir, db) = library(&[("a/IMG_1.JPG", PHOTO), ("b/IMG_1.JPG", OTHER)]);
+        let gone = dir.path().join("b/IMG_1.JPG");
+        let rows = index::load_rows(&db.lock().unwrap()).unwrap();
+        let id = rows
+            .iter()
+            .find(|r| r.path.ends_with("b/IMG_1.JPG"))
+            .unwrap()
+            .id;
+        let removal = Removal {
+            files: vec![BinFile {
+                media_id: id,
+                path: gone.clone(),
+            }],
+            keeper: Some(Keeper {
+                path: dir.path().join("a/IMG_1.JPG"),
+                same: Same::Bytes(String::new()),
+            }),
+        };
+        remember_removed(&db, &[removal], &AtomicBool::new(false), &no_report).unwrap();
+        let noted: (String, i64) = db
+            .lock()
+            .unwrap()
+            .query_row("SELECT hash, size FROM removed_copies", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert_eq!(noted, (hash::file(&gone).unwrap(), OTHER.len() as i64));
     }
 }

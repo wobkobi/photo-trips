@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { WatchStatus } from "./api";
 import {
   busyChoices,
+  deviceNotifyOf,
   folderName,
   minPhotosOf,
   normaliseExtensions,
@@ -59,6 +60,18 @@ describe("normaliseExtensions", () => {
 
   it("leaves nothing for blank input", () => {
     expect(normaliseExtensions(" , ")).toBe("");
+  });
+});
+
+describe("device notifications", () => {
+  it("defaults to once a day", () => {
+    expect(deviceNotifyOf(null)).toBe("day");
+    expect(deviceNotifyOf({ device_notify: "hourly" })).toBe("day");
+  });
+
+  it("keeps a saved choice", () => {
+    expect(deviceNotifyOf({ device_notify: "never" })).toBe("never");
+    expect(deviceNotifyOf({ device_notify: "always" })).toBe("always");
   });
 });
 

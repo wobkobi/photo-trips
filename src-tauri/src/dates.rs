@@ -117,7 +117,10 @@ pub fn from_filename(name: &str) -> Option<NaiveDateTime> {
 
 /// A Unix timestamp as wall-clock time in this PC's time zone.
 pub fn from_unix_local(secs: i64) -> Option<NaiveDateTime> {
-    Local.timestamp_opt(secs, 0).single().map(|dt| dt.naive_local())
+    Local
+        .timestamp_opt(secs, 0)
+        .single()
+        .map(|dt| dt.naive_local())
 }
 
 pub fn format(dt: &NaiveDateTime) -> String {
@@ -138,17 +141,38 @@ mod tests {
 
     #[test]
     fn reads_common_camera_and_app_name_patterns() {
-        assert_eq!(from_filename("IMG_20250312_141500.jpg"), dt("2025-03-12T14:15:00"));
-        assert_eq!(from_filename("PXL_20250312_141500123.jpg"), dt("2025-03-12T14:15:00"));
-        assert_eq!(from_filename("VID_20250312_141500.mp4"), dt("2025-03-12T14:15:00"));
-        assert_eq!(from_filename("IMG-20250312-WA0001.jpg"), dt("2025-03-12T12:00:00"));
+        assert_eq!(
+            from_filename("IMG_20250312_141500.jpg"),
+            dt("2025-03-12T14:15:00")
+        );
+        assert_eq!(
+            from_filename("PXL_20250312_141500123.jpg"),
+            dt("2025-03-12T14:15:00")
+        );
+        assert_eq!(
+            from_filename("VID_20250312_141500.mp4"),
+            dt("2025-03-12T14:15:00")
+        );
+        assert_eq!(
+            from_filename("IMG-20250312-WA0001.jpg"),
+            dt("2025-03-12T12:00:00")
+        );
         assert_eq!(
             from_filename("Screenshot_2025-03-12-14-15-00-123_com.app.png"),
             dt("2025-03-12T14:15:00")
         );
-        assert_eq!(from_filename("2025-03-12 14.15.00.jpg"), dt("2025-03-12T14:15:00"));
-        assert_eq!(from_filename("signal-2025-03-12-141500.jpg"), dt("2025-03-12T14:15:00"));
-        assert_eq!(from_filename("20250312_141500.heic"), dt("2025-03-12T14:15:00"));
+        assert_eq!(
+            from_filename("2025-03-12 14.15.00.jpg"),
+            dt("2025-03-12T14:15:00")
+        );
+        assert_eq!(
+            from_filename("signal-2025-03-12-141500.jpg"),
+            dt("2025-03-12T14:15:00")
+        );
+        assert_eq!(
+            from_filename("20250312_141500.heic"),
+            dt("2025-03-12T14:15:00")
+        );
     }
 
     #[test]
@@ -158,7 +182,7 @@ mod tests {
             "DSC01234.NEF",
             "P1020345.RW2",
             "GX010001.MP4",
-            "IMG_20251332.jpg",     // month 13
+            "IMG_20251332.jpg",      // month 13
             "IMG_20250230_1200.jpg", // 30 February
             "photo_120250312.jpg",   // starts mid-number
             "id_2025031299.jpg",     // runs into more digits

@@ -48,7 +48,8 @@ const NOTIFIED_KEY: &str = "update_notified";
 pub const BETA_KEY: &str = "beta_updates";
 /// Always names the newest release, beta or stable. The stable address is in tauri.conf.json.
 /// It's on a branch because published releases are immutable, so a release file can't be updated.
-const BETA_FEED: &str = "https://raw.githubusercontent.com/wobkobi/pic-cabinet/update-feed/beta.json";
+const BETA_FEED: &str =
+    "https://raw.githubusercontent.com/wobkobi/pic-cabinet/update-feed/beta.json";
 
 /// A newer version on offer.
 #[derive(Debug, Clone, Serialize)]
@@ -61,7 +62,14 @@ pub struct Available {
 }
 
 /// Keep a Changelog's heading order, used when notes from several versions are merged.
-const HEADING_ORDER: [&str; 6] = ["Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"];
+const HEADING_ORDER: [&str; 6] = [
+    "Added",
+    "Changed",
+    "Deprecated",
+    "Removed",
+    "Fixed",
+    "Security",
+];
 
 /// How far an install has got.
 #[derive(Debug, Clone, Serialize)]
@@ -98,7 +106,11 @@ impl Updates {
 /// An x.y.z version as numbers, so 0.10.0 sorts after 0.9.0. Anything after `-` or `+` is
 /// ignored.
 fn version_key(version: &str) -> Option<(u64, u64, u64)> {
-    let core = version.trim().trim_start_matches('v').split(['-', '+']).next()?;
+    let core = version
+        .trim()
+        .trim_start_matches('v')
+        .split(['-', '+'])
+        .next()?;
     let mut parts = core.split('.').map(|part| part.parse::<u64>().ok());
     Some((parts.next()??, parts.next()??, parts.next()??))
 }
@@ -141,7 +153,10 @@ fn notes_since(manifest: &serde_json::Value, current: &str, new: &str) -> Option
     }
     // Stable, so headings outside the usual set keep their first-seen order at the end.
     groups.sort_by_key(|(heading, _)| {
-        HEADING_ORDER.iter().position(|name| name == heading).unwrap_or(HEADING_ORDER.len())
+        HEADING_ORDER
+            .iter()
+            .position(|name| name == heading)
+            .unwrap_or(HEADING_ORDER.len())
     });
     let merged: Vec<String> = groups
         .iter()
@@ -187,7 +202,9 @@ fn check_due(app: &AppHandle) -> bool {
 fn is_due(last: Option<SystemTime>, now: SystemTime) -> bool {
     match last {
         None => true,
-        Some(last) => now.duration_since(last).map_or(true, |gap| gap >= CHECK_EVERY),
+        Some(last) => now
+            .duration_since(last)
+            .map_or(true, |gap| gap >= CHECK_EVERY),
     }
 }
 
@@ -211,7 +228,9 @@ async fn check(app: &AppHandle) -> Result<Option<Available>> {
     let updater = match feed_override(beta_enabled(app)) {
         Some(feed) => {
             let url = Url::parse(feed).map_err(|err| Error::msg(err.to_string()))?;
-            app.updater_builder().endpoints(vec![url]).and_then(|builder| builder.build())
+            app.updater_builder()
+                .endpoints(vec![url])
+                .and_then(|builder| builder.build())
         }
         None => app.updater(),
     }
@@ -239,7 +258,12 @@ async fn check(app: &AppHandle) -> Result<Option<Available>> {
 fn notify_once(app: &AppHandle, found: &Available) {
     let state = app.state::<AppState>();
     let Ok(conn) = lock_db(&state) else { return };
-    if db::get_setting(&conn, NOTIFIED_KEY).ok().flatten().as_deref() == Some(&found.version) {
+    if db::get_setting(&conn, NOTIFIED_KEY)
+        .ok()
+        .flatten()
+        .as_deref()
+        == Some(&found.version)
+    {
         return;
     }
     let shown = app
@@ -333,7 +357,9 @@ async fn install(app: &AppHandle, update: &Update) -> Result<()> {
     let _ = app.emit(PROGRESS_EVENT, InstallProgress::Installing);
     log::info!("Installing Pic Cabinet {}", update.version);
     // On Windows this starts the installer and exits the app; it only returns on failure.
-    let installed = update.install(&bytes).map_err(|err| Error::msg(err.to_string()));
+    let installed = update
+        .install(&bytes)
+        .map_err(|err| Error::msg(err.to_string()));
     jobs.reopen();
     installed
 }
@@ -405,14 +431,20 @@ mod tests {
     fn progress_is_tagged_by_stage() {
         let json = |p| serde_json::to_value(p).unwrap();
         assert_eq!(
-            json(InstallProgress::Downloading { done: 5, total: Some(10) }),
+            json(InstallProgress::Downloading {
+                done: 5,
+                total: Some(10)
+            }),
             serde_json::json!({ "stage": "downloading", "done": 5, "total": 10 })
         );
         assert_eq!(
             json(InstallProgress::Waiting { kind: "import" }),
             serde_json::json!({ "stage": "waiting", "kind": "import" })
         );
-        assert_eq!(json(InstallProgress::Installing), serde_json::json!({ "stage": "installing" }));
+        assert_eq!(
+            json(InstallProgress::Installing),
+            serde_json::json!({ "stage": "installing" })
+        );
     }
 
     #[test]

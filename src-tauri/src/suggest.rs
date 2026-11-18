@@ -9,6 +9,7 @@
 // 4. Name it after the area, region or country its located photos fit (see `place_name`), or its
 //    dates.
 // 5. Leave out runs that overlap a trip or a dismissed suggestion.
+// 6. Add folders that look like trips (see `folder_trips`), over any run they overlap.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::OnceLock;
@@ -20,10 +21,11 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::AppState;
-use crate::commands::lock_db;
+use crate::commands::{library_root, lock_db};
 use crate::dates::DateSource;
 use crate::db;
 use crate::error::{Error, Result};
+use crate::folder_trips::{self, FolderTrip};
 use crate::groups::{self, Group};
 use crate::index;
 use crate::trips::{self, SampleTile, Trip};
@@ -112,9 +114,8 @@ pub fn find(shots: &[Shot], min_photos: usize, home: Option<Point>) -> Found {
         .filter(|(day, (photos, _))| *photos >= min_photos || away.contains_key(*day))
         .map(|(day, _)| *day);
     // Days with photos placing them near home. Without a home nothing can be placed there.
-    let at_home = |day: &NaiveDate| {
-        home.is_some() && middles.contains_key(day) && !away.contains_key(day)
-    };
+    let at_home =
+        |day: &NaiveDate| home.is_some() && middles.contains_key(day) && !away.contains_key(day);
     let runs = join_runs(wanted)
         .into_iter()
         .filter(|(start, end)| {
@@ -133,7 +134,9 @@ pub fn find(shots: &[Shot], min_photos: usize, home: Option<Point>) -> Found {
             }
             let day_trip = start == end
                 && away.contains_key(&start)
-                && days.get(&start).is_some_and(|(photos, _)| *photos >= min_photos);
+                && days
+                    .get(&start)
+                    .is_some_and(|(photos, _)| *photos >= min_photos);
             ((end - start).num_days() + 1 >= MIN_RUN_DAYS || day_trip).then_some((start, end))
         })
         .map(|(start, end)| {
@@ -190,13 +193,19 @@ pub fn find_home(middles: &BTreeMap<NaiveDate, Point>) -> Option<Point> {
     let (best, days) = cells
         .keys()
         .map(|&cell| {
-            let days: usize = block(cell).filter_map(|c| cells.get(&c)).map(Vec::len).sum();
+            let days: usize = block(cell)
+                .filter_map(|c| cells.get(&c))
+                .map(Vec::len)
+                .sum();
             (cell, days)
         })
-        .fold(None, |best: Option<((i64, i64), usize)>, (cell, days)| match best {
-            Some((_, most)) if most >= days => best,
-            _ => Some((cell, days)),
-        })?;
+        .fold(
+            None,
+            |best: Option<((i64, i64), usize)>, (cell, days)| match best {
+                Some((_, most)) if most >= days => best,
+                _ => Some((cell, days)),
+            },
+        )?;
     if days < MIN_HOME_DAYS {
         return None;
     }
@@ -245,7 +254,9 @@ fn is_clear(run: &Run, trips: &[Trip], dismissed: &[(NaiveDate, NaiveDate)]) -> 
     let start = run.start.and_time(NaiveTime::MIN);
     let end = run.end.and_hms_opt(23, 59, 59).unwrap_or(start);
     trips.iter().all(|t| t.end_at < start || end < t.start_at)
-        && dismissed.iter().all(|(s, e)| *e < run.start || run.end < *s)
+        && dismissed
+            .iter()
+            .all(|(s, e)| *e < run.start || run.end < *s)
 }
 
 /// Where a photo was taken, from the offline place list.
@@ -308,11 +319,13 @@ fn one_of(places: &[Place], level: Level, share: (usize, usize)) -> Option<Strin
 /// Two places of the same name (a Richmond in each hemisphere) are just that name.
 fn two_of(places: &[Place], level: Level) -> Option<String> {
     match ranked(places, level).as_slice() {
-        [(first, n), (second, m), ..] if (n + m) * 4 >= places.len() * 3 => Some(if first.0 == second.0 {
-            first.0.clone()
-        } else {
-            format!("{} and {}", first.0, second.0)
-        }),
+        [(first, n), (second, m), ..] if (n + m) * 4 >= places.len() * 3 => {
+            Some(if first.0 == second.0 {
+                first.0.clone()
+            } else {
+                format!("{} and {}", first.0, second.0)
+            })
+        }
         _ => None,
     }
 }
@@ -324,7 +337,10 @@ fn area_name(places: &[Place]) -> Option<String> {
     let towns: Vec<(&Place, usize)> = {
         let mut seen: Vec<(&Place, usize)> = Vec::new();
         for place in places {
-            match seen.iter_mut().find(|(p, _)| p.town == place.town && p.at == place.at) {
+            match seen
+                .iter_mut()
+                .find(|(p, _)| p.town == place.town && p.at == place.at)
+            {
                 Some((_, n)) => *n += 1,
                 None => seen.push((place, 1)),
             }
@@ -332,12 +348,24 @@ fn area_name(places: &[Place]) -> Option<String> {
         seen
     };
     let around = |centre: Point| {
-        towns.iter().filter(move |(p, _)| distance_km(p.at, centre) <= AREA_KM)
+        towns
+            .iter()
+            .filter(move |(p, _)| distance_km(p.at, centre) <= AREA_KM)
     };
     let (_, best, in_area) = towns
         .iter()
-        .map(|(centre, own)| (*own, *centre, around(centre.at).map(|(_, n)| n).sum::<usize>()))
-        .max_by(|a, b| a.2.cmp(&b.2).then(a.0.cmp(&b.0)).then_with(|| b.1.town.cmp(&a.1.town)))?;
+        .map(|(centre, own)| {
+            (
+                *own,
+                *centre,
+                around(centre.at).map(|(_, n)| n).sum::<usize>(),
+            )
+        })
+        .max_by(|a, b| {
+            a.2.cmp(&b.2)
+                .then(a.0.cmp(&b.0))
+                .then_with(|| b.1.town.cmp(&a.1.town))
+        })?;
     if in_area * 3 < places.len() * 2 {
         return None;
     }
@@ -490,6 +518,9 @@ pub struct Suggestion {
     /// Whole km, when some days were away.
     pub away_km: Option<u32>,
     pub sample: Vec<SampleTile>,
+    /// The folder it was found from, relative to the library, when it's a folder that looks
+    /// like a trip rather than a run of busy days.
+    pub folder: Option<String>,
 }
 
 /// Where home is, for the page to explain away days.
@@ -527,7 +558,10 @@ fn suggest_settings(conn: &Connection) -> Result<(usize, Option<Point>)> {
 
 /// The busy-day count from Settings, when it's a whole number from 1 to 1,000.
 pub fn parse_min_photos(text: &str) -> Option<usize> {
-    text.trim().parse::<usize>().ok().filter(|n| (1..=1000).contains(n))
+    text.trim()
+        .parse::<usize>()
+        .ok()
+        .filter(|n| (1..=1000).contains(n))
 }
 
 /// A home typed or pasted as "latitude, longitude", the way map apps copy a place, e.g.
@@ -555,7 +589,7 @@ pub fn home_place(location: String) -> Result<Option<String>> {
     }))
 }
 
-fn load_dismissed(conn: &Connection) -> Result<Vec<(NaiveDate, NaiveDate)>> {
+pub(crate) fn load_dismissed(conn: &Connection) -> Result<Vec<(NaiveDate, NaiveDate)>> {
     let mut stmt = conn.prepare("SELECT start_day, end_day FROM dismissed_suggestions")?;
     let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
     let parse = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok();
@@ -582,9 +616,10 @@ fn spread<T: Copy>(items: &[T], limit: usize) -> Vec<T> {
 /// Trips Pic Cabinet thinks you took, with their photo counts, names and sample photos.
 #[tauri::command(async)]
 pub fn suggest_trips(state: State<'_, AppState>) -> Result<Suggestions> {
-    let (rows, trips, dismissed, (min_photos, set_home)) = {
+    let (root, rows, trips, dismissed, (min_photos, set_home)) = {
         let conn = lock_db(&state)?;
         (
+            library_root(&conn).ok(),
             index::load_rows(&conn)?,
             trips::load(&conn)?,
             load_dismissed(&conn)?,
@@ -609,11 +644,21 @@ pub fn suggest_trips(state: State<'_, AppState>) -> Result<Suggestions> {
         .iter()
         .filter(|r| is_clear(r, &trips, &[]))
         .partition(|r| is_clear(r, &[], &dismissed));
-    let suggestions = clear
+    // Folders come first: a run of busy days over one says the same trip less well.
+    let folders = root.map_or_else(Vec::new, |root| {
+        folder_trips::find(&root, &groups, &trips, &dismissed)
+    });
+    let mut suggestions: Vec<Suggestion> = clear
         .into_iter()
-        .rev()
+        .filter(|run| {
+            folders
+                .iter()
+                .all(|f| f.end < run.start || run.end < f.start)
+        })
         .map(|run| describe(run, &groups))
+        .chain(folders.iter().map(|f| from_folder(f, &groups)))
         .collect();
+    suggestions.sort_by(|a, b| b.start_day.cmp(&a.start_day));
     let home = found.home.map(|home| HomeInfo {
         place: place_of(home).map(|p| p.town),
         set: set_home.is_some(),
@@ -649,12 +694,38 @@ fn describe(run: &Run, groups: &[Group]) -> Suggestion {
         away_days: run.away_days,
         away_km: run.away_km.map(|km| km.round() as u32),
         sample: trips::sample(&inside),
+        folder: None,
+    }
+}
+
+/// A folder that looks like a trip as a suggestion, named after the folder. Its files are every
+/// photo taken in its days, since that's what the trip would hold.
+fn from_folder(found: &FolderTrip, groups: &[Group]) -> Suggestion {
+    let start: NaiveDateTime = found.start.and_time(NaiveTime::MIN);
+    let end = found.end.and_hms_opt(23, 59, 59).unwrap_or(start);
+    let inside: Vec<&Group> = groups
+        .iter()
+        .filter(|g| start <= g.taken_at && g.taken_at <= end)
+        .collect();
+    Suggestion {
+        start_day: found.start.format("%Y-%m-%d").to_string(),
+        end_day: found.end.format("%Y-%m-%d").to_string(),
+        name: found.name.clone(),
+        files: inside.len(),
+        away_days: 0,
+        away_km: None,
+        sample: trips::sample(&inside),
+        folder: Some(found.folder.clone()),
     }
 }
 
 /// Hide a suggestion. It stays hidden while its dates overlap these.
 #[tauri::command(async)]
-pub fn dismiss_suggestion(state: State<'_, AppState>, start_day: NaiveDate, end_day: NaiveDate) -> Result<()> {
+pub fn dismiss_suggestion(
+    state: State<'_, AppState>,
+    start_day: NaiveDate,
+    end_day: NaiveDate,
+) -> Result<()> {
     if end_day < start_day {
         return Err(Error::msg("The suggestion has to end after it starts"));
     }
@@ -695,7 +766,13 @@ mod tests {
 
     /// `count` shots on `on`, all at `point`.
     fn shots(on: &str, count: usize, point: Option<Point>) -> Vec<Shot> {
-        vec![Shot { day: day(on), point }; count]
+        vec![
+            Shot {
+                day: day(on),
+                point
+            };
+            count
+        ]
     }
 
     /// A few photos at home on each of `days` days in January 2025.
@@ -734,10 +811,10 @@ mod tests {
         all.extend(shots("2025-03-02", 1, None));
         all.extend(shots("2025-03-03", 15, None));
         let found = find(&all, 15, None);
-        assert_eq!(found.runs.iter().map(range).collect::<Vec<_>>(), vec![(
-            "2025-03-02".into(),
-            "2025-03-03".into()
-        )]);
+        assert_eq!(
+            found.runs.iter().map(range).collect::<Vec<_>>(),
+            vec![("2025-03-02".into(), "2025-03-03".into())]
+        );
     }
 
     #[test]
@@ -753,7 +830,10 @@ mod tests {
         assert_eq!(found.runs.len(), 1);
         assert_eq!(found.runs[0].away_days, 3);
         let km = found.runs[0].away_km.unwrap();
-        assert!((2140.0..2170.0).contains(&km), "Sydney is about 2,155 km away, got {km}");
+        assert!(
+            (2140.0..2170.0).contains(&km),
+            "Sydney is about 2,155 km away, got {km}"
+        );
     }
 
     #[test]
@@ -762,10 +842,10 @@ mod tests {
         all.extend(shots("2025-02-10", 2, Some(WELLINGTON)));
         all.extend(shots("2025-02-11", 3, Some(WELLINGTON)));
         let found = find(&all, 15, None);
-        assert_eq!(found.runs.iter().map(range).collect::<Vec<_>>(), vec![(
-            "2025-02-10".into(),
-            "2025-02-11".into()
-        )]);
+        assert_eq!(
+            found.runs.iter().map(range).collect::<Vec<_>>(),
+            vec![("2025-02-10".into(), "2025-02-11".into())]
+        );
         assert_eq!(found.runs[0].away_days, 2);
     }
 
@@ -792,10 +872,10 @@ mod tests {
         all.extend(shots("2025-03-08", 30, None));
         all.extend(shots("2025-03-09", 30, None));
         let found = find(&all, 15, None);
-        assert_eq!(found.runs.iter().map(range).collect::<Vec<_>>(), vec![(
-            "2025-03-08".into(),
-            "2025-03-09".into()
-        )]);
+        assert_eq!(
+            found.runs.iter().map(range).collect::<Vec<_>>(),
+            vec![("2025-03-08".into(), "2025-03-09".into())]
+        );
     }
 
     #[test]
@@ -808,10 +888,10 @@ mod tests {
         all.extend(shots("2025-03-01", 30, Some(AUCKLAND)));
         all.extend(shots("2025-03-10", 30, None));
         let found = find(&all, 15, None);
-        assert_eq!(found.runs.iter().map(range).collect::<Vec<_>>(), vec![(
-            "2025-02-10".into(),
-            "2025-02-10".into()
-        )]);
+        assert_eq!(
+            found.runs.iter().map(range).collect::<Vec<_>>(),
+            vec![("2025-02-10".into(), "2025-02-10".into())]
+        );
         assert_eq!(found.runs[0].away_days, 1);
     }
 
@@ -824,10 +904,10 @@ mod tests {
         }
         all.extend(shots("2025-02-13", 30, Some(AUCKLAND)));
         let found = find(&all, 15, None);
-        assert_eq!(found.runs.iter().map(range).collect::<Vec<_>>(), vec![(
-            "2025-02-10".into(),
-            "2025-02-12".into()
-        )]);
+        assert_eq!(
+            found.runs.iter().map(range).collect::<Vec<_>>(),
+            vec![("2025-02-10".into(), "2025-02-12".into())]
+        );
         assert_eq!(found.runs[0].away_days, 3);
     }
 
@@ -850,10 +930,10 @@ mod tests {
         let all = everyday_life(3, AUCKLAND);
         let found = find(&all, 15, Some(WELLINGTON));
         assert_eq!(found.home, Some(WELLINGTON));
-        assert_eq!(found.runs.iter().map(range).collect::<Vec<_>>(), vec![(
-            "2025-01-01".into(),
-            "2025-01-03".into()
-        )]);
+        assert_eq!(
+            found.runs.iter().map(range).collect::<Vec<_>>(),
+            vec![("2025-01-01".into(), "2025-01-03".into())]
+        );
     }
 
     #[test]
@@ -869,8 +949,14 @@ mod tests {
     #[test]
     fn a_home_on_a_grid_edge_is_still_found() {
         // Home days either side of a cell boundary, against fewer days at one far-off spot.
-        let west = Point { lat: -36.80, lon: 174.749 };
-        let east = Point { lat: -36.80, lon: 174.751 };
+        let west = Point {
+            lat: -36.80,
+            lon: 174.749,
+        };
+        let east = Point {
+            lat: -36.80,
+            lon: 174.751,
+        };
         let mut all = everyday_life(4, west);
         all.extend((10..=13).flat_map(|d| shots(&format!("2025-01-{d}"), 3, Some(east))));
         all.extend((1..=6).flat_map(|d| shots(&format!("2025-03-{d:02}"), 3, Some(SYDNEY))));
@@ -897,10 +983,26 @@ mod tests {
         };
         assert!(is_clear(&run, &[], &[]));
         // Touching the run's last second counts; ending the evening before doesn't.
-        assert!(!is_clear(&run, &[trip("2025-03-12T23:59:59", "2025-03-14T00:00:00")], &[]));
-        assert!(is_clear(&run, &[trip("2025-03-01T00:00:00", "2025-03-09T23:59:59")], &[]));
-        assert!(!is_clear(&run, &[], &[(day("2025-03-08"), day("2025-03-10"))]));
-        assert!(is_clear(&run, &[], &[(day("2025-03-13"), day("2025-03-20"))]));
+        assert!(!is_clear(
+            &run,
+            &[trip("2025-03-12T23:59:59", "2025-03-14T00:00:00")],
+            &[]
+        ));
+        assert!(is_clear(
+            &run,
+            &[trip("2025-03-01T00:00:00", "2025-03-09T23:59:59")],
+            &[]
+        ));
+        assert!(!is_clear(
+            &run,
+            &[],
+            &[(day("2025-03-08"), day("2025-03-10"))]
+        ));
+        assert!(is_clear(
+            &run,
+            &[],
+            &[(day("2025-03-13"), day("2025-03-20"))]
+        ));
     }
 
     fn place(town: &str, region: &str, country: &str, (lat, lon): (f64, f64)) -> Place {
@@ -924,7 +1026,12 @@ mod tests {
         let osaka = place("Osaka", "Osaka", "Japan", (34.69, 135.50));
         let paris = place("Paris", "Ile-de-France", "France", (48.85, 2.35));
         let rome = place("Rome", "Lazio", "Italy", (41.89, 12.51));
-        let nice = place("Nice", "Provence-Alpes-Cote d'Azur", "France", (43.70, 7.27));
+        let nice = place(
+            "Nice",
+            "Provence-Alpes-Cote d'Azur",
+            "France",
+            (43.70, 7.27),
+        );
         let florence = place("Florence", "Tuscany", "Italy", (43.77, 11.25));
         let barcelona = place("Barcelona", "Catalonia", "Spain", (41.39, 2.16));
         let queenstown = place("Queenstown", "Otago", "New Zealand", (-45.03, 168.66));
@@ -933,7 +1040,10 @@ mod tests {
         let te_anau = place("Te Anau", "Southland", "New Zealand", (-45.41, 167.72));
 
         // Mostly one town.
-        assert_eq!(place_name(&[tokyo.clone(), tokyo.clone(), kyoto.clone()]).as_deref(), Some("Tokyo"));
+        assert_eq!(
+            place_name(&[tokyo.clone(), tokyo.clone(), kyoto.clone()]).as_deref(),
+            Some("Tokyo")
+        );
         let fiordland = [times(&queenstown, 10), times(&te_anau, 3)].concat();
         assert_eq!(place_name(&fiordland).as_deref(), Some("Queenstown"));
         // Two towns sharing nearly everything make a pair.
@@ -962,10 +1072,20 @@ mod tests {
 
     #[test]
     fn a_road_trip_is_named_after_its_region_not_its_busiest_stop() {
-        let pacific_grove = place("Pacific Grove", "California", "United States", (36.62, -121.92));
+        let pacific_grove = place(
+            "Pacific Grove",
+            "California",
+            "United States",
+            (36.62, -121.92),
+        );
         let cambria = place("Cambria", "California", "United States", (35.56, -121.08));
         let sausalito = place("Sausalito", "California", "United States", (37.86, -122.49));
-        let trip = [times(&pacific_grove, 6), times(&cambria, 4), times(&sausalito, 3)].concat();
+        let trip = [
+            times(&pacific_grove, 6),
+            times(&cambria, 4),
+            times(&sausalito, 3),
+        ]
+        .concat();
         assert_eq!(place_name(&trip).as_deref(), Some("California"));
     }
 
@@ -973,13 +1093,23 @@ mod tests {
     fn towns_with_the_same_name_in_different_places_are_told_apart() {
         let richmond_nz = place("Richmond", "Tasman", "New Zealand", (-41.34, 173.18));
         let richmond_us = place("Richmond", "Virginia", "United States", (37.54, -77.44));
-        let christchurch = place("Christchurch", "Canterbury", "New Zealand", (-43.53, 172.63));
+        let christchurch = place(
+            "Christchurch",
+            "Canterbury",
+            "New Zealand",
+            (-43.53, 172.63),
+        );
         // Counted by name alone, Richmond would have two of three photos. Told apart, no town or
         // region stands out, and the country most photos share names the trip.
         let found = place_name(&[richmond_nz.clone(), richmond_us.clone(), christchurch]);
         assert_eq!(found.as_deref(), Some("New Zealand"));
         // Two different Richmonds never make "Richmond and Richmond".
-        let found = place_name(&[richmond_nz.clone(), richmond_us.clone(), richmond_nz, richmond_us]);
+        let found = place_name(&[
+            richmond_nz.clone(),
+            richmond_us.clone(),
+            richmond_nz,
+            richmond_us,
+        ]);
         assert_eq!(found.as_deref(), Some("Richmond"));
     }
 
@@ -998,15 +1128,33 @@ mod tests {
         assert!(!auckland.country.is_empty() && auckland.country != "NZ");
         // Suburbs go by their city; towns that are their own main town keep their names.
         let town = |lat, lon| place_of(Point { lat, lon }).map(|p| p.town);
-        assert_eq!(town(-36.875, 174.67).as_deref(), Some("Auckland"), "Rosebank");
-        assert_eq!(town(36.618, -121.917).as_deref(), Some("Monterey"), "Pacific Grove");
+        assert_eq!(
+            town(-36.875, 174.67).as_deref(),
+            Some("Auckland"),
+            "Rosebank"
+        );
+        assert_eq!(
+            town(36.618, -121.917).as_deref(),
+            Some("Monterey"),
+            "Pacific Grove"
+        );
         assert_eq!(town(-37.017, 175.85).as_deref(), Some("Tairua"));
         assert_eq!(town(-45.03, 168.663).as_deref(), Some("Queenstown"));
         // The map beside one photo still names the exact suburb.
-        let exact = town_near(Point { lat: -36.875, lon: 174.67 }).map(|(p, _)| p.town);
+        let exact = town_near(Point {
+            lat: -36.875,
+            lon: 174.67,
+        })
+        .map(|(p, _)| p.town);
         assert_eq!(exact.as_deref(), Some("Rosebank"));
         // The middle of the Pacific is nowhere.
-        assert_eq!(place_of(Point { lat: -30.0, lon: -140.0 }), None);
+        assert_eq!(
+            place_of(Point {
+                lat: -30.0,
+                lon: -140.0
+            }),
+            None
+        );
     }
 
     #[cfg(windows)]
@@ -1018,7 +1166,10 @@ mod tests {
 
     #[test]
     fn a_home_can_be_pasted_from_a_map() {
-        let home = Point { lat: -36.8485, lon: 174.7633 };
+        let home = Point {
+            lat: -36.8485,
+            lon: 174.7633,
+        };
         assert_eq!(parse_home("-36.8485, 174.7633"), Some(home));
         assert_eq!(parse_home(" -36.8485 174.7633 "), Some(home));
         assert_eq!(parse_home("-36.8485,174.7633"), Some(home));

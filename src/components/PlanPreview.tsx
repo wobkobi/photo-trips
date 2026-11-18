@@ -9,7 +9,7 @@ import { count, monthLabel, splitPath } from "../lib/format";
 import type { FolderCount } from "../lib/picker";
 import { JOB_NAMES } from "../lib/useJobs";
 import { Icon } from "./Icon";
-import { Button, LIST_FILL, Progress, ReviewHead } from "./ui";
+import { Button, LABEL, LIST_FILL, Progress, ReviewHead } from "./ui";
 
 const ROW_HEIGHT = 60;
 
@@ -157,7 +157,7 @@ export function FolderList({
       aria-label="Folders receiving files"
       className="hidden w-56 shrink-0 overflow-y-auto border-r border-line bg-surface px-2 py-2 lg:block"
     >
-      {onOpen && <p className="mb-1 px-2.5 text-[13px] text-faint">Folders</p>}
+      {onOpen && <p className={`mb-1 px-2.5 ${LABEL}`}>Folders</p>}
       <FolderEntries folders={folders} onOpen={onOpen} />
     </aside>
   );
@@ -237,7 +237,7 @@ function FolderEntries({
                 type="button"
                 onClick={() => onOpen(folder)}
                 aria-label={`Go to the ${count(n, "photo", "photos")} going into ${title}`}
-                className="flex min-h-8.5 w-full items-baseline justify-between gap-3 rounded-md px-2.5 py-1 text-left text-[14px] hover:bg-raised"
+                className="flex min-h-8.5 w-full items-baseline justify-between gap-3 px-2.5 py-1 text-left text-[14px] hover:bg-raised"
               >
                 {body}
               </button>

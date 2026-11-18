@@ -9,8 +9,8 @@ use tauri::State;
 
 use crate::AppState;
 use crate::commands::lock_db;
-use crate::db;
 use crate::dates;
+use crate::db;
 use crate::error::{Error, Result};
 use crate::groups;
 use crate::index;
@@ -165,15 +165,25 @@ mod tests {
 
         let set = Some("1998-12-25T09:00:00".to_string());
         let batch = record(&conn, &[1], set, "label").unwrap();
-        assert_eq!(date_of(&conn, 1), ("1998-12-25T09:00:00".into(), DateSource::Set));
+        assert_eq!(
+            date_of(&conn, 1),
+            ("1998-12-25T09:00:00".into(), DateSource::Set)
+        );
         assert_eq!(date_of(&conn, 2).1, DateSource::Modified);
 
         let data: String = conn
-            .query_row("SELECT undo_data FROM batches WHERE id = ?1", [batch], |r| r.get(0))
+            .query_row(
+                "SELECT undo_data FROM batches WHERE id = ?1",
+                [batch],
+                |r| r.get(0),
+            )
             .unwrap();
         check_undo(&conn, &data).unwrap();
         restore(&conn, &data).unwrap();
-        assert_eq!(date_of(&conn, 1), ("2023-07-23T16:42:00".into(), DateSource::Modified));
+        assert_eq!(
+            date_of(&conn, 1),
+            ("2023-07-23T16:42:00".into(), DateSource::Modified)
+        );
     }
 
     #[test]
@@ -182,7 +192,11 @@ mod tests {
         insert(&conn, 1, "C:\\L\\scan1.png");
         record(&conn, &[1], Some("1998-12-25T09:00:00".into()), "first").unwrap();
         let first: String = conn
-            .query_row("SELECT undo_data FROM batches ORDER BY id LIMIT 1", [], |r| r.get(0))
+            .query_row(
+                "SELECT undo_data FROM batches ORDER BY id LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         record(&conn, &[1], Some("1999-01-01T09:00:00".into()), "second").unwrap();
         assert!(check_undo(&conn, &first).is_err());
@@ -199,7 +213,13 @@ mod tests {
     #[test]
     fn history_labels_read_naturally() {
         let when = dates::parse("1998-12-05T09:00:00").unwrap();
-        assert_eq!(label(1, Some(&when)), "Set the date of 1 photo to 5 December 1998");
-        assert_eq!(label(3, None), "Went back to the file's own date for 3 photos");
+        assert_eq!(
+            label(1, Some(&when)),
+            "Set the date of 1 photo to 5 December 1998"
+        );
+        assert_eq!(
+            label(3, None),
+            "Went back to the file's own date for 3 photos"
+        );
     }
 }

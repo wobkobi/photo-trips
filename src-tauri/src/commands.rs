@@ -34,6 +34,7 @@ const WRITABLE_SETTINGS: &[&str] = &[
     "tour_done",
     "theme",
     crate::updater::BETA_KEY,
+    crate::devices::NOTIFY_SETTING,
 ];
 
 /// Text sizes offered in Settings, as page zoom percentages. Zoom scales the whole page, so
@@ -99,7 +100,11 @@ pub fn apply_ground(app: &AppHandle, theme: Theme) {
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
-    let ground = if theme == Theme::Dark { GROUND_DARK } else { GROUND_LIGHT };
+    let ground = if theme == Theme::Dark {
+        GROUND_DARK
+    } else {
+        GROUND_LIGHT
+    };
     if let Err(err) = window.set_background_color(Some(ground)) {
         log::warn!("Couldn't set the window colour: {err}");
     }
@@ -201,7 +206,9 @@ pub fn set_setting(
         }
         "home_location" => {
             if !value.trim().is_empty() && suggest::parse_home(&value).is_none() {
-                return Err(Error::msg("Type the latitude and longitude, like -36.85, 174.76"));
+                return Err(Error::msg(
+                    "Type the latitude and longitude, like -36.85, 174.76",
+                ));
             }
         }
         "suggest_min_photos" => {
@@ -210,7 +217,11 @@ pub fn set_setting(
             }
         }
         "extra_photo_exts" | "extra_video_exts" => check_extensions(&value)?,
-        "text_size" if !value.parse::<u32>().is_ok_and(|percent| TEXT_SIZES.contains(&percent)) => {
+        "text_size"
+            if !value
+                .parse::<u32>()
+                .is_ok_and(|percent| TEXT_SIZES.contains(&percent)) =>
+        {
             return Err(Error::msg("Choose one of the text sizes shown"));
         }
         "photo_size" if !PHOTO_SIZES.contains(&value.as_str()) => {
@@ -227,6 +238,11 @@ pub fn set_setting(
         }
         crate::updater::BETA_KEY if value != "true" && value != "false" => {
             return Err(Error::msg("Beta updates must be true or false"));
+        }
+        crate::devices::NOTIFY_SETTING
+            if !crate::devices::NOTIFY_CHOICES.contains(&value.as_str()) =>
+        {
+            return Err(Error::msg("Choose one of the notification choices shown"));
         }
         _ => {}
     }

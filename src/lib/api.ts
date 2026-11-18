@@ -115,6 +115,8 @@ export interface Preview {
   leftAlone: number;
   folders: { folder: string; files: number }[];
   items: PreviewItem[];
+  /** Folders that look like trips the plan moves files out of; Suggestions offers each as a trip. */
+  tripFolders: string[];
 }
 
 /** One photo (plus companions) that will move. Paths are relative to the library folder. */
@@ -432,6 +434,8 @@ export interface Suggestion {
   /** How far from home those days were, in km. */
   awayKm: number | null;
   sample: SampleTile[];
+  /** The folder it was found from, relative to the library, when it's a folder that looks like a trip. */
+  folder: string | null;
 }
 
 export interface Suggestions {

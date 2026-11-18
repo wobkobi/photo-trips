@@ -49,8 +49,7 @@ impl Kind {
 
 pub const PHOTO_EXTS: &[&str] = &[
     "jpg", "jpeg", "jpe", "jfif", "png", "gif", "bmp", "dib", "tif", "tiff", "webp", "heic",
-    "heif", "hif", "avif", "jxl", "jp2", "j2k", "psd",
-    // 360 cameras: Insta360 photos
+    "heif", "hif", "avif", "jxl", "jp2", "j2k", "psd", // 360 cameras: Insta360 photos
     "insp",
 ];
 
@@ -79,7 +78,9 @@ pub const COMPANION_EXTS: &[&str] = &[
 pub const RAW_EDIT_EXTS: &[&str] = &["xmp", "pp3", "dop", "acr", "on1", "arp", "cos"];
 
 /// Photo formats WebView2 renders directly. Everything else gets a converted JPEG preview.
-const WEB_IMAGE_EXTS: &[&str] = &["jpg", "jpeg", "jpe", "jfif", "png", "gif", "bmp", "webp", "avif"];
+const WEB_IMAGE_EXTS: &[&str] = &[
+    "jpg", "jpeg", "jpe", "jfif", "png", "gif", "bmp", "webp", "avif",
+];
 
 /// Video formats worth trying in the built-in player. The UI falls back to "Open in default
 /// player" when the codec inside turns out to be unsupported (HEVC without the extension, etc).
@@ -187,7 +188,14 @@ mod tests {
     #[test]
     fn unknown_and_missing_extensions_are_rejected() {
         let table = FormatTable::default();
-        for name in ["notes.txt", "doc.pdf", "archive.zip", "README", "photo.jpg.part", ".hidden"] {
+        for name in [
+            "notes.txt",
+            "doc.pdf",
+            "archive.zip",
+            "README",
+            "photo.jpg.part",
+            ".hidden",
+        ] {
             assert_eq!(table.kind_of(Path::new(name)), None, "{name}");
         }
     }
@@ -205,7 +213,12 @@ mod tests {
     #[test]
     fn no_extension_is_listed_twice() {
         let mut seen = std::collections::HashSet::new();
-        for ext in PHOTO_EXTS.iter().chain(RAW_EXTS).chain(VIDEO_EXTS).chain(COMPANION_EXTS) {
+        for ext in PHOTO_EXTS
+            .iter()
+            .chain(RAW_EXTS)
+            .chain(VIDEO_EXTS)
+            .chain(COMPANION_EXTS)
+        {
             assert!(seen.insert(*ext), "duplicate extension {ext}");
         }
     }
@@ -213,7 +226,13 @@ mod tests {
     fn mixed_case(ext: &str) -> String {
         ext.chars()
             .enumerate()
-            .map(|(i, c)| if i % 2 == 0 { c.to_ascii_uppercase() } else { c })
+            .map(|(i, c)| {
+                if i % 2 == 0 {
+                    c.to_ascii_uppercase()
+                } else {
+                    c
+                }
+            })
             .collect()
     }
 }

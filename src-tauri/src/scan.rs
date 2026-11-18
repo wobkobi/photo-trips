@@ -46,7 +46,10 @@ pub fn skip_dir(name: &str) -> bool {
 /// (a small JPEG per clip) and `M4ROOT/SUB` (low-resolution proxy clips). Those two names are
 /// only skipped inside `M4ROOT`, so a folder of the user's own called `SUB` is still read.
 pub fn skip_folder(path: &Path) -> bool {
-    let name = path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default();
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy())
+        .unwrap_or_default();
     if skip_dir(&name) {
         return true;
     }
@@ -75,8 +78,7 @@ pub fn scan_excluding(
     let walker = walker.filter_entry(|entry| {
         entry.depth() == 0
             || !entry.file_type().is_dir()
-            || !(skip_folder(entry.path())
-                || exclude.is_some_and(|ex| same_path(entry.path(), ex)))
+            || !(skip_folder(entry.path()) || exclude.is_some_and(|ex| same_path(entry.path(), ex)))
     });
     for entry in walker {
         if cancel.load(Ordering::Relaxed) {
@@ -87,7 +89,9 @@ pub fn scan_excluding(
             Err(err) => {
                 // A folder whose listing fails partway reports no path, so nothing says which
                 // files went unlisted. Count the whole root as unread so none look deleted.
-                result.unreadable.push(err.path().unwrap_or(root).to_path_buf());
+                result
+                    .unreadable
+                    .push(err.path().unwrap_or(root).to_path_buf());
                 continue;
             }
         };
@@ -129,9 +133,11 @@ pub fn file_kind(path: &Path, table: &FormatTable) -> Option<Kind> {
 
 /// `.ts` and `.mts` are also TypeScript source files, and `.m2ts` keeps them company.
 fn shares_ext_with_code(path: &Path) -> bool {
-    path.extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| ["ts", "mts", "m2ts"].iter().any(|x| e.eq_ignore_ascii_case(x)))
+    path.extension().and_then(|e| e.to_str()).is_some_and(|e| {
+        ["ts", "mts", "m2ts"]
+            .iter()
+            .any(|x| e.eq_ignore_ascii_case(x))
+    })
 }
 
 /// Packet sizes of MPEG transport streams: broadcast and HDV `.ts`, AVCHD `.mts`/`.m2ts` (a
@@ -161,7 +167,6 @@ fn is_transport_stream(path: &Path) -> bool {
         (0..step).any(|start| (0..TS_SYNCS).all(|i| head.get(start + i * step) == Some(&0x47)))
     })
 }
-
 
 /// Last-modified time of a file in Unix seconds (0 when the platform can't say).
 pub fn mtime_secs(meta: &std::fs::Metadata) -> i64 {
@@ -304,7 +309,10 @@ mod tests {
         assert_eq!(names, ["00001.MTS", "broadcast.ts", "cut.ts", "dvb.ts"]);
         assert_eq!(result.other_files, 3);
         // A phone path can't be read here, so it keeps its extension's kind.
-        assert_eq!(file_kind(Path::new("Z:\\phone\\00001.MTS"), &t), Some(Kind::Video));
+        assert_eq!(
+            file_kind(Path::new("Z:\\phone\\00001.MTS"), &t),
+            Some(Kind::Video)
+        );
     }
 
     #[test]

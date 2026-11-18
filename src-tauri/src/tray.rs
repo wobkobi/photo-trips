@@ -82,11 +82,16 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
 /// Show the Import page and, when a card or phone is on offer, start checking it for new
 /// photos. A job already running means the page lists the device for later instead.
 pub fn open_import(app: &AppHandle) {
-    show_main(app);
-    let _ = app.emit("navigate", "import");
     let device = app
         .try_state::<ImportItem>()
         .and_then(|item| item.device.lock().ok().and_then(|d| d.clone()));
+    open_import_from(app, device);
+}
+
+/// Show the Import page and start checking `device` for new photos, when there is one.
+pub fn open_import_from(app: &AppHandle, device: Option<Device>) {
+    show_main(app);
+    let _ = app.emit("navigate", "import");
     if let Some(device) = device
         && let Err(err) = import::start_scan(app, device.source())
     {

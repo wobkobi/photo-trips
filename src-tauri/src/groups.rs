@@ -124,7 +124,9 @@ fn companion_home(companion: &MediaRow, groups: &[Vec<MediaRow>]) -> usize {
         "thm" | "lrv" | "xml" | "srt" => Some(Kind::Video),
         _ => None,
     };
-    wanted.and_then(|kind| has(&|m| m.kind == kind)).unwrap_or(0)
+    wanted
+        .and_then(|kind| has(&|m| m.kind == kind))
+        .unwrap_or(0)
 }
 
 fn file_name_lower(path: &std::path::Path) -> String {
@@ -146,7 +148,11 @@ fn finish(members: Vec<MediaRow>) -> Group {
         .min_by_key(|m| m.date_source)
         .unwrap_or(&members[0]);
     let (taken_at, date_source) = (best.taken_at, best.date_source);
-    Group { members, taken_at, date_source }
+    Group {
+        members,
+        taken_at,
+        date_source,
+    }
 }
 
 #[cfg(test)]
@@ -155,12 +161,22 @@ pub mod tests {
     use crate::dates;
 
     /// Test row builder: `C:\L\<dir>\<name>` taken at `when` from `source`.
-    pub fn row(id: i64, dir: &str, name: &str, kind: Kind, when: &str, source: DateSource) -> MediaRow {
+    pub fn row(
+        id: i64,
+        dir: &str,
+        name: &str,
+        kind: Kind,
+        when: &str,
+        source: DateSource,
+    ) -> MediaRow {
         let path = PathBuf::from(format!("C:\\L\\{dir}\\{name}"));
         let stem = name.split('.').next().unwrap().to_lowercase();
         MediaRow {
             id,
-            group_key: format!("{}|{stem}", path.parent().unwrap().to_string_lossy().to_lowercase()),
+            group_key: format!(
+                "{}|{stem}",
+                path.parent().unwrap().to_string_lossy().to_lowercase()
+            ),
             path,
             kind,
             size: 100 + id as u64,
@@ -176,10 +192,38 @@ pub mod tests {
     #[test]
     fn live_photo_raw_pair_and_sidecars_form_one_group_led_by_the_photo() {
         let rows = vec![
-            row(1, "in", "IMG_1.MOV", Kind::Video, "2025-03-12T10:00:01", DateSource::Video),
-            row(2, "in", "IMG_1.HEIC", Kind::Photo, "2025-03-12T10:00:00", DateSource::Exif),
-            row(3, "in", "IMG_1.AAE", Kind::Companion, "2025-04-01T00:00:00", DateSource::Modified),
-            row(4, "in", "IMG_1.DNG", Kind::Raw, "2025-03-12T10:00:00", DateSource::Exif),
+            row(
+                1,
+                "in",
+                "IMG_1.MOV",
+                Kind::Video,
+                "2025-03-12T10:00:01",
+                DateSource::Video,
+            ),
+            row(
+                2,
+                "in",
+                "IMG_1.HEIC",
+                Kind::Photo,
+                "2025-03-12T10:00:00",
+                DateSource::Exif,
+            ),
+            row(
+                3,
+                "in",
+                "IMG_1.AAE",
+                Kind::Companion,
+                "2025-04-01T00:00:00",
+                DateSource::Modified,
+            ),
+            row(
+                4,
+                "in",
+                "IMG_1.DNG",
+                Kind::Raw,
+                "2025-03-12T10:00:00",
+                DateSource::Exif,
+            ),
         ];
         let (groups, orphans) = build(rows);
         assert!(orphans.is_empty());
@@ -192,8 +236,22 @@ pub mod tests {
     #[test]
     fn same_name_files_hours_apart_stay_separate() {
         let rows = vec![
-            row(1, "in", "IMG_1.JPG", Kind::Photo, "2025-03-12T10:00:00", DateSource::Exif),
-            row(2, "in", "IMG_1.MP4", Kind::Video, "2025-06-01T18:00:00", DateSource::Video),
+            row(
+                1,
+                "in",
+                "IMG_1.JPG",
+                Kind::Photo,
+                "2025-03-12T10:00:00",
+                DateSource::Exif,
+            ),
+            row(
+                2,
+                "in",
+                "IMG_1.MP4",
+                Kind::Video,
+                "2025-06-01T18:00:00",
+                DateSource::Video,
+            ),
         ];
         let (groups, _) = build(rows);
         assert_eq!(groups.len(), 2);
@@ -202,19 +260,50 @@ pub mod tests {
     #[test]
     fn better_dated_member_dates_the_group() {
         let rows = vec![
-            row(1, "in", "IMG_1.JPG", Kind::Photo, "2025-04-01T00:00:00", DateSource::Modified),
-            row(2, "in", "IMG_1.MOV", Kind::Video, "2025-03-12T10:00:00", DateSource::Video),
+            row(
+                1,
+                "in",
+                "IMG_1.JPG",
+                Kind::Photo,
+                "2025-04-01T00:00:00",
+                DateSource::Modified,
+            ),
+            row(
+                2,
+                "in",
+                "IMG_1.MOV",
+                Kind::Video,
+                "2025-03-12T10:00:00",
+                DateSource::Video,
+            ),
         ];
         let (groups, _) = build(rows);
         assert_eq!(groups[0].leader().id, 1);
-        assert_eq!(groups[0].taken_at, dates::parse("2025-03-12T10:00:00").unwrap());
+        assert_eq!(
+            groups[0].taken_at,
+            dates::parse("2025-03-12T10:00:00").unwrap()
+        );
     }
 
     #[test]
     fn two_same_name_pictures_are_two_tiles() {
         let rows = vec![
-            row(1, "in", "image.jpg", Kind::Photo, "2025-04-01T00:00:00", DateSource::Modified),
-            row(2, "in", "image.png", Kind::Photo, "2025-04-01T00:00:00", DateSource::Modified),
+            row(
+                1,
+                "in",
+                "image.jpg",
+                Kind::Photo,
+                "2025-04-01T00:00:00",
+                DateSource::Modified,
+            ),
+            row(
+                2,
+                "in",
+                "image.png",
+                Kind::Photo,
+                "2025-04-01T00:00:00",
+                DateSource::Modified,
+            ),
         ];
         let (groups, _) = build(rows);
         assert_eq!(groups.len(), 2);
@@ -224,8 +313,22 @@ pub mod tests {
     #[test]
     fn two_same_name_videos_are_two_tiles() {
         let rows = vec![
-            row(1, "in", "Title.mp4", Kind::Video, "2025-04-01T00:00:00", DateSource::Video),
-            row(2, "in", "Title.mkv", Kind::Video, "2025-04-01T00:00:00", DateSource::Video),
+            row(
+                1,
+                "in",
+                "Title.mp4",
+                Kind::Video,
+                "2025-04-01T00:00:00",
+                DateSource::Video,
+            ),
+            row(
+                2,
+                "in",
+                "Title.mkv",
+                Kind::Video,
+                "2025-04-01T00:00:00",
+                DateSource::Video,
+            ),
         ];
         let (groups, _) = build(rows);
         assert_eq!(groups.len(), 2);
@@ -234,9 +337,30 @@ pub mod tests {
     #[test]
     fn a_converted_copy_stays_out_of_the_live_photo() {
         let rows = vec![
-            row(1, "in", "IMG_1.HEIC", Kind::Photo, "2025-03-12T10:00:00", DateSource::Exif),
-            row(2, "in", "IMG_1.JPG", Kind::Photo, "2025-03-12T10:00:00", DateSource::Exif),
-            row(3, "in", "IMG_1.MOV", Kind::Video, "2025-03-12T10:00:01", DateSource::Video),
+            row(
+                1,
+                "in",
+                "IMG_1.HEIC",
+                Kind::Photo,
+                "2025-03-12T10:00:00",
+                DateSource::Exif,
+            ),
+            row(
+                2,
+                "in",
+                "IMG_1.JPG",
+                Kind::Photo,
+                "2025-03-12T10:00:00",
+                DateSource::Exif,
+            ),
+            row(
+                3,
+                "in",
+                "IMG_1.MOV",
+                Kind::Video,
+                "2025-03-12T10:00:01",
+                DateSource::Video,
+            ),
         ];
         let (groups, _) = build(rows);
         assert_eq!(groups.len(), 2);
@@ -248,11 +372,46 @@ pub mod tests {
     #[test]
     fn sidecars_follow_the_file_they_name_when_a_name_splits() {
         let rows = vec![
-            row(1, "in", "IMG_1.JPG", Kind::Photo, "2025-01-01T09:00:00", DateSource::Exif),
-            row(2, "in", "IMG_1.CR2", Kind::Raw, "2025-06-01T09:00:00", DateSource::Exif),
-            row(3, "in", "IMG_1.CR2.xmp", Kind::Companion, "2025-06-02T00:00:00", DateSource::Modified),
-            row(4, "in", "IMG_1.xmp", Kind::Companion, "2025-06-02T00:00:00", DateSource::Modified),
-            row(5, "in", "IMG_1.AAE", Kind::Companion, "2025-06-02T00:00:00", DateSource::Modified),
+            row(
+                1,
+                "in",
+                "IMG_1.JPG",
+                Kind::Photo,
+                "2025-01-01T09:00:00",
+                DateSource::Exif,
+            ),
+            row(
+                2,
+                "in",
+                "IMG_1.CR2",
+                Kind::Raw,
+                "2025-06-01T09:00:00",
+                DateSource::Exif,
+            ),
+            row(
+                3,
+                "in",
+                "IMG_1.CR2.xmp",
+                Kind::Companion,
+                "2025-06-02T00:00:00",
+                DateSource::Modified,
+            ),
+            row(
+                4,
+                "in",
+                "IMG_1.xmp",
+                Kind::Companion,
+                "2025-06-02T00:00:00",
+                DateSource::Modified,
+            ),
+            row(
+                5,
+                "in",
+                "IMG_1.AAE",
+                Kind::Companion,
+                "2025-06-02T00:00:00",
+                DateSource::Modified,
+            ),
         ];
         let (groups, _) = build(rows);
         assert_eq!(groups.len(), 2);
@@ -266,7 +425,14 @@ pub mod tests {
 
     #[test]
     fn sidecars_without_a_partner_are_orphans() {
-        let rows = vec![row(1, "in", "IMG_9.XMP", Kind::Companion, "2025-03-12T10:00:00", DateSource::Modified)];
+        let rows = vec![row(
+            1,
+            "in",
+            "IMG_9.XMP",
+            Kind::Companion,
+            "2025-03-12T10:00:00",
+            DateSource::Modified,
+        )];
         let (groups, orphans) = build(rows);
         assert!(groups.is_empty());
         assert_eq!(orphans.len(), 1);

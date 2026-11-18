@@ -479,7 +479,7 @@ function IconButton({
       title={label}
       aria-label={label}
       onClick={onClick}
-      className="rounded-md p-1.5 text-muted hover:bg-raised hover:text-ink"
+      className="p-1.5 text-muted hover:bg-raised hover:text-ink"
     >
       <Icon name={icon} size={16} />
     </button>

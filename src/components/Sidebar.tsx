@@ -131,7 +131,7 @@ export function Sidebar({
           title={iconsOnly ? "Widen the menu" : "Narrow the menu"}
           aria-label={iconsOnly ? "Widen the menu" : "Narrow the menu"}
           aria-expanded={!iconsOnly}
-          className="flex min-h-8.5 items-center rounded-md px-3.75 text-faint hover:bg-raised/60 hover:text-ink"
+          className="flex min-h-8.5 items-center px-3.75 text-faint hover:bg-raised/60 hover:text-ink"
         >
           <Icon name="panel" size={18} className="shrink-0" />
         </button>
@@ -177,7 +177,7 @@ export function Sidebar({
                   <button
                     type="button"
                     onClick={() => onPage("trips")}
-                    className={`flex min-h-7.5 w-full items-center rounded-md pr-2.5 pl-10 text-left text-[14px] ${OTHER_ROW}`}
+                    className={`flex min-h-7.5 w-full items-center pr-2.5 pl-10 text-left text-[14px] ${OTHER_ROW}`}
                   >
                     All trips
                   </button>
@@ -213,7 +213,7 @@ export function Sidebar({
                 aria-current={page === item.id ? "page" : undefined}
                 data-nav={item.id}
                 title={item.label}
-                className={`flex min-h-8.5 w-full items-center justify-center rounded-md ${
+                className={`flex min-h-8.5 w-full items-center justify-center ${
                   page === item.id
                     ? "bg-raised text-ink"
                     : "text-faint hover:bg-raised/60 hover:text-ink"
@@ -231,7 +231,7 @@ export function Sidebar({
           onClick={() => api.menuAction("menu-open-library").catch(() => undefined)}
           title={`${libraryRoot}\nClick to open it in File Explorer.`}
           aria-label={`Open the library folder, ${folder}, in File Explorer`}
-          className={`flex min-h-8.5 items-center gap-2 rounded-md text-[14px] text-faint hover:bg-raised/60 hover:text-ink ${
+          className={`flex min-h-8.5 items-center gap-2 text-[14px] text-faint hover:bg-raised/60 hover:text-ink ${
             iconsOnly ? "justify-center" : "px-2.5 text-left"
           }`}
         >
@@ -260,7 +260,7 @@ function UpdateRow({ iconsOnly }: { iconsOnly: boolean }): ReactElement | null {
       onClick={() => api.menuAction("menu-about").catch(() => undefined)}
       title={label}
       aria-label={label}
-      className={`flex min-h-8.5 items-center gap-2 rounded-md text-[14px] font-semibold text-accent hover:bg-raised/60 ${
+      className={`flex min-h-8.5 items-center gap-2 text-[14px] font-semibold text-accent hover:bg-raised/60 ${
         iconsOnly ? "justify-center" : "px-2.5 text-left"
       }`}
     >
@@ -300,7 +300,7 @@ function PageRow({
       aria-current={current ? "page" : undefined}
       data-nav={item.id}
       title={iconsOnly ? item.label : undefined}
-      className={`relative flex min-h-8.5 w-full shrink-0 items-center gap-3 overflow-hidden rounded-md py-1.5 pr-2.5 pl-3.75 text-left text-[15px] transition-colors ${current ? CURRENT_ROW : OTHER_ROW} ${highlight === item.id ? "ring-2 ring-accent" : ""}`}
+      className={`relative flex min-h-8.5 w-full shrink-0 items-center gap-3 overflow-hidden py-1.5 pr-2.5 pl-3.75 text-left text-[15px] transition-colors ${current ? CURRENT_ROW : OTHER_ROW} ${highlight === item.id ? "ring-2 ring-accent" : ""}`}
     >
       <Icon name={item.icon} size={18} className="shrink-0" />
       {/* Faded rather than removed while narrow, so it slides out with the menu and is still read. */}
@@ -337,7 +337,7 @@ function TripRow({
       onClick={onShow}
       aria-current={current ? "page" : undefined}
       title={`${trip.name}\n${rangeText(trip.startAt, trip.endAt)}`}
-      className={`relative flex min-h-7.5 w-full items-center gap-4 rounded-md pr-2.5 pl-3.5 text-left text-[14px] transition-colors ${
+      className={`relative flex min-h-7.5 w-full items-center gap-4 pr-2.5 pl-3.5 text-left text-[14px] transition-colors ${
         current ? CURRENT_ROW : OTHER_ROW
       }`}
     >

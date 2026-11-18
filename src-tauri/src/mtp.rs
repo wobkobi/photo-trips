@@ -9,20 +9,22 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use windows::Win32::Devices::PortableDevices::{
     IPortableDevice, IPortableDeviceContent, IPortableDeviceKeyCollection, IPortableDeviceManager,
-    IPortableDeviceProperties, IPortableDeviceValues, PortableDeviceFTM, PortableDeviceKeyCollection,
-    PortableDeviceManager, PortableDeviceValues, WPD_CLIENT_DESIRED_ACCESS, WPD_CLIENT_MAJOR_VERSION,
-    WPD_CLIENT_MINOR_VERSION, WPD_CLIENT_NAME, WPD_CLIENT_REVISION, WPD_CLIENT_SECURITY_QUALITY_OF_SERVICE,
-    WPD_CONTENT_TYPE_AUDIO_ALBUM, WPD_CONTENT_TYPE_CONTACT_GROUP, WPD_CONTENT_TYPE_FOLDER,
-    WPD_CONTENT_TYPE_FUNCTIONAL_OBJECT, WPD_CONTENT_TYPE_IMAGE_ALBUM, WPD_CONTENT_TYPE_MIXED_CONTENT_ALBUM,
-    WPD_CONTENT_TYPE_VIDEO_ALBUM, WPD_DEVICE_OBJECT_ID, WPD_OBJECT_CONTENT_TYPE, WPD_OBJECT_DATE_CREATED,
-    WPD_OBJECT_DATE_MODIFIED, WPD_OBJECT_NAME, WPD_OBJECT_ORIGINAL_FILE_NAME, WPD_OBJECT_SIZE,
-    WPD_RESOURCE_DEFAULT,
+    IPortableDeviceProperties, IPortableDeviceValues, PortableDeviceFTM,
+    PortableDeviceKeyCollection, PortableDeviceManager, PortableDeviceValues,
+    WPD_CLIENT_DESIRED_ACCESS, WPD_CLIENT_MAJOR_VERSION, WPD_CLIENT_MINOR_VERSION, WPD_CLIENT_NAME,
+    WPD_CLIENT_REVISION, WPD_CLIENT_SECURITY_QUALITY_OF_SERVICE, WPD_CONTENT_TYPE_AUDIO_ALBUM,
+    WPD_CONTENT_TYPE_CONTACT_GROUP, WPD_CONTENT_TYPE_FOLDER, WPD_CONTENT_TYPE_FUNCTIONAL_OBJECT,
+    WPD_CONTENT_TYPE_IMAGE_ALBUM, WPD_CONTENT_TYPE_MIXED_CONTENT_ALBUM,
+    WPD_CONTENT_TYPE_VIDEO_ALBUM, WPD_DEVICE_OBJECT_ID, WPD_OBJECT_CONTENT_TYPE,
+    WPD_OBJECT_DATE_CREATED, WPD_OBJECT_DATE_MODIFIED, WPD_OBJECT_NAME,
+    WPD_OBJECT_ORIGINAL_FILE_NAME, WPD_OBJECT_SIZE, WPD_RESOURCE_DEFAULT,
 };
 use windows::Win32::Foundation::{E_POINTER, GENERIC_READ, PROPERTYKEY, S_FALSE};
 use windows::Win32::Storage::FileSystem::SECURITY_IMPERSONATION;
 use windows::Win32::System::Com::StructuredStorage::PropVariantClear;
 use windows::Win32::System::Com::{
-    CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree, IStream, STGM_READ,
+    CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree, IStream,
+    STGM_READ,
 };
 use windows::Win32::System::Variant::VT_DATE;
 use windows::core::{GUID, HSTRING, PCWSTR, PWSTR};
@@ -84,7 +86,11 @@ fn device_ids(manager: &IPortableDeviceManager) -> windows::core::Result<Vec<Str
         }
         let mut ids = vec![PWSTR::null(); count as usize];
         manager.GetDevices(ids.as_mut_ptr(), &mut count)?;
-        Ok(ids.into_iter().take(count as usize).map(|id| take(id)).collect())
+        Ok(ids
+            .into_iter()
+            .take(count as usize)
+            .map(|id| take(id))
+            .collect())
     }
 }
 
@@ -94,9 +100,15 @@ fn friendly_name(manager: &IPortableDeviceManager, id: &str) -> String {
     let id = PCWSTR(id.as_ptr());
     let mut len = 0;
     unsafe {
-        if manager.GetDeviceFriendlyName(id, PWSTR::null(), &mut len).is_ok() {
+        if manager
+            .GetDeviceFriendlyName(id, PWSTR::null(), &mut len)
+            .is_ok()
+        {
             let mut name = vec![0u16; len as usize];
-            if manager.GetDeviceFriendlyName(id, PWSTR(name.as_mut_ptr()), &mut len).is_ok() {
+            if manager
+                .GetDeviceFriendlyName(id, PWSTR(name.as_mut_ptr()), &mut len)
+                .is_ok()
+            {
                 let end = name.iter().position(|&c| c == 0).unwrap_or(name.len());
                 return String::from_utf16_lossy(&name[..end]);
             }
@@ -203,13 +215,26 @@ fn open_device(id: &str) -> windows::core::Result<IPortableDevice> {
     let app = HSTRING::from("Pic Cabinet");
     let id = HSTRING::from(id);
     unsafe {
-        let client: IPortableDeviceValues = CoCreateInstance(&PortableDeviceValues, None, CLSCTX_ALL)?;
+        let client: IPortableDeviceValues =
+            CoCreateInstance(&PortableDeviceValues, None, CLSCTX_ALL)?;
         client.SetStringValue(&WPD_CLIENT_NAME, PCWSTR(app.as_ptr()))?;
-        client.SetUnsignedIntegerValue(&WPD_CLIENT_MAJOR_VERSION, version(env!("CARGO_PKG_VERSION_MAJOR")))?;
-        client.SetUnsignedIntegerValue(&WPD_CLIENT_MINOR_VERSION, version(env!("CARGO_PKG_VERSION_MINOR")))?;
-        client.SetUnsignedIntegerValue(&WPD_CLIENT_REVISION, version(env!("CARGO_PKG_VERSION_PATCH")))?;
+        client.SetUnsignedIntegerValue(
+            &WPD_CLIENT_MAJOR_VERSION,
+            version(env!("CARGO_PKG_VERSION_MAJOR")),
+        )?;
+        client.SetUnsignedIntegerValue(
+            &WPD_CLIENT_MINOR_VERSION,
+            version(env!("CARGO_PKG_VERSION_MINOR")),
+        )?;
+        client.SetUnsignedIntegerValue(
+            &WPD_CLIENT_REVISION,
+            version(env!("CARGO_PKG_VERSION_PATCH")),
+        )?;
         // Some drivers act as the calling user to read the device, which this allows.
-        client.SetUnsignedIntegerValue(&WPD_CLIENT_SECURITY_QUALITY_OF_SERVICE, SECURITY_IMPERSONATION.0)?;
+        client.SetUnsignedIntegerValue(
+            &WPD_CLIENT_SECURITY_QUALITY_OF_SERVICE,
+            SECURITY_IMPERSONATION.0,
+        )?;
         // Nothing is ever written to a phone.
         client.SetUnsignedIntegerValue(&WPD_CLIENT_DESIRED_ACCESS, GENERIC_READ.0)?;
         let device: IPortableDevice = CoCreateInstance(&PortableDeviceFTM, None, CLSCTX_ALL)?;
@@ -238,7 +263,12 @@ fn object_keys() -> windows::core::Result<IPortableDeviceKeyCollection> {
 
 impl Phone {
     /// Every file `table` recognises in the phone's camera roll (see `camera_roll`).
-    pub fn list(&self, table: &FormatTable, cancel: &AtomicBool, report: Report) -> Result<Vec<PhoneFile>> {
+    pub fn list(
+        &self,
+        table: &FormatTable,
+        cancel: &AtomicBool,
+        report: Report,
+    ) -> Result<Vec<PhoneFile>> {
         let mut storages = Vec::new();
         let mut readable = false;
         for storage in self.children(WPD_DEVICE_OBJECT_ID)? {
@@ -297,7 +327,11 @@ impl Phone {
                 modified: child.modified,
             });
             if files.len().is_multiple_of(50) {
-                report(&format!("Looking for photos on {}", self.name), files.len(), 0);
+                report(
+                    &format!("Looking for photos on {}", self.name),
+                    files.len(),
+                    0,
+                );
             }
         }
         Ok(())
@@ -305,7 +339,8 @@ impl Phone {
 
     /// The objects directly inside `parent`. One whose details can't be read is left out.
     fn children(&self, parent: PCWSTR) -> Result<Vec<Entry>> {
-        let failed = |err: windows::core::Error| Error::msg(format!("Couldn't read {}: {err}", self.name));
+        let failed =
+            |err: windows::core::Error| Error::msg(format!("Couldn't read {}: {err}", self.name));
         let ids = unsafe { self.content.EnumObjects(0, parent, None) }.map_err(failed)?;
         let mut entries = Vec::new();
         loop {
@@ -334,13 +369,22 @@ impl Phone {
 
     fn entry(&self, id: &HSTRING) -> windows::core::Result<Entry> {
         let values = unsafe { self.properties.GetValues(PCWSTR(id.as_ptr()), &self.keys) }?;
-        let text = |key: &PROPERTYKEY| unsafe { values.GetStringValue(key) }.ok().map(|t| unsafe { take(t) });
+        let text = |key: &PROPERTYKEY| {
+            unsafe { values.GetStringValue(key) }
+                .ok()
+                .map(|t| unsafe { take(t) })
+        };
         Ok(Entry {
             id: id.clone(),
-            name: object_name(text(&WPD_OBJECT_ORIGINAL_FILE_NAME), text(&WPD_OBJECT_NAME), id),
+            name: object_name(
+                text(&WPD_OBJECT_ORIGINAL_FILE_NAME),
+                text(&WPD_OBJECT_NAME),
+                id,
+            ),
             kind: unsafe { values.GetGuidValue(&WPD_OBJECT_CONTENT_TYPE) }.ok(),
             size: unsafe { values.GetUnsignedLargeIntegerValue(&WPD_OBJECT_SIZE) }.unwrap_or(0),
-            modified: date(&values, &WPD_OBJECT_DATE_MODIFIED).or_else(|| date(&values, &WPD_OBJECT_DATE_CREATED)),
+            modified: date(&values, &WPD_OBJECT_DATE_MODIFIED)
+                .or_else(|| date(&values, &WPD_OBJECT_DATE_CREATED)),
         })
     }
 
@@ -463,17 +507,30 @@ mod tests {
     fn names_come_from_the_original_file_name_first() {
         let id = HSTRING::from("o4ED");
         // iPhone: no display name at all.
-        assert_eq!(object_name(Some("IMG_2064.HEIC".into()), None, &id), "IMG_2064.HEIC");
+        assert_eq!(
+            object_name(Some("IMG_2064.HEIC".into()), None, &id),
+            "IMG_2064.HEIC"
+        );
         // Android: a display name without the extension.
-        assert_eq!(object_name(Some("IMG_1.jpg".into()), Some("IMG_1".into()), &id), "IMG_1.jpg");
+        assert_eq!(
+            object_name(Some("IMG_1.jpg".into()), Some("IMG_1".into()), &id),
+            "IMG_1.jpg"
+        );
         assert_eq!(object_name(None, Some("DCIM".into()), &id), "DCIM");
-        assert_eq!(object_name(Some(String::new()), Some("DCIM".into()), &id), "DCIM");
+        assert_eq!(
+            object_name(Some(String::new()), Some("DCIM".into()), &id),
+            "DCIM"
+        );
         assert_eq!(object_name(None, None, &id), "o4ED");
     }
 
     #[test]
     fn an_iphone_storage_is_read_whole() {
-        let storage = entry("s10002", "Internal Storage", WPD_CONTENT_TYPE_FUNCTIONAL_OBJECT);
+        let storage = entry(
+            "s10002",
+            "Internal Storage",
+            WPD_CONTENT_TYPE_FUNCTIONAL_OBJECT,
+        );
         assert_eq!(
             camera_roll(vec![(storage, None)]),
             vec![(HSTRING::from("s10002"), PathBuf::from("Internal Storage"))]
@@ -482,12 +539,19 @@ mod tests {
 
     #[test]
     fn dcim_is_read_where_a_storage_has_it() {
-        let internal = entry("s1", "Internal shared storage", WPD_CONTENT_TYPE_FUNCTIONAL_OBJECT);
+        let internal = entry(
+            "s1",
+            "Internal shared storage",
+            WPD_CONTENT_TYPE_FUNCTIONAL_OBJECT,
+        );
         let dcim = entry("o5", "DCIM", WPD_CONTENT_TYPE_FOLDER);
         let card = entry("s2", "SD card", WPD_CONTENT_TYPE_FUNCTIONAL_OBJECT);
         assert_eq!(
             camera_roll(vec![(internal, Some(dcim)), (card, None)]),
-            vec![(HSTRING::from("o5"), Path::new("Internal shared storage").join("DCIM"))]
+            vec![(
+                HSTRING::from("o5"),
+                Path::new("Internal shared storage").join("DCIM")
+            )]
         );
     }
 
@@ -508,7 +572,10 @@ mod tests {
     #[test]
     fn ole_dates_count_days_from_1899() {
         assert_eq!(from_ole_date(25_569.0, &Utc), Some(UNIX_EPOCH));
-        assert_eq!(from_ole_date(25_569.5, &Utc), Some(UNIX_EPOCH + Duration::from_secs(43_200)));
+        assert_eq!(
+            from_ole_date(25_569.5, &Utc),
+            Some(UNIX_EPOCH + Duration::from_secs(43_200))
+        );
         // 14 February 2026, 09:00.
         assert_eq!(
             from_ole_date(46_067.375, &Utc),
@@ -530,7 +597,9 @@ mod tests {
             .unwrap()
             .and_utc();
         let read = from_ole_date(wall, &nz).unwrap();
-        let off = SystemTime::from(utc).duration_since(read).unwrap_or_else(|e| e.duration());
+        let off = SystemTime::from(utc)
+            .duration_since(read)
+            .unwrap_or_else(|e| e.duration());
         assert!(off < Duration::from_millis(1), "{off:?} away from {utc}");
     }
 
@@ -541,20 +610,34 @@ mod tests {
     #[ignore = "needs an unlocked phone plugged in"]
     fn reads_a_connected_phone() {
         let provider = provider().unwrap();
-        let device = list(&provider).into_iter().next().expect("no phone plugged in");
+        let device = list(&provider)
+            .into_iter()
+            .next()
+            .expect("no phone plugged in");
         let phone = open(&provider, &device.id, &device.name).unwrap();
         let started = std::time::Instant::now();
         let files = phone
-            .list(&FormatTable::default(), &AtomicBool::new(false), &|_, found, _| {
-                eprintln!("  {found} found so far")
-            })
+            .list(
+                &FormatTable::default(),
+                &AtomicBool::new(false),
+                &|_, found, _| eprintln!("  {found} found so far"),
+            )
             .unwrap();
         println!("listed in {:?}", started.elapsed());
         println!("{}: {} files", device.name, files.len());
         for file in files.iter().take(5) {
-            println!("  {} ({} bytes, {:?})", file.path.display(), file.size, file.modified);
+            println!(
+                "  {} ({} bytes, {:?})",
+                file.path.display(),
+                file.size,
+                file.modified
+            );
         }
-        let smallest = files.iter().filter(|f| f.size > 0).min_by_key(|f| f.size).expect("no files");
+        let smallest = files
+            .iter()
+            .filter(|f| f.size > 0)
+            .min_by_key(|f| f.size)
+            .expect("no files");
         let dir = tempfile::tempdir().unwrap();
         let to = dir.path().join("copy");
         let hash = phone.download(smallest, &to).unwrap();

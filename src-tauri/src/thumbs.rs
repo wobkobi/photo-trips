@@ -112,7 +112,11 @@ impl Pool {
             .unwrap_or_default();
         let px = if full { PREVIEW_SIZE } else { THUMB_SIZE };
         let key = blake3::hash(format!("{name}|{size}|{mtime}|{px}").as_bytes()).to_hex();
-        let dir = if full { &self.previews_dir } else { &self.thumbs_dir };
+        let dir = if full {
+            &self.previews_dir
+        } else {
+            &self.thumbs_dir
+        };
         dir.join(format!("{}.jpg", &key[..32]))
     }
 
@@ -180,7 +184,9 @@ fn failed_lately(failed: &mut HashMap<PathBuf, Instant>, cache: &Path, now: Inst
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn worker(shared: &Shared) {
@@ -468,7 +474,11 @@ mod tests {
         let cache = PathBuf::from("abc.jpg");
         let at = Instant::now();
         let mut failed = HashMap::from([(cache.clone(), at)]);
-        assert!(failed_lately(&mut failed, &cache, at + Duration::from_secs(30)));
+        assert!(failed_lately(
+            &mut failed,
+            &cache,
+            at + Duration::from_secs(30)
+        ));
         assert!(failed_lately(&mut failed, &cache, at));
         assert!(!failed_lately(&mut failed, &cache, at + RETRY_AFTER));
         // Forgotten, so the retry's own outcome decides from here.
@@ -480,7 +490,10 @@ mod tests {
     fn zero_alpha_is_opaque_and_transparent_pixels_show_the_background() {
         let bg = TILE_BACKGROUND;
         // Two opaque-by-convention pixels (alpha 0 everywhere).
-        assert_eq!(flatten(&[10, 20, 30, 0, 1, 2, 3, 0], bg), vec![30, 20, 10, 3, 2, 1]);
+        assert_eq!(
+            flatten(&[10, 20, 30, 0, 1, 2, 3, 0], bg),
+            vec![30, 20, 10, 3, 2, 1]
+        );
         // Fully transparent next to fully opaque: the first becomes the background colour.
         assert_eq!(
             flatten(&[0, 0, 0, 0, 10, 20, 30, 255], bg),
@@ -498,7 +511,11 @@ mod tests {
         };
         assert_eq!(next_job(&[]), None);
         assert_eq!(next_job(&[job("a", false), job("b", false)]), Some(1));
-        let jobs = [job("full-old", true), job("full-new", true), job("tile", false)];
+        let jobs = [
+            job("full-old", true),
+            job("full-new", true),
+            job("tile", false),
+        ];
         assert_eq!(next_job(&jobs), Some(1));
     }
 
@@ -531,7 +548,16 @@ mod tests {
             .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
             .collect();
         stale.sort();
-        assert_eq!(stale, ["previews", "previews-v2", "thumbs", "thumbs-v1", "thumbs-v2"]);
+        assert_eq!(
+            stale,
+            [
+                "previews",
+                "previews-v2",
+                "thumbs",
+                "thumbs-v1",
+                "thumbs-v2"
+            ]
+        );
     }
 
     #[cfg(windows)]
@@ -542,8 +568,7 @@ mod tests {
             use windows::Win32::System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx};
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         }
-        let fixture =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/exif_gps.jpg");
+        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/exif_gps.jpg");
         let jpeg = render(&fixture, 64, TILE_BACKGROUND).expect("Windows renders JPEG thumbnails");
         let decoded = image::load_from_memory(&jpeg).unwrap();
         assert!(decoded.width() <= 64 && decoded.height() <= 64);
@@ -563,7 +588,11 @@ mod tests {
         let png = dir.path().join("logo.png");
         image::RgbaImage::from_fn(64, 64, |x, y| {
             let inside = (16..48).contains(&x) && (16..48).contains(&y);
-            image::Rgba(if inside { [255, 0, 0, 255] } else { [0, 0, 0, 0] })
+            image::Rgba(if inside {
+                [255, 0, 0, 255]
+            } else {
+                [0, 0, 0, 0]
+            })
         })
         .save(&png)
         .unwrap();
@@ -572,10 +601,11 @@ mod tests {
             let decoded = image::load_from_memory(&jpeg).unwrap().to_rgb8();
             let corner = decoded.get_pixel(1, 1).0;
             // JPEG is lossy, so allow a few levels either way.
-            let near = corner.iter().zip(background).all(|(&c, b)| c.abs_diff(b) <= 6);
+            let near = corner
+                .iter()
+                .zip(background)
+                .all(|(&c, b)| c.abs_diff(b) <= 6);
             assert!(near, "corner {corner:?}, background {background:?}");
         }
     }
 }
-
-

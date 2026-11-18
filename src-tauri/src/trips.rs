@@ -720,7 +720,10 @@ mod tests {
         let (start, end) = (at("2025-03-12T00:00:00"), at("2025-03-14T23:59:59"));
         let other = trip(1, "2025-03-12T00:00:00", "2025-03-12T11:59:59");
         let naming = Naming::default();
-        assert_eq!(folder_for(&start, &end, "Japan", &[], naming), "2025-03-12 Japan");
+        assert_eq!(
+            folder_for(&start, &end, "Japan", &[], naming),
+            "2025-03-12 Japan"
+        );
         // Folder names compare without case, as Windows does.
         assert_eq!(
             folder_for(&start, &end, "trip 1", &[&other], naming),
@@ -860,7 +863,11 @@ mod tests {
     fn last_label(db: &Mutex<Connection>) -> String {
         db.lock()
             .unwrap()
-            .query_row("SELECT label FROM batches ORDER BY id DESC LIMIT 1", [], |r| r.get(0))
+            .query_row(
+                "SELECT label FROM batches ORDER BY id DESC LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
             .unwrap()
     }
 
@@ -885,7 +892,12 @@ mod tests {
         ];
 
         // Naming any file of a photo leaves the whole photo out, in its month folder.
-        let japan = with("Japan", "2025-03-12T00:00:00", "2025-03-18T23:59:59", Some(vec![sidecar]));
+        let japan = with(
+            "Japan",
+            "2025-03-12T00:00:00",
+            "2025-03-18T23:59:59",
+            Some(vec![sidecar]),
+        );
         change(&db, root, TripChange::Create { draft: japan });
         let trip = load(&db.lock().unwrap()).unwrap().remove(0);
         assert_eq!(trip.excluded, BTreeSet::from([photo, sidecar]));
@@ -901,24 +913,43 @@ mod tests {
 
         // Narrowing the dates past it and widening them again doesn't pull it back in.
         let id = trip.id;
-        let narrow = with("Japan", "2025-03-12T00:00:00", "2025-03-13T23:59:59", Some(vec![]));
+        let narrow = with(
+            "Japan",
+            "2025-03-12T00:00:00",
+            "2025-03-13T23:59:59",
+            Some(vec![]),
+        );
         change(&db, root, TripChange::Update { id, draft: narrow });
         let wide = with("Japan", "2025-03-11T00:00:00", "2025-03-19T23:59:59", None);
         change(&db, root, TripChange::Update { id, draft: wide });
         assert!(out_folder.iter().all(|f| root.join(f).exists()));
-        assert!(root.join(r"Trips\2025-03-11 Japan\IMG_20250318_235959.jpg").exists());
+        assert!(
+            root.join(r"Trips\2025-03-11 Japan\IMG_20250318_235959.jpg")
+                .exists()
+        );
 
         // Putting it back moves the photo and its sidecar into the trip.
-        let back = with("Japan", "2025-03-11T00:00:00", "2025-03-19T23:59:59", Some(vec![]));
+        let back = with(
+            "Japan",
+            "2025-03-11T00:00:00",
+            "2025-03-19T23:59:59",
+            Some(vec![]),
+        );
         let put_back = change(&db, root, TripChange::Update { id, draft: back });
         assert_eq!(last_label(&db), "Changed which photos are in trip Japan");
-        assert!(root.join(r"Trips\2025-03-11 Japan\IMG_20250315_120000.aae").exists());
+        assert!(
+            root.join(r"Trips\2025-03-11 Japan\IMG_20250315_120000.aae")
+                .exists()
+        );
         assert!(load(&db.lock().unwrap()).unwrap()[0].excluded.is_empty());
 
         // Undo leaves it out again, files and all.
         undo(&db, root, put_back).unwrap();
         assert!(out_folder.iter().all(|f| root.join(f).exists()));
-        assert_eq!(load(&db.lock().unwrap()).unwrap()[0].excluded, BTreeSet::from([photo, sidecar]));
+        assert_eq!(
+            load(&db.lock().unwrap()).unwrap()[0].excluded,
+            BTreeSet::from([photo, sidecar])
+        );
 
         // Deleting the trip forgets its exclusions; undoing the delete brings them back.
         let delete = change(&db, root, TripChange::Delete { id });
@@ -929,7 +960,10 @@ mod tests {
             .unwrap();
         assert_eq!(rows, 0);
         undo(&db, root, delete).unwrap();
-        assert_eq!(load(&db.lock().unwrap()).unwrap()[0].excluded, BTreeSet::from([photo, sidecar]));
+        assert_eq!(
+            load(&db.lock().unwrap()).unwrap()[0].excluded,
+            BTreeSet::from([photo, sidecar])
+        );
         assert!(out_folder.iter().all(|f| root.join(f).exists()));
     }
 

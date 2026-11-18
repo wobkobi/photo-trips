@@ -24,7 +24,12 @@ import { UpdateCheck } from "../components/UpdateCheck";
 import { api, AUTOSTART_CHANGED, errorText, type Preview } from "../lib/api";
 import { PHOTO_SIZES, photoSizeOf, TEXT_SIZES, textSizeOf, themeOf, THEMES } from "../lib/display";
 import { count } from "../lib/format";
-import { normaliseExtensions, versionLabel } from "../lib/settingValues";
+import {
+  DEVICE_NOTIFY,
+  deviceNotifyOf,
+  normaliseExtensions,
+  versionLabel,
+} from "../lib/settingValues";
 import { useAction } from "../lib/useAction";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { usePageMemory } from "../lib/usePageMemory";
@@ -327,6 +332,13 @@ export function SettingsPage({
                   }
                 />
               </Row>
+              <Choices
+                title="Card and phone notifications"
+                detail="How often to offer an import when one is plugged in. The tray menu always offers it."
+                value={deviceNotifyOf(settings)}
+                options={DEVICE_NOTIFY}
+                onChange={(value) => windowing.run(() => save("device_notify", value))}
+              />
               <Row title="Start with Windows" detail="Opens quietly in the tray when you sign in.">
                 <Toggle
                   checked={autostart ?? false}

@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.35.0] - 2026-11-18
+
+### Added
+
+- **Trips:** Suggestions offers folders that look like trips Pic Cabinet doesn't know about, such as
+  one left behind by a deleted trip or one made by hand, to make into a trip. Sort normally leaves
+  the folder to the usual sort instead.
+- **Trips:** A suggestion's name can be changed on its card before making the trip, and the card
+  shows the folder name it will get.
+- **Sort:** Names the folders that look like trips before spreading their files into month folders,
+  with a button to make them trips first.
+- **Import:** Clicking the notification for a card or phone opens Import and checks that device.
+- **Import:** A card or phone plugged in again is announced at most once a day, so plugging a phone
+  in to charge doesn't bring a notification each time. Settings > Window can change it to every
+  time, once a week or never.
+
+### Changed
+
+- **Display:** Buttons are square, with an outline for the less important ones, and Settings
+  sections and folder lists are headed by small uppercase labels, matching the To the Point Tech
+  site.
+
+### Fixed
+
+- **Duplicates:** Copies removed in Duplicates no longer come back with the next import from the
+  phone or card they came from, when their details differed from the copy kept.
+
 ## [0.34.0] - 2026-11-18
 
 ### Added
