@@ -4,6 +4,144 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.17] - 2026-11-18
+
+### Fixed
+
+- A phone unplugged or locked near the end of a check now ends it with an error instead of reporting
+  the last files as unreadable, and a problem on this PC (a full disk) stops the check at once
+  instead of being blamed on the phone.
+
+## [0.25.16] - 2026-11-18
+
+### Fixed
+
+- Transport-stream recordings that start mid-packet or use 204-byte packets are recognised as
+  videos, while source files with a few stray G's are not. A folder whose listing fails partway
+  through a refresh no longer drops the photos it didn't get to.
+
+## [0.25.15] - 2026-11-18
+
+### Fixed
+
+- Choosing which copy of a duplicated Live Photo or RAW pair to keep carries over to the pair's
+  other set even when one set has an extra copy, such as a third copy of the photo without its clip.
+
+## [0.25.14] - 2026-11-18
+
+### Fixed
+
+- A file arriving in an inbox only joins a same-name photo filed in the last hour, and only when
+  nothing of its kind came with that photo, so an edited photo keeps the sidecar it arrived with and
+  a camera's reused file name never joins an old picture.
+
+## [0.25.13] - 2026-11-18
+
+### Fixed
+
+- Photos copied off a phone that carry no date of their own are dated at the time they were taken,
+  not hours later; the phone's file times are its local time, which were being read as UTC. Files
+  already seen on the phone are still recognised and aren't copied again.
+
+## [0.25.12] - 2026-11-18
+
+### Fixed
+
+- Duplicates keep a copied Live Photo or RAW+JPEG pair whole: its photo and clip sets suggest the
+  same pair, choosing a keeper in one carries over to the other, and the viewer shows the exact copy
+  being judged.
+
+## [0.25.11] - 2026-11-18
+
+### Fixed
+
+- In an inbox folder, a Live Photo video, RAW or sidecar saved after its photo was already filed now
+  goes beside that photo under the photo's name, so the two show as one tile again. A late sidecar
+  used to stay in the inbox for good. Photos and RAW files also wait a little longer before they are
+  filed, so files saved a few seconds apart usually go in together.
+
+## [0.25.10] - 2026-11-18
+
+### Fixed
+
+- Empty (0 byte) files, usually left by a copy that didn't finish, are no longer brought in on every
+  check under a new number. The import preview counts them, and an empty file already in the library
+  says so in the viewer, with Show in folder, instead of offering to open it in another app.
+
+## [0.25.9] - 2026-11-18
+
+### Fixed
+
+- When a phone refuses to hand over a file, Pic Cabinet asks once more, then leaves that file and
+  the files that go with it on the phone and carries on with the rest. The import preview says how
+  many couldn't be read, with the iPhone setting that usually fixes it (Settings > Photos > Transfer
+  to Mac or PC > Keep Originals). The check only stops if the phone stops answering altogether.
+
+## [0.25.8] - 2026-11-18
+
+### Fixed
+
+- Undoing a Recycle Bin batch now finds a file that was edited in another program after the last
+  refresh. It used to say the file was no longer in the Recycle Bin.
+
+## [0.25.7] - 2026-11-18
+
+### Fixed
+
+- When one file of a photo can't go to the Recycle Bin (a RAW open in another program, say), the
+  files that already went come back out, so the photo stays whole with its Live Photo video, RAW and
+  sidecars. History names the file that held it back.
+
+## [0.25.6] - 2026-11-18
+
+### Fixed
+
+- When a folder in the library can't be read during a refresh (a drive that dropped out, a
+  permission problem), its photos stay listed with their set dates and trips instead of dropping out
+  of the library. If the whole library folder has gone, nothing is dropped. The Library says how
+  many folders couldn't be read.
+
+## [0.25.5] - 2026-11-18
+
+### Fixed
+
+- Edit files that RawTherapee (.pp3), DxO (.dop), Adobe Camera Raw (.acr), ON1 (.on1), AfterShot
+  (.arp) and Capture One (.cos) keep beside a RAW now move, import and go to the Recycle Bin with
+  it, instead of being left behind.
+
+## [0.25.4] - 2026-11-18
+
+### Fixed
+
+- Photos deleted on an Android phone (kept as .trashed files for 30 days), half-saved .pending files
+  and other hidden dot-files are no longer imported. NAS recycle and thumbnail folders (#recycle,
+  @eaDir, @Recycle, #snapshot) and Sony cards' thumbnail and proxy folders are skipped. Phones now
+  get the same checks as folders and cards.
+
+## [0.25.3] - 2026-11-18
+
+### Fixed
+
+- Files ending in .ts, .mts or .m2ts only count as videos when they really are video streams, so
+  code files in a folder inside the library or an inbox are no longer moved by Sort. node_modules
+  folders are skipped.
+
+## [0.25.2] - 2026-11-18
+
+### Fixed
+
+- Before sending a photo to the Recycle Bin, Pic Cabinet now names the files that go with it
+  ("IMG_1.MOV and IMG_1.AAE go with it") and says videos or items rather than photos when that is
+  what is selected.
+
+## [0.25.1] - 2026-11-18
+
+### Fixed
+
+- Two different pictures or videos with the same name in one folder (image.jpg and image.png, a film
+  and its trailer) are now separate tiles with their own dates, instead of one hiding the other and
+  going to the Recycle Bin with it. Sidecars stay with the file they belong to.
+
 ## [0.25.0] - 2026-11-17
 
 ### Added

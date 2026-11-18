@@ -7,9 +7,11 @@ use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use chrono::NaiveDateTime;
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
@@ -52,6 +54,9 @@ pub struct DupCopy {
     pub in_place: bool,
     /// Other files that travel with this copy (a Live Photo video, a sidecar).
     pub extra: usize,
+    /// Id of the tile this copy belongs to (its group's first file). A copied Live Photo or
+    /// RAW+JPEG pair makes one set per kind, and its copies share these ids across the sets.
+    pub group: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -204,14 +209,17 @@ pub fn report(rules: &Rules, rows: Vec<MediaRow>, exists: &dyn Fn(&Path) -> bool
             .count()
     };
 
-    // Each file's group size, place and taken date, from the same grouping Sort uses.
+    // Each file's tile, from the same grouping Sort uses. Members of one group share a folder,
+    // so the tile's place holds for all of them.
     let (groups, _) = groups::build(rows.clone());
-    let mut info: HashMap<i64, (usize, bool, chrono::NaiveDateTime)> = HashMap::new();
+    let mut info: HashMap<i64, Rc<Tile>> = HashMap::new();
     for group in &groups {
         let dir = rules.target_dir(group);
+        let leader = group.leader();
+        let in_place = leader.path.parent().is_some_and(|p| same_path(p, &dir));
+        let tile = Rc::new(Tile::new(leader, group.members.len(), in_place, group.taken_at));
         for member in &group.members {
-            let in_place = member.path.parent().is_some_and(|p| same_path(p, &dir));
-            info.insert(member.id, (group.members.len(), in_place, group.taken_at));
+            info.insert(member.id, Rc::clone(&tile));
         }
     }
 
@@ -224,27 +232,17 @@ pub fn report(rules: &Rules, rows: Vec<MediaRow>, exists: &dyn Fn(&Path) -> bool
             by_hash.entry((hash, row.size)).or_default().push(row);
         }
     }
-    let mut sets: Vec<(chrono::NaiveDateTime, DupSet)> = by_hash
+    let mut sets: Vec<(NaiveDateTime, DupSet)> = by_hash
         .into_iter()
         .filter(|(_, copies)| copies.len() > 1)
         .map(|((hash, size), mut copies)| {
             let place = |row: &MediaRow| {
                 info.get(&row.id)
-                    .copied()
-                    .unwrap_or((1, false, row.taken_at))
+                    .cloned()
+                    .unwrap_or_else(|| Rc::new(Tile::new(row, 1, false, row.taken_at)))
             };
-            copies.sort_by_cached_key(|row| {
-                let (members, in_place, _) = place(row);
-                (
-                    Reverse(members),
-                    !in_place,
-                    row.mtime,
-                    looks_like_copy(&row.path),
-                    row.path.as_os_str().len(),
-                    path_key(&row.path),
-                )
-            });
-            let taken = place(copies[0]).2;
+            copies.sort_by_cached_key(|row| place(row).rank.clone());
+            let taken = place(copies[0]).taken_at;
             let set = DupSet {
                 hash: hash.to_owned(),
                 size,
@@ -252,13 +250,14 @@ pub fn report(rules: &Rules, rows: Vec<MediaRow>, exists: &dyn Fn(&Path) -> bool
                 copies: copies
                     .iter()
                     .map(|row| {
-                        let (members, in_place, _) = place(row);
+                        let tile = place(row);
                         DupCopy {
                             id: row.id,
                             version: row.mtime,
                             path: relative(root, &row.path),
-                            in_place,
-                            extra: members - 1,
+                            in_place: tile.in_place,
+                            extra: tile.members - 1,
+                            group: tile.leader,
                         }
                     })
                     .collect(),
@@ -278,6 +277,38 @@ pub fn report(rules: &Rules, rows: Vec<MediaRow>, exists: &dyn Fn(&Path) -> bool
             .sum(),
         sets,
         unchecked,
+    }
+}
+
+/// The tile a copy belongs to. Copies are ranked by their tile rather than on their own, so
+/// the photo set and the video set of a copied Live Photo suggest keeping the same pair.
+struct Tile {
+    leader: i64,
+    members: usize,
+    in_place: bool,
+    taken_at: NaiveDateTime,
+    /// Best tile to keep sorts first: more files with it, already in its folder, the older
+    /// first file, a plain name before "IMG_1 (2)", then the shorter path.
+    rank: (Reverse<usize>, bool, i64, bool, usize, String),
+}
+
+impl Tile {
+    fn new(leader: &MediaRow, members: usize, in_place: bool, taken_at: NaiveDateTime) -> Self {
+        let rank = (
+            Reverse(members),
+            !in_place,
+            leader.mtime,
+            looks_like_copy(&leader.path),
+            leader.path.as_os_str().len(),
+            path_key(&leader.path),
+        );
+        Tile {
+            leader: leader.id,
+            members,
+            in_place,
+            taken_at,
+            rank,
+        }
     }
 }
 
@@ -391,9 +422,15 @@ mod tests {
     /// Library in a temp folder with the given files and contents, all with the same modified
     /// time so the keeper order doesn't depend on how fast the test wrote them.
     fn library(files: &[(&str, &str)]) -> (tempfile::TempDir, Mutex<Connection>) {
+        let dated: Vec<_> = files.iter().map(|&(rel, text)| (rel, text, 0)).collect();
+        library_dated(&dated)
+    }
+
+    /// Like `library`, with each file modified the given number of seconds after a fixed time.
+    fn library_dated(files: &[(&str, &str, u64)]) -> (tempfile::TempDir, Mutex<Connection>) {
         let dir = tempfile::tempdir().unwrap();
-        let when = SystemTime::UNIX_EPOCH + Duration::from_secs(1_741_000_000);
-        for (rel, text) in files {
+        for &(rel, text, later) in files {
+            let when = SystemTime::UNIX_EPOCH + Duration::from_secs(1_741_000_000 + later);
             let path = dir.path().join(rel);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, text).unwrap();
@@ -641,6 +678,39 @@ mod tests {
         assert!(refused(id("a.jpg"), vec![id("a.jpg")]), "the keeper itself");
         assert!(refused(id("a.jpg"), vec![id("a.aae")]), "a sidecar");
         assert!(refused(id("a.jpg"), vec![999]), "not indexed");
+    }
+
+    #[test]
+    fn both_halves_of_a_copied_live_photo_keep_the_same_pair() {
+        // The photo copies and the video copies have opposite modified-time orders, so ranking
+        // each file on its own would keep a's photo and b's clip, and bin half of each pair.
+        let (dir, db) = library_dated(&[
+            (r"a\IMG_1.HEIC", PHOTO, 0),
+            (r"a\IMG_1.MOV", "video bytes", 60),
+            (r"b\IMG_1.HEIC", PHOTO, 30),
+            (r"b\IMG_1.MOV", "video bytes", 10),
+        ]);
+        let root = dir.path();
+        let found = check(&db, root);
+        assert_eq!(found.sets.len(), 2);
+        let folder = |path: &str| path.split('\\').next().unwrap().to_owned();
+        let kept: Vec<String> = found.sets.iter().map(|s| folder(&s.copies[0].path)).collect();
+        assert_eq!(kept, ["a", "a"]);
+        // Each copy names its tile, so the page can tell which copies are one pair.
+        for set in &found.sets {
+            assert_ne!(set.copies[0].group, set.copies[1].group);
+        }
+        let photo = found.sets.iter().find(|s| s.kind == "photo").unwrap();
+        let video = found.sets.iter().find(|s| s.kind == "video").unwrap();
+        assert_eq!(photo.copies[0].group, video.copies[0].group);
+
+        let sets: Vec<&DupSet> = found.sets.iter().collect();
+        let rows = index::load_rows(&db.lock().unwrap()).unwrap();
+        let removals = plan_removals(rows, &keep_suggested(&sets)).unwrap();
+        let summary = run_removals(&db, root, &removals);
+        assert_eq!((summary.moved, summary.failed), (2, 0));
+        assert!(root.join(r"a\IMG_1.HEIC").exists() && root.join(r"a\IMG_1.MOV").exists());
+        assert!(!root.join(r"b\IMG_1.HEIC").exists() && !root.join(r"b\IMG_1.MOV").exists());
     }
 
     #[test]

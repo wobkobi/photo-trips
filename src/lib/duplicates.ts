@@ -43,3 +43,31 @@ export function removalPlan(
   }
   return { choices, copies, bytes };
 }
+
+/**
+ * A pick for one set, carried over to its partner sets: those with a copy in one of the same
+ * tiles. A copied Live Photo or RAW+JPEG pair makes one set per kind; keeping one tile's photo
+ * but the other tile's clip would bin half of each pair, so a partner set keeps the same tile
+ * when it has a copy there, and every copy when the chosen set does.
+ * @param sets - every duplicate set on the page
+ * @param hash - the set the user picked in
+ * @param keep - the copy to keep, or null to keep every copy
+ * @returns the picks to merge in, for the set and each partner set
+ */
+export function pickWithPartners(sets: DupSet[], hash: string, keep: number | null): Picks {
+  const picks: Picks = { [hash]: keep };
+  const chosen = sets.find((s) => s.hash === hash);
+  if (!chosen) return picks;
+  const tiles = new Set(chosen.copies.map((c) => c.group));
+  const keptTile = chosen.copies.find((c) => c.id === keep)?.group;
+  for (const set of sets) {
+    if (set.hash === hash || !set.copies.some((c) => tiles.has(c.group))) continue;
+    if (keep === null) {
+      picks[set.hash] = null;
+      continue;
+    }
+    const partner = set.copies.find((c) => c.group === keptTile);
+    if (partner) picks[set.hash] = partner.id;
+  }
+  return picks;
+}

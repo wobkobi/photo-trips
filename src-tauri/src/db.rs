@@ -120,6 +120,14 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE media ADD COLUMN date_set TEXT;
 "#,
+    // Phone times were stored as the phone's wall-clock time read as UTC. SQLite's 'utc'
+    // modifier reads a time as this PC's local time, giving the real moment, so files already
+    // seen still match and aren't copied off the phone again. 0 means the phone gave no time.
+    r#"
+    UPDATE device_files
+    SET modified = CAST(strftime('%s', modified, 'unixepoch', 'utc') AS INTEGER)
+    WHERE modified > 0;
+"#,
 ];
 
 /// Open (or create) the database and bring it up to the latest schema.
@@ -205,5 +213,48 @@ mod tests {
             Some("E:\\Photos")
         );
         assert!(get_bool(&conn, "close_to_tray", true).unwrap());
+    }
+
+    #[test]
+    fn stored_phone_times_become_the_real_moment() {
+        use chrono::{Local, NaiveDate, TimeZone};
+        // A summer and a winter time, so a daylight-saving zone is tried both ways. Each was
+        // stored as its wall-clock time read as UTC; afterwards it must match what the phone
+        // reader now gives for the same file.
+        let walls = [
+            NaiveDate::from_ymd_opt(2026, 11, 14).unwrap().and_hms_opt(13, 36, 13).unwrap(),
+            NaiveDate::from_ymd_opt(2025, 6, 2).unwrap().and_hms_opt(8, 5, 0).unwrap(),
+        ];
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE device_files (device TEXT, path TEXT, size INTEGER, modified INTEGER,
+             hash TEXT)",
+        )
+        .unwrap();
+        for (i, wall) in walls.iter().enumerate() {
+            conn.execute(
+                "INSERT INTO device_files VALUES ('phone', ?1, 1, ?2, 'h')",
+                params![i.to_string(), wall.and_utc().timestamp()],
+            )
+            .unwrap();
+        }
+        conn.execute("INSERT INTO device_files VALUES ('phone', 'none', 1, 0, 'h')", [])
+            .unwrap();
+        conn.execute_batch(MIGRATIONS[MIGRATIONS.len() - 1]).unwrap();
+        for (i, wall) in walls.iter().enumerate() {
+            let stored: i64 = conn
+                .query_row(
+                    "SELECT modified FROM device_files WHERE path = ?1",
+                    [i.to_string()],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            let moment = Local.from_local_datetime(wall).earliest().unwrap().timestamp();
+            assert_eq!(stored, moment, "{wall}");
+        }
+        let unset: i64 = conn
+            .query_row("SELECT modified FROM device_files WHERE path = 'none'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(unset, 0);
     }
 }

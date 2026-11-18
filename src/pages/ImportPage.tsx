@@ -417,6 +417,12 @@ function IncomingView({
               {preview.already > 0 && (
                 <> · {count(preview.already, "file", "files")} already here</>
               )}
+              {preview.unreadable > 0 && (
+                <span className="text-warn">
+                  {" "}
+                  · {count(preview.unreadable, "file", "files")} couldn&apos;t be read
+                </span>
+              )}
             </p>
           </>
         }
@@ -439,6 +445,8 @@ function IncomingView({
                 like IMG_1 (1).jpg, because a different file with that name is already there.
               </p>
             )}
+            {preview.unreadable > 0 && <Unreadable files={preview.unreadable} />}
+            {preview.empty > 0 && <EmptyFiles files={preview.empty} />}
             {preview.leftAlone > 0 && <LeftAlone files={preview.leftAlone} />}
             {preview.otherFiles > 0 && (
               <p>
@@ -486,6 +494,40 @@ function IncomingView({
 }
 
 /**
+ * Phone files that couldn't be copied off, with the iPhone setting behind most of them: on
+ * "Automatic" the phone converts each photo as it is read, and some conversions fail.
+ * @param props - Component props.
+ * @param props.files - how many files couldn't be read
+ * @returns the note
+ */
+function Unreadable({ files }: { files: number }): ReactElement {
+  const one = files === 1;
+  return (
+    <p className="text-warn">
+      {count(files, "file", "files")} couldn&apos;t be read, so {one ? "it stays" : "they stay"} on
+      the phone with the files that go with {one ? "it" : "them"}. Check again to try once more. On
+      an iPhone, Settings &gt; Photos &gt; Transfer to Mac or PC &gt; Keep Originals usually fixes
+      this.
+    </p>
+  );
+}
+
+/**
+ * Empty files at the source, which are never brought in.
+ * @param props - Component props.
+ * @param props.files - how many files are 0 bytes
+ * @returns the note
+ */
+function EmptyFiles({ files }: { files: number }): ReactElement {
+  return (
+    <p>
+      {count(files, "file is", "files are")} empty (0 bytes), probably from a copy that didn&apos;t
+      finish, and {files === 1 ? "is" : "are"} left out.
+    </p>
+  );
+}
+
+/**
  * Shown when a check finds nothing that isn't in the library already.
  * @param props - Component props.
  * @param props.preview - the checked import
@@ -508,13 +550,17 @@ function NothingNew({
   const where = preview.spec.kind === "folder" ? "in" : "on";
   return (
     <EmptyState title={`Nothing new ${where} ${preview.source}`}>
-      <p>
-        {preview.already === 0
-          ? "There are no photos or videos there."
-          : preview.already === 1
-            ? "The one photo there is already in your library."
-            : `All ${count(preview.already, "file", "photos and videos")} there are already in your library.`}
-      </p>
+      {preview.already > 0 || preview.unreadable + preview.empty === 0 ? (
+        <p>
+          {preview.already === 0
+            ? "There are no photos or videos there."
+            : preview.already === 1
+              ? "The one photo there is already in your library."
+              : `All ${count(preview.already, "file", "photos and videos")} there are already in your library.`}
+        </p>
+      ) : null}
+      {preview.unreadable > 0 && <Unreadable files={preview.unreadable} />}
+      {preview.empty > 0 && <EmptyFiles files={preview.empty} />}
       {preview.leftAlone > 0 && <LeftAlone files={preview.leftAlone} />}
       <div className="flex justify-center gap-2">
         <Button onClick={onBack}>

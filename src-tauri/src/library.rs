@@ -58,7 +58,7 @@ pub struct Member {
     pub size: u64,
 }
 
-/// Everything the viewer shows about one tile.
+/// Everything the viewer shows about one file and the tile it belongs to.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Detail {
@@ -79,6 +79,8 @@ pub struct Detail {
     /// The file has gone from disk since the library was last looked through, as when it was
     /// deleted or moved in Explorer.
     pub missing: bool,
+    /// The file on disk is 0 bytes, usually from a copy that didn't finish.
+    pub empty: bool,
     pub version: i64,
     pub members: Vec<Member>,
 }
@@ -118,6 +120,9 @@ pub fn tile(group: &Group, trips: &[Trip]) -> Tile {
     }
 }
 
+/// The file `id` with its tile's date, place and members. Library asks by tile, so it gets the
+/// tile's first file; Duplicates asks for the exact copy being judged, which may be a tile's
+/// Live Photo clip or RAW.
 #[tauri::command(async)]
 pub fn media_detail(state: State<'_, AppState>, id: i64) -> Result<Detail> {
     let conn = state
@@ -135,10 +140,14 @@ pub fn media_detail(state: State<'_, AppState>, id: i64) -> Result<Detail> {
         .into_iter()
         .find(|g| g.members.iter().any(|m| m.id == id))
         .ok_or_else(|| Error::msg("This file is no longer in the library"))?;
-    let leader = group.leader();
-    let path = &leader.path;
+    let shown = group
+        .members
+        .iter()
+        .find(|m| m.id == id)
+        .unwrap_or(group.leader());
+    let path = &shown.path;
     Ok(Detail {
-        id: leader.id,
+        id: shown.id,
         path: path.to_string_lossy().into_owned(),
         name: file_name(path),
         folder: path
@@ -147,14 +156,15 @@ pub fn media_detail(state: State<'_, AppState>, id: i64) -> Result<Detail> {
             .unwrap_or_default(),
         taken_at: dates::format(&group.taken_at),
         date_source: group.date_source.as_str(),
-        size: leader.size,
+        size: shown.size,
         lat: group.members.iter().find_map(|m| m.lat),
         lon: group.members.iter().find_map(|m| m.lon),
-        kind: leader.kind.as_str(),
-        viewable: matches!(leader.kind, Kind::Photo) && formats::web_viewable(path),
-        playable: leader.kind == Kind::Video && formats::web_playable(path),
+        kind: shown.kind.as_str(),
+        viewable: matches!(shown.kind, Kind::Photo) && formats::web_viewable(path),
+        playable: shown.kind == Kind::Video && formats::web_playable(path),
         missing: !path.exists(),
-        version: leader.mtime,
+        empty: std::fs::metadata(path).is_ok_and(|m| m.len() == 0),
+        version: shown.mtime,
         members: group
             .members
             .iter()

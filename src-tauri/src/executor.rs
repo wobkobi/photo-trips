@@ -75,7 +75,8 @@ struct Entry {
     dst: PathBuf,
     status: String,
     media_id: Option<i64>,
-    /// Size from the stashed media row of a binned file, to find the right item in the bin.
+    /// Size of a binned file as it went in (the indexed size for entries from before that was
+    /// recorded), to find the right item in the bin.
     size: Option<u64>,
     /// Hash from the stashed media row: the contents an imported copy must still have.
     hash: Option<String>,
@@ -380,40 +381,85 @@ pub fn remove(env: &Env, batch: &NewBatch, removals: &[Removal]) -> Result<Apply
             summary.cancelled = true;
             break;
         }
-        // The copy goes first; when it can't, its sidecars stay with it.
+        // A photo goes whole or not at all: once one file can't go, the rest stay and those
+        // already in the bin come back out.
         let mut kept = removal_blocker(removal, &mut keepers);
-        for (i, (file, &id)) in removal.files.iter().zip(removal_ids).enumerate() {
+        let mut binned: Vec<Binned> = Vec::new();
+        for (file, &id) in removal.files.iter().zip(removal_ids) {
             if let Some(reason) = &kept {
                 set_entry(&*lock(env.db)?, id, "failed", Some(reason))?;
-                summary.failed += 1;
                 continue;
             }
+            let size = fs::metadata(&file.path).ok().map(|m| m.len());
             let outcome = recycle::to_bin(&file.path);
             let conn = lock(env.db)?;
             match outcome {
                 Ok(()) => {
                     conn.execute("DELETE FROM media WHERE id = ?1", [file.media_id])?;
+                    // The size as it went in, which the bin item is found by. The indexed
+                    // size is out of date when the file was edited since the last refresh.
+                    if let Some(size) = size {
+                        conn.execute(
+                            "UPDATE journal SET media_row = json_set(media_row, '$.binned_size', ?1)
+                             WHERE id = ?2",
+                            params![size as i64, id],
+                        )?;
+                    }
                     set_entry(&conn, id, "done", None)?;
-                    emptied.extend(file.path.parent().map(Path::to_path_buf));
-                    summary.moved += 1;
+                    binned.push(Binned { path: &file.path, id, size });
                 }
                 Err(err) => {
                     set_entry(&conn, id, "failed", Some(&err.to_string()))?;
-                    summary.failed += 1;
-                    if i == 0 {
-                        kept = Some(format!(
-                            "Kept because {} couldn't go to the Recycle Bin",
-                            file_name(&file.path)
-                        ));
-                    }
+                    drop(conn);
+                    kept = Some(format!(
+                        "Kept because {} couldn't go to the Recycle Bin",
+                        file_name(&file.path)
+                    ));
+                    binned = unbin(env, binned, &file.path)?;
                 }
             }
         }
+        emptied.extend(binned.iter().filter_map(|b| b.path.parent()).map(Path::to_path_buf));
+        summary.moved += binned.len();
+        summary.failed += removal.files.len() - binned.len();
         (env.report)(stage, summary.moved + summary.failed, total);
     }
     finish_batch(env, &summary)?;
     remove_empty_dirs(env.root, emptied);
     Ok(summary)
+}
+
+/// A file of a removal that reached the Recycle Bin, with its size just before it went.
+struct Binned<'a> {
+    path: &'a Path,
+    id: i64,
+    size: Option<u64>,
+}
+
+/// Bring back out of the Recycle Bin the files of a photo that went before `blocked` couldn't
+/// follow them, newest first, and index them again. Returns those that couldn't come back:
+/// they stay binned and their entries say why, so an undo can still try.
+fn unbin<'a>(env: &Env, binned: Vec<Binned<'a>>, blocked: &Path) -> Result<Vec<Binned<'a>>> {
+    let reason = format!("Put back because {} couldn't go to the Recycle Bin", file_name(blocked));
+    // A fresh listing, since every file here went in after any earlier one was read.
+    let mut bin = recycle::Bin::default();
+    let mut stuck = Vec::new();
+    for file in binned.into_iter().rev() {
+        set_entry(&*lock(env.db)?, file.id, "undoing", None)?;
+        let outcome = bin.restore(file.path, file.size);
+        let conn = lock(env.db)?;
+        match outcome {
+            Ok(()) => {
+                restore_media_row(&conn, file.id)?;
+                set_entry(&conn, file.id, "failed", Some(&reason))?;
+            }
+            Err(err) => {
+                set_entry(&conn, file.id, "done", Some(&err.to_string()))?;
+                stuck.push(file);
+            }
+        }
+    }
+    Ok(stuck)
 }
 
 /// Bring files into the library as one undoable batch. In the summary, `moved` counts files
@@ -1096,7 +1142,8 @@ fn load_entries(
     args: impl rusqlite::Params,
 ) -> Result<Vec<Entry>> {
     let mut stmt = conn.prepare(&format!(
-        "SELECT id, op, src, dst, status, media_id, json_extract(media_row, '$.size'),
+        "SELECT id, op, src, dst, status, media_id,
+                COALESCE(json_extract(media_row, '$.binned_size'), json_extract(media_row, '$.size')),
                 json_extract(media_row, '$.hash')
          FROM journal {filter}"
     ))?;
@@ -1570,5 +1617,78 @@ mod tests {
         assert_eq!((undone.restored, undone.failed), (1, 0));
         assert!(rows[0].path.exists());
         assert_eq!(index::load_rows(&db.lock().unwrap()).unwrap(), rows);
+    }
+
+    #[test]
+    fn undo_finds_a_file_that_changed_size_since_the_refresh() {
+        let (dir, db) = library(&["in\\IMG_20250312_101500.jpg"]);
+        let root = dir.path();
+        let table = FormatTable::default();
+        let rows = index::load_rows(&db.lock().unwrap()).unwrap();
+        // Edited in another program after the last refresh, so the index has the old size.
+        fs::write(&rows[0].path, "edited, and longer than before").unwrap();
+        let removal = Removal {
+            files: vec![BinFile { media_id: rows[0].id, path: rows[0].path.clone() }],
+            keeper: None,
+        };
+        let cancel = AtomicBool::new(false);
+        let env = Env {
+            db: &db,
+            root,
+            table: &table,
+            cancel: &cancel,
+            report: &no_report,
+        };
+        let summary = remove(&env, &TEST_BATCH, &[removal]).unwrap();
+        assert_eq!(summary.moved, 1);
+
+        let undone = undo(&env, summary.batch_id).unwrap();
+        assert_eq!((undone.restored, undone.failed), (1, 0));
+        assert_eq!(fs::read_to_string(&rows[0].path).unwrap(), "edited, and longer than before");
+    }
+
+    /// Windows refuses to rename a file held open with no sharing, which stands in for a RAW
+    /// open in another program.
+    #[cfg(windows)]
+    #[test]
+    fn a_locked_member_keeps_its_whole_group_out_of_the_bin() {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let (dir, db) = library(&["in\\IMG_20250312_101500.jpg", "in\\IMG_20250312_101500.aae"]);
+        let root = dir.path();
+        let table = FormatTable::default();
+        let rows = index::load_rows(&db.lock().unwrap()).unwrap();
+        let photo = rows.iter().find(|r| r.kind == Kind::Photo).unwrap();
+        let sidecar = rows.iter().find(|r| r.kind == Kind::Companion).unwrap();
+        let removal = Removal {
+            files: [photo, sidecar]
+                .iter()
+                .map(|r| BinFile { media_id: r.id, path: r.path.clone() })
+                .collect(),
+            keeper: None,
+        };
+        let lock = fs::OpenOptions::new().read(true).share_mode(0).open(&sidecar.path).unwrap();
+        let cancel = AtomicBool::new(false);
+        let env = Env {
+            db: &db,
+            root,
+            table: &table,
+            cancel: &cancel,
+            report: &no_report,
+        };
+        let summary = remove(&env, &TEST_BATCH, &[removal]).unwrap();
+        drop(lock);
+
+        assert_eq!((summary.moved, summary.failed), (0, 2));
+        assert!(photo.path.exists() && sidecar.path.exists());
+        assert!(!recycle::fake::holds(&photo.path));
+        assert_eq!(index::load_rows(&db.lock().unwrap()).unwrap(), rows);
+        assert_eq!(statuses(&db, summary.batch_id), ["failed", "failed"]);
+        let error: String = db
+            .lock()
+            .unwrap()
+            .query_row("SELECT error FROM journal WHERE media_id = ?1", [photo.id], |r| r.get(0))
+            .unwrap();
+        assert!(error.contains("IMG_20250312_101500.aae"), "{error}");
     }
 }

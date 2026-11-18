@@ -70,6 +70,10 @@ pub struct ImportPreview {
     pub left_alone: usize,
     /// Files at the source that aren't photos or videos.
     pub other_files: u64,
+    /// Phone files that couldn't be read, left on the phone with the files that go with them.
+    pub unreadable: usize,
+    /// Empty (0 byte) files, left out.
+    pub empty: usize,
     /// Groups that get a ` (n)` added to their names.
     pub renamed: usize,
     /// Destination folders, relative to the library, with how many files each receives.
@@ -154,6 +158,8 @@ pub struct ImportPlan {
     pub already: usize,
     pub already_bytes: u64,
     pub left_alone: usize,
+    /// Empty (0 byte) files, usually left by a copy that didn't finish. Never brought in.
+    pub empty: usize,
 }
 
 impl ImportPlan {
@@ -173,8 +179,13 @@ struct LibraryHashes {
 /// file are hashed, and library files hashed here keep their hash for the duplicate check.
 pub fn plan(ctx: &Ctx, mut found: Vec<Found>, exists: &dyn Fn(&Path) -> bool) -> Result<ImportPlan> {
     let mut out = ImportPlan::default();
+    // An empty file has nothing to bring in, and no hash to be found by next time, so it would
+    // come in again on every check under a new "(n)" name.
+    let before = found.len();
+    found.retain(|f| f.file.size > 0);
+    out.empty = before - found.len();
     found.sort_by(|a, b| a.file.path.cmp(&b.file.path));
-    let comparable = |f: &Found| f.file.kind != Kind::Companion && f.file.size > 0;
+    let comparable = |f: &Found| f.file.kind != Kind::Companion;
 
     // Step 1, sizes: a file can only be a copy of something the same size.
     let mut incoming_sizes: HashMap<u64, usize> = HashMap::new();
@@ -311,6 +322,73 @@ pub fn plan(ctx: &Ctx, mut found: Vec<Found>, exists: &dyn Fn(&Path) -> bool) ->
     Ok(out)
 }
 
+/// Same-name files that arrived after files of their name were filed from the same folder,
+/// with the library files those became.
+pub struct Late {
+    pub found: Vec<Found>,
+    pub filed: Vec<MediaRow>,
+}
+
+/// Place files that arrived after their partners were filed, beside the partner under its name
+/// (`IMG_1 (1).MOV` beside `IMG_1 (1).HEIC`), so they are one tile again. A late sidecar comes
+/// in this way too, where on its own it would have no photo to go with. Each set of same-name
+/// arrivals joins whole or not at all. Returns those groups, and the files that turn out to be
+/// pictures of their own (taken more than a few minutes apart, or with no free name beside the
+/// partner) for [`plan`].
+pub fn plan_beside(
+    ctx: &Ctx,
+    late: Vec<Late>,
+    exists: &dyn Fn(&Path) -> bool,
+) -> Result<(Vec<IncomingGroup>, Vec<Found>)> {
+    let files: Vec<&ScannedFile> = late.iter().flat_map(|l| l.found.iter().map(|f| &f.file)).collect();
+    let rows = index::read_files(&files, ctx.exiftool, ctx.cancel, ctx.report)?;
+    let mut rows = rows.iter();
+    let now = db::now();
+    let (mut groups, mut rest) = (Vec::new(), Vec::new());
+    for late in late {
+        let read: Vec<&NewRow> = rows.by_ref().take(late.found.len()).collect();
+        let mut filed = late.filed;
+        filed.sort_by_key(|m| m.kind.lead_rank());
+        let placed: Option<Vec<Incoming>> = filed.first().and_then(|partner| {
+            late.found
+                .iter()
+                .zip(&read)
+                .map(|(found, row)| {
+                    let as_row = MediaRow {
+                        taken_at: row.meta.taken_at,
+                        date_source: row.meta.source,
+                        kind: row.kind,
+                        ..partner.clone()
+                    };
+                    let fits = row.kind == Kind::Companion || groups::belongs_with(partner, &as_row);
+                    let to = beside(partner, &found.file, ctx.table).filter(|to| fits && !exists(to))?;
+                    Some(Incoming {
+                        from: found.file.path.clone(),
+                        origin: found.origin.clone(),
+                        row: row_json(&to, row, found.hash.as_deref(), ctx.table, now),
+                        to,
+                    })
+                })
+                .collect()
+        });
+        match placed {
+            Some(files) => groups.push(IncomingGroup { files, renamed: false }),
+            None => rest.extend(late.found),
+        }
+    }
+    Ok((groups, rest))
+}
+
+/// Where `file` goes beside `partner`: the partner's folder, with the partner's base name and
+/// the file's own ending (`.MOV`, `.CR2.xmp`).
+fn beside(partner: &MediaRow, file: &ScannedFile, table: &FormatTable) -> Option<PathBuf> {
+    let partner_name = partner.path.file_name()?.to_string_lossy();
+    let (base, _) = scan::split_name(&partner_name, partner.kind, table);
+    let name = file.path.file_name()?.to_string_lossy();
+    let (_, ending) = scan::split_name(&name, file.kind, table);
+    Some(partner.path.parent()?.join(format!("{base}{ending}")))
+}
+
 fn count_already<'a>(plan: &mut ImportPlan, files: impl Iterator<Item = &'a Found>) {
     for f in files {
         plan.already += 1;
@@ -402,10 +480,85 @@ pub fn scan_folder(ctx: &Ctx, dir: &Path) -> Result<(Vec<Found>, u64)> {
     Ok((found, scanned.other_files))
 }
 
+/// A phone's new files, copied off into staging.
+pub struct PhoneCheck {
+    pub found: Vec<Found>,
+    /// Files seen on this phone before whose contents are already in the library, and their
+    /// total size. They aren't copied again.
+    pub already: usize,
+    pub already_bytes: u64,
+    /// Files the phone wouldn't hand over, even when asked twice. They stay on the phone with
+    /// the files that go with them.
+    pub unreadable: usize,
+}
+
+/// Files failing one after another before a phone check gives up: by then the phone has most
+/// likely been unplugged or locked, rather than refusing one file.
+const GIVE_UP_AFTER: usize = 5;
+
+/// What [`copy_off`] fetched, in set order, and how many files failed.
+struct CopiedOff<T> {
+    files: Vec<T>,
+    unreadable: usize,
+}
+
+/// Fetch every file of each set (indexes into the phone's file list), asking twice for a file
+/// the phone fails to hand over. A set with a file that still fails is left out whole, so a
+/// photo never arrives without its Live Photo video. `fetch` gets the file's index and how many
+/// came before it, and gives `Ok(Err(_))` when the phone failed and `Err(_)` when this PC did
+/// (a full disk, the database), which stops the check at once.
+///
+/// Errors with the last failure once [`GIVE_UP_AFTER`] files fail in a row, or when the last
+/// two or more all failed: a phone unplugged or locked near the end, not files it refused.
+fn copy_off<T>(
+    sets: &[Vec<usize>],
+    cancel: &AtomicBool,
+    mut fetch: impl FnMut(usize, usize) -> Result<Result<T>>,
+) -> Result<CopiedOff<T>> {
+    let mut out = CopiedOff { files: Vec::new(), unreadable: 0 };
+    let (mut done, mut in_a_row) = (0, 0);
+    let mut last_failure = None;
+    for set in sets {
+        let mut got = Vec::with_capacity(set.len());
+        for &i in set {
+            if cancel.load(Ordering::Relaxed) {
+                return Err(Error::msg("Cancelled"));
+            }
+            let fetched = match fetch(i, done)? {
+                Err(_) => fetch(i, done)?,
+                got => got,
+            };
+            done += 1;
+            match fetched {
+                Ok(file) => {
+                    in_a_row = 0;
+                    got.push(file);
+                }
+                Err(err) => {
+                    in_a_row += 1;
+                    if in_a_row >= GIVE_UP_AFTER {
+                        return Err(err);
+                    }
+                    log::warn!("Left on the phone: {err}");
+                    out.unreadable += 1;
+                    last_failure = Some(err);
+                    got.clear();
+                    break;
+                }
+            }
+        }
+        out.files.extend(got);
+    }
+    match last_failure {
+        Some(err) if in_a_row >= 2 => Err(err),
+        _ => Ok(out),
+    }
+}
+
 /// Copy a phone's new photos into `staging` and list them. A file seen on this phone before
 /// (same path, size and modified time) whose contents are already in the library isn't copied
-/// again; those are counted in the returned (files, bytes).
-pub fn fetch_phone(ctx: &Ctx, id: &str, name: &str, staging: &Path) -> Result<(Vec<Found>, usize, u64)> {
+/// again.
+pub fn fetch_phone(ctx: &Ctx, id: &str, name: &str, staging: &Path) -> Result<PhoneCheck> {
     let provider = mtp::provider()?;
     let phone = mtp::open(&provider, id, name)?;
     (ctx.report)(&format!("Looking for photos on {name}"), 0, 0);
@@ -427,7 +580,7 @@ pub fn fetch_phone(ctx: &Ctx, id: &str, name: &str, staging: &Path) -> Result<(V
         buckets.entry(scan::group_key(&f.path, kind, ctx.table)).or_default().push(i);
     }
     let (mut already, mut already_bytes) = (0, 0);
-    let mut wanted = Vec::new();
+    let mut wanted: Vec<Vec<usize>> = Vec::new();
     for members in buckets.values() {
         let media: Vec<usize> = members
             .iter()
@@ -438,30 +591,29 @@ pub fn fetch_phone(ctx: &Ctx, id: &str, name: &str, staging: &Path) -> Result<(V
             already += members.len();
             already_bytes += members.iter().map(|&i| files[i].size).sum::<u64>();
         } else {
-            wanted.extend(members.iter().copied());
+            wanted.push(members.clone());
         }
     }
-    wanted.sort_unstable();
 
     let stage = format!("Copying from {name}");
-    let mut found = Vec::with_capacity(wanted.len());
-    for (n, &i) in wanted.iter().enumerate() {
-        if ctx.cancel.load(Ordering::Relaxed) {
-            return Err(Error::msg("Cancelled"));
-        }
-        (ctx.report)(&stage, n, wanted.len());
+    let total: usize = wanted.iter().map(Vec::len).sum();
+    let copied = copy_off(&wanted, ctx.cancel, |i, done| {
+        (ctx.report)(&stage, done, total);
         let file = &files[i];
         let to = staging.join(&file.path);
         if let Some(dir) = to.parent() {
             fs::create_dir_all(dir)?;
         }
         let _ = fs::remove_file(&to);
-        let hash = phone.download(file, &to)?;
+        let hash = match phone.download(file, &to) {
+            Ok(hash) => hash,
+            Err(err) => return Ok(Err(err)),
+        };
         let modified = secs(file.modified);
         save_memo(ctx.db, id, &file.path, file.size, modified, &hash)?;
         let kind = ctx.table.kind_of(&file.path).unwrap_or(Kind::Companion);
         let size = fs::metadata(&to).map_or(file.size, |m| m.len());
-        found.push(Found {
+        Ok(Ok(Found {
             file: ScannedFile {
                 path: to,
                 kind,
@@ -470,10 +622,15 @@ pub fn fetch_phone(ctx: &Ctx, id: &str, name: &str, staging: &Path) -> Result<(V
             },
             origin: Path::new(name).join(&file.path),
             hash: Some(hash),
-        });
-    }
-    (ctx.report)(&stage, wanted.len(), wanted.len());
-    Ok((found, already, already_bytes))
+        }))
+    })?;
+    (ctx.report)(&stage, total, total);
+    Ok(PhoneCheck {
+        found: copied.files,
+        already,
+        already_bytes,
+        unreadable: copied.unreadable,
+    })
 }
 
 /// Phone files hashed before: path key > (size, modified, hash).
@@ -600,6 +757,8 @@ struct Looked {
     staging: Option<PathBuf>,
     plan: ImportPlan,
     other_files: u64,
+    /// Phone files that couldn't be copied off.
+    unreadable: usize,
 }
 
 /// Find a source's files, copying a phone's off first, and plan the import.
@@ -624,10 +783,10 @@ fn look_through(ctx: &Ctx, source: SourceSpec) -> Result<Looked> {
             let staging = staging_dir(ctx.root);
             clear_staging(ctx.root);
             fs::create_dir_all(&staging)?;
-            let (found, already, bytes) = fetch_phone(ctx, &id, &name, &staging)?;
-            let mut plan = plan(ctx, found, &exists)?;
-            plan.already += already;
-            plan.already_bytes += bytes;
+            let check = fetch_phone(ctx, &id, &name, &staging)?;
+            let mut plan = plan(ctx, check.found, &exists)?;
+            plan.already += check.already;
+            plan.already_bytes += check.already_bytes;
             // Items show where each file is on the phone.
             return Ok(Looked {
                 spec,
@@ -637,6 +796,7 @@ fn look_through(ctx: &Ctx, source: SourceSpec) -> Result<Looked> {
                 staging: Some(staging),
                 plan,
                 other_files: 0,
+                unreadable: check.unreadable,
             });
         }
     };
@@ -648,6 +808,7 @@ fn look_through(ctx: &Ctx, source: SourceSpec) -> Result<Looked> {
         staging,
         plan: plan(ctx, found, &exists)?,
         other_files,
+        unreadable: 0,
     })
 }
 
@@ -721,6 +882,8 @@ fn describe(id: u64, looked: &Looked, root: &Path) -> (ImportPreview, Vec<(PathB
         already_bytes: plan.already_bytes,
         left_alone: plan.left_alone,
         other_files: looked.other_files,
+        unreadable: looked.unreadable,
+        empty: plan.empty,
         renamed: plan.groups.iter().filter(|g| g.renamed).count(),
         folders: folders
             .into_iter()
@@ -1027,6 +1190,7 @@ mod tests {
             staging: None,
             plan,
             other_files,
+            unreadable: 0,
         };
         let pending = looked.into_pending(7, root);
         let items = &pending.preview.items;
@@ -1118,6 +1282,7 @@ mod tests {
             staging: None,
             plan,
             other_files,
+            unreadable: 0,
         };
         let (preview, thumbs) = describe(7, &looked, root);
 
@@ -1258,5 +1423,68 @@ mod tests {
         let db = Mutex::new(db::open_in_memory().unwrap());
         let (plan, _) = plan_folder(&db, &root, outer.path(), &[]);
         assert_eq!(destinations(&plan, &root), ["2025\\2025-03\\IMG_20250312_101500.jpg"]);
+    }
+
+    #[test]
+    fn empty_files_are_left_out_and_counted() {
+        let (lib, db) = library(&[LIBRARY_PHOTO]);
+        let root = lib.path();
+        let card = tempfile::tempdir().unwrap();
+        write(&card.path().join("DCIM\\IMG_20250312_101500.jpg"), "march photo");
+        // What a copy that didn't finish leaves behind.
+        write(&card.path().join("DCIM\\IMG_20250313_101500.jpg"), "");
+        let (plan, _) = plan_folder(&db, root, card.path(), &[]);
+        assert_eq!(destinations(&plan, root), ["2025\\2025-03\\IMG_20250312_101500.jpg"]);
+        assert_eq!(plan.empty, 1);
+    }
+
+    #[test]
+    fn a_file_the_phone_refuses_stays_there_with_its_partners() {
+        // Sets: a Live Photo whose video (1) always fails, a photo (2) that fails once, and (3).
+        let sets = [vec![0, 1], vec![2], vec![3]];
+        let mut asked = HashMap::<usize, usize>::new();
+        let copied = copy_off(&sets, &AtomicBool::new(false), |i, _| {
+            let n = asked.entry(i).or_default();
+            *n += 1;
+            Ok(match (i, *n) {
+                (1, _) | (2, 1) => Err(Error::msg("The device stopped responding")),
+                _ => Ok(i),
+            })
+        })
+        .unwrap();
+        assert_eq!(copied.files, [2, 3]);
+        assert_eq!(copied.unreadable, 1);
+        assert_eq!(asked[&1], 2);
+    }
+
+    #[test]
+    fn a_phone_that_stops_answering_ends_the_check() {
+        let sets: Vec<Vec<usize>> = (0..10).map(|i| vec![i]).collect();
+        let copied = copy_off(&sets, &AtomicBool::new(false), |i, _| {
+            Ok(if i == 0 { Ok(i) } else { Err(Error::msg("The device is no longer connected")) })
+        });
+        let err = copied.err().expect("the check should give up");
+        assert!(err.to_string().contains("no longer connected"));
+    }
+
+    #[test]
+    fn a_phone_that_goes_away_near_the_end_ends_the_check() {
+        let sets: Vec<Vec<usize>> = (0..4).map(|i| vec![i]).collect();
+        let copied = copy_off(&sets, &AtomicBool::new(false), |i, _| {
+            Ok(if i < 2 { Ok(i) } else { Err(Error::msg("The device is no longer connected")) })
+        });
+        assert!(copied.is_err(), "two failures at the end are a phone gone, not two bad files");
+    }
+
+    #[test]
+    fn a_problem_on_this_pc_stops_the_check_at_once() {
+        let sets: Vec<Vec<usize>> = (0..3).map(|i| vec![i]).collect();
+        let mut asked = 0;
+        let copied = copy_off(&sets, &AtomicBool::new(false), |_, _| -> Result<Result<usize>> {
+            asked += 1;
+            Err(Error::msg("There is not enough space on the disk"))
+        });
+        assert!(copied.err().unwrap().to_string().contains("not enough space"));
+        assert_eq!(asked, 1);
     }
 }

@@ -21,17 +21,44 @@ pub struct ScanResult {
     pub files: Vec<ScannedFile>,
     /// Files with an unrecognised type. They are never moved, only counted so the UI can say so.
     pub other_files: u64,
+    /// Folders and files that couldn't be read (a drive that dropped out, no permission). What
+    /// is inside them is unknown, not gone.
+    pub unreadable: Vec<PathBuf>,
 }
 
-/// Folder names never descended into: app data, version control, Windows system folders.
+/// Folder names never descended into: app data, version control, code dependencies, Windows
+/// system folders, and the recycle and thumbnail folders NAS boxes keep beside photos.
 pub fn skip_dir(name: &str) -> bool {
-    name.starts_with('.')
-        || name.eq_ignore_ascii_case("$RECYCLE.BIN")
-        || name.eq_ignore_ascii_case("System Volume Information")
+    const SKIPPED: [&str; 8] = [
+        "node_modules",
+        "$RECYCLE.BIN",
+        "System Volume Information",
+        "RECYCLER",
+        "@eaDir",
+        "@Recycle",
+        "#recycle",
+        "#snapshot",
+    ];
+    name.starts_with('.') || SKIPPED.iter().any(|s| name.eq_ignore_ascii_case(s))
 }
 
-/// List every recognised file under `root`. Unreadable entries are skipped rather than failing
-/// the whole scan.
+/// [`skip_dir`], plus folders a camera fills with its own working files: Sony's `M4ROOT/THMBNL`
+/// (a small JPEG per clip) and `M4ROOT/SUB` (low-resolution proxy clips). Those two names are
+/// only skipped inside `M4ROOT`, so a folder of the user's own called `SUB` is still read.
+pub fn skip_folder(path: &Path) -> bool {
+    let name = path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default();
+    if skip_dir(&name) {
+        return true;
+    }
+    let in_m4root = path
+        .parent()
+        .and_then(Path::file_name)
+        .is_some_and(|p| p.eq_ignore_ascii_case("M4ROOT"));
+    in_m4root && (name.eq_ignore_ascii_case("THMBNL") || name.eq_ignore_ascii_case("SUB"))
+}
+
+/// List every recognised file under `root`. Unreadable entries are listed in
+/// [`ScanResult::unreadable`] rather than failing the whole scan.
 pub fn scan(root: &Path, table: &FormatTable, cancel: &AtomicBool) -> Result<ScanResult> {
     scan_excluding(root, None, table, cancel)
 }
@@ -48,14 +75,22 @@ pub fn scan_excluding(
     let walker = walker.filter_entry(|entry| {
         entry.depth() == 0
             || !entry.file_type().is_dir()
-            || !(skip_dir(&entry.file_name().to_string_lossy())
+            || !(skip_folder(entry.path())
                 || exclude.is_some_and(|ex| same_path(entry.path(), ex)))
     });
     for entry in walker {
         if cancel.load(Ordering::Relaxed) {
             return Err(Error::msg("Cancelled"));
         }
-        let Ok(entry) = entry else { continue };
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) => {
+                // A folder whose listing fails partway reports no path, so nothing says which
+                // files went unlisted. Count the whole root as unread so none look deleted.
+                result.unreadable.push(err.path().unwrap_or(root).to_path_buf());
+                continue;
+            }
+        };
         if !entry.file_type().is_file() {
             continue;
         }
@@ -63,7 +98,10 @@ pub fn scan_excluding(
             result.other_files += 1;
             continue;
         };
-        let Ok(meta) = entry.metadata() else { continue };
+        let Ok(meta) = entry.metadata() else {
+            result.unreadable.push(entry.into_path());
+            continue;
+        };
         result.files.push(ScannedFile {
             path: entry.into_path(),
             kind,
@@ -77,11 +115,51 @@ pub fn scan_excluding(
 /// The kind of file at `path`, or `None` when it isn't a photo, video or companion.
 pub fn file_kind(path: &Path, table: &FormatTable) -> Option<Kind> {
     let name = path.file_name()?.to_string_lossy();
-    // macOS resource-fork junk ("._IMG_0001.JPG") looks like a photo but isn't one.
-    if name.starts_with("._") {
+    // Dot-files are never the user's photos: macOS resource forks ("._IMG_0001.JPG") and
+    // Android's binned and half-written files (".trashed-1712345678-IMG_1.jpg", ".pending-...").
+    if name.starts_with('.') {
         return None;
     }
-    table.kind_of(path)
+    let kind = table.kind_of(path)?;
+    if kind == Kind::Video && shares_ext_with_code(path) && !is_transport_stream(path) {
+        return None;
+    }
+    Some(kind)
+}
+
+/// `.ts` and `.mts` are also TypeScript source files, and `.m2ts` keeps them company.
+fn shares_ext_with_code(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| ["ts", "mts", "m2ts"].iter().any(|x| e.eq_ignore_ascii_case(x)))
+}
+
+/// Packet sizes of MPEG transport streams: broadcast and HDV `.ts`, AVCHD `.mts`/`.m2ts` (a
+/// 4-byte timecode before each packet), and DVB with 16 error-correction bytes after each.
+const TS_PACKETS: [usize; 3] = [188, 192, 204];
+
+/// Sync bytes in a row that make a stream. Four 0x47 ("G") bytes at an exact spacing, from any
+/// start within the first packet, is about a one-in-a-million chance in source code.
+const TS_SYNCS: usize = 4;
+
+/// True when the file starts like an MPEG transport stream: the sync byte 0x47 at the start of
+/// every packet. A recording cut mid-packet starts partway in, so any start within the first
+/// packet counts. A file that can't be read (a phone path, a locked file) gets the benefit of
+/// the doubt.
+fn is_transport_stream(path: &Path) -> bool {
+    use std::io::Read;
+    let Ok(file) = std::fs::File::open(path) else {
+        return true;
+    };
+    let longest = TS_PACKETS[TS_PACKETS.len() - 1];
+    let want = (longest * (TS_SYNCS + 1)) as u64;
+    let mut head = Vec::new();
+    if file.take(want).read_to_end(&mut head).is_err() {
+        return true;
+    }
+    TS_PACKETS.iter().any(|&step| {
+        (0..step).any(|start| (0..TS_SYNCS).all(|i| head.get(start + i * step) == Some(&0x47)))
+    })
 }
 
 
@@ -166,6 +244,70 @@ mod tests {
     }
 
     #[test]
+    fn binned_hidden_and_camera_working_files_are_skipped() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        touch(&root.join("DCIM/Camera/IMG_1.jpg"));
+        touch(&root.join("DCIM/Camera/.trashed-1712345678-IMG_2.jpg"));
+        touch(&root.join("DCIM/Camera/.pending-1712345678-IMG_3.jpg"));
+        touch(&root.join("Photos/#recycle/IMG_4.jpg"));
+        touch(&root.join("Photos/@eaDir/IMG_5.jpg/SYNOPHOTO_THUMB_M.jpg"));
+        touch(&root.join("PRIVATE/M4ROOT/CLIP/C0001.MP4"));
+        touch(&root.join("PRIVATE/M4ROOT/THMBNL/C0001T01.JPG"));
+        touch(&root.join("PRIVATE/M4ROOT/SUB/C0001S03.MP4"));
+        touch(&root.join("Holiday/SUB/IMG_6.jpg"));
+
+        let result = scan(root, &FormatTable::default(), &AtomicBool::new(false)).unwrap();
+        let mut names: Vec<_> = result
+            .files
+            .iter()
+            .map(|f| f.path.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["C0001.MP4", "IMG_1.jpg", "IMG_6.jpg"]);
+    }
+
+    #[test]
+    fn code_files_with_video_extensions_are_not_videos() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::write(root.join("index.ts"), b"export const a = 1;\n").unwrap();
+        fs::write(root.join("config.mts"), b"export default {};\n").unwrap();
+        let stream = |start: usize, step: usize| {
+            let mut bytes = vec![0u8; start + step * 5];
+            for i in 0..5 {
+                bytes[start + i * step] = 0x47;
+            }
+            bytes
+        };
+        fs::write(root.join("broadcast.ts"), stream(0, 188)).unwrap();
+        fs::write(root.join("00001.MTS"), stream(4, 192)).unwrap();
+        // Packets with error-correction bytes, and a recording cut mid-packet.
+        fs::write(root.join("dvb.ts"), stream(0, 204)).unwrap();
+        fs::write(root.join("cut.ts"), stream(100, 188)).unwrap();
+        // Three G's 188 bytes apart in source code are not a stream.
+        let mut code = b"// ab".repeat(200);
+        code[0] = b'G';
+        code[188] = b'G';
+        code[376] = b'G';
+        fs::write(root.join("strings.ts"), &code).unwrap();
+        touch(&root.join("node_modules/pkg/clip.mp4"));
+
+        let t = FormatTable::default();
+        let result = scan(root, &t, &AtomicBool::new(false)).unwrap();
+        let mut names: Vec<_> = result
+            .files
+            .iter()
+            .map(|f| f.path.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["00001.MTS", "broadcast.ts", "cut.ts", "dvb.ts"]);
+        assert_eq!(result.other_files, 3);
+        // A phone path can't be read here, so it keeps its extension's kind.
+        assert_eq!(file_kind(Path::new("Z:\\phone\\00001.MTS"), &t), Some(Kind::Video));
+    }
+
+    #[test]
     fn scan_excluding_skips_the_given_folder() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
@@ -196,6 +338,9 @@ mod tests {
         assert_eq!(key("IMG_1.HEIC"), key("IMG_1.MOV"));
         assert_eq!(key("IMG_1.HEIC"), key("img_1.aae"));
         assert_eq!(key("DSC_5.NEF"), key("DSC_5.NEF.xmp"));
+        assert_eq!(key("DSC_5.NEF"), key("DSC_5.NEF.pp3"));
+        assert_eq!(key("DSC_5.NEF"), key("DSC_5.NEF.dop"));
+        assert_eq!(key("DSC_5.NEF"), key("DSC_5.acr"));
         assert_eq!(key("DSC_5.NEF"), key("DSC_5.JPG"));
         assert_eq!(key("C0001.MP4"), key("C0001M01.XML"));
         assert_eq!(key("GX010001.MP4"), key("GX010001.THM"));

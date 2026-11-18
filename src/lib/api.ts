@@ -59,6 +59,8 @@ export interface MediaDetail {
   playable: boolean;
   /** Gone from disk since the library was last looked through (deleted or moved in Explorer). */
   missing: boolean;
+  /** The file on disk is 0 bytes, usually from a copy that didn't finish. */
+  empty: boolean;
   version: number;
   members: MediaMember[];
 }
@@ -85,6 +87,8 @@ export interface IndexSummary {
   updated: number;
   removed: number;
   otherFiles: number;
+  /** Folders that couldn't be read; their photos stay listed until they can be. */
+  unreadable: number;
 }
 
 /** A previewed set of moves, waiting to be applied. Mirrors Preview in organise.rs. */
@@ -234,6 +238,11 @@ export interface DupCopy {
   inPlace: boolean;
   /** Other files that travel with this copy (a Live Photo video, a sidecar). */
   extra: number;
+  /**
+   * Id of the tile this copy belongs to. A copied Live Photo or RAW+JPEG pair makes one set
+   * per kind, and its copies share these ids across the sets.
+   */
+  group: number;
 }
 
 export interface DupReport {
@@ -286,6 +295,10 @@ export interface ImportPreview {
   leftAlone: number;
   /** Files at the source that aren't photos or videos. */
   otherFiles: number;
+  /** Phone files that couldn't be read, left on the phone with the files that go with them. */
+  unreadable: number;
+  /** Empty (0 byte) files, usually from a copy that didn't finish. Left out. */
+  empty: number;
   /** Groups that get a number added to their names because the name is taken. */
   renamed: number;
   folders: { folder: string; files: number }[];

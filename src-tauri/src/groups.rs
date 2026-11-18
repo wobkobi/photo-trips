@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use chrono::NaiveDateTime;
 
 use crate::dates::DateSource;
-use crate::formats::Kind;
+use crate::formats::{Kind, RAW_EDIT_EXTS};
 
 /// One indexed file, as loaded from the `media` table.
 #[derive(Debug, Clone, PartialEq)]
@@ -63,18 +63,27 @@ pub fn build(rows: Vec<MediaRow>) -> (Vec<Group>, Vec<MediaRow>) {
             orphans.extend(companions);
             continue;
         }
+        // A group holds at most one file of each kind: a photo with its RAW twin and its Live
+        // Photo video. A second same-name photo or video (image.jpg beside image.png, a film
+        // beside its trailer) is a different picture, so it starts a group of its own.
         let mut bucket_groups: Vec<Vec<MediaRow>> = Vec::new();
         while !media.is_empty() {
-            let leader = media.remove(0);
-            let (joining, rest): (Vec<_>, Vec<_>) =
-                media.into_iter().partition(|r| belongs_with(&leader, r));
+            let mut members = vec![media.remove(0)];
+            let mut rest = Vec::new();
+            for r in media {
+                if members.iter().all(|m| m.kind != r.kind) && belongs_with(&members[0], &r) {
+                    members.push(r);
+                } else {
+                    rest.push(r);
+                }
+            }
             media = rest;
-            let mut members = vec![leader];
-            members.extend(joining);
             bucket_groups.push(members);
         }
-        // Sidecars can't be dated against anything, so they follow the main group.
-        bucket_groups[0].extend(companions);
+        for companion in companions {
+            let at = companion_home(&companion, &bucket_groups);
+            bucket_groups[at].push(companion);
+        }
         groups.extend(bucket_groups.into_iter().map(finish));
     }
     groups.sort_by(|a, b| {
@@ -83,12 +92,51 @@ pub fn build(rows: Vec<MediaRow>) -> (Vec<Group>, Vec<MediaRow>) {
     (groups, orphans)
 }
 
-fn belongs_with(leader: &MediaRow, other: &MediaRow) -> bool {
+/// Whether `other` can join a group led by `leader`: they were taken within a few minutes, or
+/// either date is only a guess.
+pub fn belongs_with(leader: &MediaRow, other: &MediaRow) -> bool {
     // A guessed date can't prove two files unrelated, so give them the benefit of the doubt.
     if !leader.date_source.is_embedded() || !other.date_source.is_embedded() {
         return true;
     }
     (leader.taken_at - other.taken_at).num_seconds().abs() <= MAX_PAIR_GAP_SECS
+}
+
+/// Index of the group a sidecar belongs with when its name is shared by several groups.
+///
+/// A sidecar that names its file (`IMG_1.CR2.xmp`) goes with the group holding `IMG_1.CR2`.
+/// Otherwise its type decides: XMP and other RAW editors' files belong to the RAW, AAE edits to the photo, THM, LRV,
+/// XML and SRT files to the video. With no such group it follows the first one, which is
+/// photo-led whenever there is a photo.
+fn companion_home(companion: &MediaRow, groups: &[Vec<MediaRow>]) -> usize {
+    let name = file_name_lower(&companion.path);
+    let (stem, ext) = name.rsplit_once('.').unwrap_or((&name, ""));
+    let named = stem.rsplit_once('.').map(|(_, inner)| inner);
+    let has = |pred: &dyn Fn(&MediaRow) -> bool| groups.iter().position(|g| g.iter().any(pred));
+    if let Some(inner) = named
+        && let Some(at) = has(&|m| ext_lower(&m.path) == inner)
+    {
+        return at;
+    }
+    let wanted = match ext {
+        e if RAW_EDIT_EXTS.contains(&e) => Some(Kind::Raw),
+        "aae" => Some(Kind::Photo),
+        "thm" | "lrv" | "xml" | "srt" => Some(Kind::Video),
+        _ => None,
+    };
+    wanted.and_then(|kind| has(&|m| m.kind == kind)).unwrap_or(0)
+}
+
+fn file_name_lower(path: &std::path::Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .unwrap_or_default()
+}
+
+fn ext_lower(path: &std::path::Path) -> String {
+    path.extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default()
 }
 
 fn finish(members: Vec<MediaRow>) -> Group {
@@ -160,6 +208,60 @@ pub mod tests {
         let (groups, _) = build(rows);
         assert_eq!(groups[0].leader().id, 1);
         assert_eq!(groups[0].taken_at, dates::parse("2025-03-12T10:00:00").unwrap());
+    }
+
+    #[test]
+    fn two_same_name_pictures_are_two_tiles() {
+        let rows = vec![
+            row(1, "in", "image.jpg", Kind::Photo, "2025-04-01T00:00:00", DateSource::Modified),
+            row(2, "in", "image.png", Kind::Photo, "2025-04-01T00:00:00", DateSource::Modified),
+        ];
+        let (groups, _) = build(rows);
+        assert_eq!(groups.len(), 2);
+        assert!(groups.iter().all(|g| g.members.len() == 1));
+    }
+
+    #[test]
+    fn two_same_name_videos_are_two_tiles() {
+        let rows = vec![
+            row(1, "in", "Title.mp4", Kind::Video, "2025-04-01T00:00:00", DateSource::Video),
+            row(2, "in", "Title.mkv", Kind::Video, "2025-04-01T00:00:00", DateSource::Video),
+        ];
+        let (groups, _) = build(rows);
+        assert_eq!(groups.len(), 2);
+    }
+
+    #[test]
+    fn a_converted_copy_stays_out_of_the_live_photo() {
+        let rows = vec![
+            row(1, "in", "IMG_1.HEIC", Kind::Photo, "2025-03-12T10:00:00", DateSource::Exif),
+            row(2, "in", "IMG_1.JPG", Kind::Photo, "2025-03-12T10:00:00", DateSource::Exif),
+            row(3, "in", "IMG_1.MOV", Kind::Video, "2025-03-12T10:00:01", DateSource::Video),
+        ];
+        let (groups, _) = build(rows);
+        assert_eq!(groups.len(), 2);
+        let live = groups.iter().find(|g| g.leader().id == 1).unwrap();
+        let ids: Vec<_> = live.members.iter().map(|m| m.id).collect();
+        assert_eq!(ids, [1, 3]);
+    }
+
+    #[test]
+    fn sidecars_follow_the_file_they_name_when_a_name_splits() {
+        let rows = vec![
+            row(1, "in", "IMG_1.JPG", Kind::Photo, "2025-01-01T09:00:00", DateSource::Exif),
+            row(2, "in", "IMG_1.CR2", Kind::Raw, "2025-06-01T09:00:00", DateSource::Exif),
+            row(3, "in", "IMG_1.CR2.xmp", Kind::Companion, "2025-06-02T00:00:00", DateSource::Modified),
+            row(4, "in", "IMG_1.xmp", Kind::Companion, "2025-06-02T00:00:00", DateSource::Modified),
+            row(5, "in", "IMG_1.AAE", Kind::Companion, "2025-06-02T00:00:00", DateSource::Modified),
+        ];
+        let (groups, _) = build(rows);
+        assert_eq!(groups.len(), 2);
+        let ids_of = |leader: i64| -> Vec<i64> {
+            let g = groups.iter().find(|g| g.leader().id == leader).unwrap();
+            g.members.iter().map(|m| m.id).collect()
+        };
+        assert_eq!(ids_of(1), [1, 5]);
+        assert_eq!(ids_of(2), [2, 3, 4]);
     }
 
     #[test]

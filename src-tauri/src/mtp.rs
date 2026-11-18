@@ -27,10 +27,13 @@ use windows::Win32::System::Com::{
 use windows::Win32::System::Variant::VT_DATE;
 use windows::core::{GUID, HSTRING, PCWSTR, PWSTR};
 
+use chrono::{DateTime, Local, TimeZone, Utc};
+
 use crate::error::{Error, Result};
 use crate::formats::FormatTable;
 use crate::hash;
 use crate::index::Report;
+use crate::scan;
 
 /// A phone or camera Windows can see.
 #[derive(Debug, Clone, PartialEq)]
@@ -279,10 +282,12 @@ impl Phone {
             }
             let child_path = path.join(&child.name);
             if child.is_folder() {
-                self.walk(&child.id, &child_path, table, cancel, report, files)?;
+                if !scan::skip_folder(&child_path) {
+                    self.walk(&child.id, &child_path, table, cancel, report, files)?;
+                }
                 continue;
             }
-            if !child.is_file() || table.kind_of(&child_path).is_none() {
+            if !child.is_file() || scan::file_kind(&child_path, table).is_none() {
                 continue;
             }
             files.push(PhoneFile {
@@ -402,15 +407,27 @@ fn date(values: &IPortableDeviceValues, key: &PROPERTYKEY) -> Option<SystemTime>
     let inner = unsafe { &value.Anonymous.Anonymous };
     let days = (inner.vt == VT_DATE).then(|| unsafe { inner.Anonymous.date });
     let _ = unsafe { PropVariantClear(&mut value) };
-    from_ole_date(days?)
+    from_ole_date(days?, &Local)
 }
 
 /// An OLE automation date: days since 30 December 1899, with the time of day as the fraction.
-/// Dates before 1970 are taken as unset.
-fn from_ole_date(days: f64) -> Option<SystemTime> {
+/// It carries no zone, and a phone gives its own wall-clock time (an iPhone photo taken at
+/// 13:36 in a +13:00 zone says 13:36), so it is read as a time in `zone`. Dates before 1970
+/// are taken as unset.
+fn from_ole_date<Tz: TimeZone>(days: f64, zone: &Tz) -> Option<SystemTime> {
     // 25,569 days from 30 December 1899 to 1 January 1970.
     let secs = (days - 25_569.0) * 86_400.0;
-    (secs.is_finite() && secs >= 0.0).then(|| UNIX_EPOCH + Duration::from_secs_f64(secs))
+    if !(secs.is_finite() && secs >= 0.0) {
+        return None;
+    }
+    let as_utc = UNIX_EPOCH + Duration::from_secs_f64(secs);
+    let wall = DateTime::<Utc>::from(as_utc).naive_utc();
+    // A wall-clock time skipped by a daylight-saving change has no moment; keep it as given.
+    Some(
+        zone.from_local_datetime(&wall)
+            .earliest()
+            .map_or(as_utc, |t| t.with_timezone(&Utc).into()),
+    )
 }
 
 /// A device file's stream, read like a file.
@@ -430,6 +447,7 @@ impl Read for StreamReader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::FixedOffset;
 
     fn entry(id: &str, name: &str, kind: GUID) -> Entry {
         Entry {
@@ -489,15 +507,31 @@ mod tests {
 
     #[test]
     fn ole_dates_count_days_from_1899() {
-        assert_eq!(from_ole_date(25_569.0), Some(UNIX_EPOCH));
-        assert_eq!(from_ole_date(25_569.5), Some(UNIX_EPOCH + Duration::from_secs(43_200)));
+        assert_eq!(from_ole_date(25_569.0, &Utc), Some(UNIX_EPOCH));
+        assert_eq!(from_ole_date(25_569.5, &Utc), Some(UNIX_EPOCH + Duration::from_secs(43_200)));
         // 14 February 2026, 09:00.
         assert_eq!(
-            from_ole_date(46_067.375),
+            from_ole_date(46_067.375, &Utc),
             Some(UNIX_EPOCH + Duration::from_secs(1_771_059_600))
         );
-        assert_eq!(from_ole_date(1.0), None);
-        assert_eq!(from_ole_date(f64::NAN), None);
+        assert_eq!(from_ole_date(1.0, &Utc), None);
+        assert_eq!(from_ole_date(f64::NAN, &Utc), None);
+    }
+
+    #[test]
+    fn phone_dates_are_the_phones_own_wall_clock() {
+        // An iPhone photo with EXIF 2026-11-14 13:36:13 +13:00 reports 13:36:13 over MTP, which
+        // is 00:36:13 UTC.
+        let nz = FixedOffset::east_opt(13 * 3600).unwrap();
+        let wall = 46_340.0 + (13.0 * 3600.0 + 36.0 * 60.0 + 13.0) / 86_400.0;
+        let utc = chrono::NaiveDate::from_ymd_opt(2026, 11, 14)
+            .unwrap()
+            .and_hms_opt(0, 36, 13)
+            .unwrap()
+            .and_utc();
+        let read = from_ole_date(wall, &nz).unwrap();
+        let off = SystemTime::from(utc).duration_since(read).unwrap_or_else(|e| e.duration());
+        assert!(off < Duration::from_millis(1), "{off:?} away from {utc}");
     }
 
     /// Reads whichever phone is plugged in without changing it: lists its photos, then copies

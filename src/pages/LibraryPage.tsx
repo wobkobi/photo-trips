@@ -18,6 +18,7 @@ import {
   type Tile,
   type TripInfo,
 } from "../lib/api";
+import { binQuestion } from "../lib/binText";
 import { tileSizeOf } from "../lib/display";
 import { count as countOf } from "../lib/format";
 import { filterTiles, isFiltered, NO_FILTER, type LibraryFilter } from "../lib/libraryFilter";
@@ -86,6 +87,8 @@ export function LibraryPage({
   const [trips, setTrips] = useState<TripInfo[]>([]);
   /** Photos waiting for the user to confirm sending them to the Recycle Bin. */
   const [binning, setBinning] = useState<Tile[] | null>(null);
+  /** Names of the files that go with a single photo waiting to be binned, once read. */
+  const [binPartners, setBinPartners] = useState<{ id: number; names: string[] } | null>(null);
   /** This page started the running Recycle Bin job, so its end shows here. */
   const [binStarted, setBinStarted] = useState(false);
   const [binResult, setBinResult] = useState<ApplySummary | null>(null);
@@ -110,6 +113,25 @@ export function LibraryPage({
   }, []);
 
   useEffect(load, [load]);
+
+  // A single photo with linked files: read their names so the question can list them.
+  const binOne = binning?.length === 1 && binning[0].extra > 0 ? binning[0].id : null;
+  useEffect(() => {
+    if (binOne === null) return;
+    let live = true;
+    api.mediaDetail(binOne).then(
+      (detail) => {
+        if (!live) return;
+        const names = detail.members.filter((m) => m.id !== detail.id).map((m) => m.name);
+        setBinPartners({ id: binOne, names });
+      },
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [binOne]);
+
   useJobDone("index", (done) => {
     if (done.ok) setSummary(done.result as IndexSummary);
     load();
@@ -530,8 +552,8 @@ export function LibraryPage({
       {binning !== null && !reviewing && (
         <div className="mx-5 mt-3 flex flex-wrap items-center gap-3 rounded-md border border-warn-line bg-warn-soft p-4">
           <p className="min-w-0 flex-1 basis-60">
-            Send {countOf(binning.length, "photo", "photos")} to the Recycle Bin? Files that go with{" "}
-            {binning.length === 1 ? "it go" : "them go"} too. You can undo this from History.
+            {binQuestion(binning, binPartners?.id === binOne ? binPartners.names : null)} You can
+            undo this from History.
           </p>
           <Button variant="primary" onClick={confirmBin} disabled={running !== null}>
             Send to the Recycle Bin
@@ -689,7 +711,21 @@ function Detail({
     summary && summary.otherFiles > 0
       ? `${summary.otherFiles.toLocaleString()} other ${summary.otherFiles === 1 ? "file is" : "files are"} left alone.`
       : undefined;
-  return <span title={others}>{items}</span>;
+  const unreadable = summary?.unreadable ?? 0;
+  return (
+    <>
+      <span title={others}>{items}</span>
+      {unreadable > 0 && (
+        <span
+          className="text-warn"
+          title="Their photos stay listed. Check the drive is connected, then refresh."
+        >
+          {" "}
+          - {countOf(unreadable, "folder", "folders")} couldn&apos;t be read
+        </span>
+      )}
+    </>
+  );
 }
 
 /**
