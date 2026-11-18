@@ -138,6 +138,8 @@ export function DateRail({
    * @param event - the key press on the rail
    */
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    // Alt+arrows are the app's Back and Forward.
+    if (event.altKey) return;
     const year = months[current].key.slice(0, 4);
     let target: number | null = null;
     if (event.key === "ArrowDown" || event.key === "ArrowRight") target = current + 1;

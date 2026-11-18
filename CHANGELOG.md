@@ -4,6 +4,38 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.31.0] - 2026-11-18
+
+### Added
+
+- Settings reopens on the tab you left, History keeps the batch you had open, and Duplicates keeps
+  the copies you chose to keep. Each page opens at its top, and the Library header no longer flashes
+  a 0 while it loads.
+- Back and Forward move between the pages you've visited, keeping each page's filter: Alt+Left and
+  Alt+Right, or the mouse's side buttons. Inside a step such as a trip review, Back steps out of
+  that first.
+- The menu is in groups: Library, then Trips with your newest trips listed under it, then Import,
+  Sort, Suggestions and Duplicates. History, Settings and Help are small buttons at the bottom.
+  Ctrl+1 to Ctrl+7 follow the new order (Ctrl+2 is Trips), and opening the Library always shows the
+  whole library.
+- Opening a trip shows it as its own place: its name and dates as the title, a back arrow to where
+  you came from, and Edit. The Trip drop-down is gone; "Not on a trip" is a switch beside "Uncertain
+  dates", and "Clear filters" keeps the trip. An empty trip says so.
+- A trip review, a trip being edited, an import preview and the other in-between steps have a back
+  arrow before their name, and Esc or Alt+Left steps back. Each step names itself in the title, such
+  as "Edit Japan" or "Preview".
+- The Library opens scrolled to where you left it, including after a trip review, and resizing the
+  window keeps the same photos at the top.
+- Coming back to the Library finds it as you left it: same filter, same selection, same open photo,
+  with no wait for the photos to load again.
+
+### Fixed
+
+- Back from a trip returns to the page it was opened from, Esc and Alt+Left no longer drop an
+  unsaved trip or import, and focus lands on the page title after Back
+- The photo open in the viewer, and where a Shift-click range starts, stay the same when photos
+  arrive or leave in the background.
+
 ## [0.30.7] - 2026-11-18
 
 ### Fixed

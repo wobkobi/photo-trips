@@ -9,7 +9,19 @@ const PAGES: { id: PageId; title: string; icon: IconName; text: string }[] = [
     id: "library",
     title: "Library",
     icon: "library",
-    text: "Everything in your library, newest first. Filter by trip, year or type, and click a photo to see it full size.",
+    text: "Everything in your library, newest first. Filter by year or type, and click a photo to see it full size.",
+  },
+  {
+    id: "trips",
+    title: "Trips",
+    icon: "trips",
+    text: "Name a trip and pick its first and last day. Photos from those days get their own folder. The newest trips are listed in the menu under Trips.",
+  },
+  {
+    id: "import",
+    title: "Import",
+    icon: "import",
+    text: "Imports photos from a memory card, a phone or a folder. Ones already in your library are skipped, and nothing on the card or phone changes.",
   },
   {
     id: "sort",
@@ -18,22 +30,10 @@ const PAGES: { id: PageId; title: string; icon: IconName; text: string }[] = [
     text: "Moves photos and videos into year and month folders, and trip photos into Trips. You see every move before anything changes.",
   },
   {
-    id: "trips",
-    title: "Trips",
-    icon: "trips",
-    text: "Name a trip and pick its first and last day. Photos from those days get their own folder.",
-  },
-  {
     id: "suggestions",
     title: "Suggestions",
     icon: "suggest",
     text: "Busy stretches, or days away from home, that could be trips. Make one a trip or dismiss it.",
-  },
-  {
-    id: "import",
-    title: "Import",
-    icon: "import",
-    text: "Imports photos from a memory card, a phone or a folder. Ones already in your library are skipped, and nothing on the card or phone changes.",
   },
   {
     id: "duplicates",

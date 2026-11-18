@@ -6,6 +6,7 @@ import {
   hasValidRange,
   rangeOfTiles,
   rangeText,
+  sidebarTrips,
   spreadPick,
   toDraft,
 } from "./trips";
@@ -91,5 +92,56 @@ describe("rangeOfTiles", () => {
         tile("2025-03-18T01:00:00"),
       ]),
     ).toEqual({ startDate: "2025-03-12", endDate: "2025-03-18" });
+  });
+});
+
+describe("sidebarTrips", () => {
+  /**
+   * A trip starting on the given day.
+   * @param id - trip id
+   * @param day - "YYYY-MM-DD" first day
+   * @returns the trip
+   */
+  const trip = (id: number, day: string): TripInfo => ({
+    id,
+    name: `Trip ${id}`,
+    startAt: `${day}T00:00:00`,
+    endAt: `${day}T23:59:59`,
+    folder: `${day} Trip ${id}`,
+    colour: 1,
+    files: 0,
+    sample: [],
+    excluded: [],
+  });
+  // Oldest first, as the backend lists them.
+  const trips = [
+    trip(1, "2021-01-01"),
+    trip(2, "2022-01-01"),
+    trip(3, "2023-01-01"),
+    trip(4, "2024-01-01"),
+  ];
+  /**
+   * The ids of a list of trips, for short expectations.
+   * @param list - the trips
+   * @returns their ids, in order
+   */
+  const ids = (list: TripInfo[]): number[] => list.map((t) => t.id);
+
+  it("lists the newest first, up to the cap", () => {
+    const { rows, hidden } = sidebarTrips(trips, null, 3);
+    expect(ids(rows)).toEqual([4, 3, 2]);
+    expect(hidden).toBe(1);
+  });
+
+  it("lists every trip when they fit", () => {
+    expect(sidebarTrips(trips, null, 5)).toEqual({ rows: [...trips].reverse(), hidden: 0 });
+    expect(sidebarTrips([], null, 5)).toEqual({ rows: [], hidden: 0 });
+  });
+
+  it("keeps the trip on show in the last place when it is older", () => {
+    expect(ids(sidebarTrips(trips, 1, 3).rows)).toEqual([4, 3, 1]);
+    expect(ids(sidebarTrips(trips, 3, 3).rows)).toEqual([4, 3, 2]);
+    // A trip that has since been deleted takes no row.
+    expect(ids(sidebarTrips(trips, 9, 3).rows)).toEqual([4, 3, 2]);
   });
 });

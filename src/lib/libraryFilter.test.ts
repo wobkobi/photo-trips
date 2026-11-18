@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { Tile } from "./api";
-import { filterChoices, filterTiles, isFiltered, NO_FILTER } from "./libraryFilter";
+import {
+  clearFilters,
+  filterChoices,
+  filterTiles,
+  isFiltered,
+  isFilteredBesidesTrip,
+  NO_FILTER,
+  sameFilter,
+  tripOf,
+} from "./libraryFilter";
 
 /**
  * A photo tile, with any fields overridden.
@@ -74,19 +83,63 @@ describe("filterTiles", () => {
 });
 
 describe("filterChoices", () => {
-  it("offers trips and years newest first, and says what's there to filter", () => {
+  it("offers years newest first, and says what's there to filter", () => {
     expect(filterChoices(tiles, NO_FILTER)).toEqual({
-      trips: [{ id: 7, name: "Japan" }],
       years: ["2025", "2024"],
+      onTrip: true,
       videos: true,
       uncertain: true,
     });
   });
 
-  it("still offers a chosen trip that has no photos left", () => {
-    const filter = { ...NO_FILTER, trip: { id: 9, name: "Wellington" }, year: "2019" };
-    const choices = filterChoices(tiles, filter);
-    expect(choices.trips.map((t) => t.name)).toEqual(["Japan", "Wellington"]);
+  it("still offers a chosen year that has no photos left", () => {
+    const choices = filterChoices(tiles.slice(2), { ...NO_FILTER, year: "2019" });
     expect(choices.years).toEqual(["2025", "2024", "2019"]);
+    expect(choices.onTrip).toBe(false);
+  });
+});
+
+describe("trips as places", () => {
+  const trip = { id: 7, name: "Japan" };
+
+  it("finds the trip on show, but not for all or for photos on no trip", () => {
+    expect(tripOf({ ...NO_FILTER, trip, year: "2025" })).toBe(trip);
+    expect(tripOf(NO_FILTER)).toBeNull();
+    expect(tripOf({ ...NO_FILTER, trip: "none" })).toBeNull();
+  });
+
+  it("counts every filter but the trip itself", () => {
+    expect(isFilteredBesidesTrip({ ...NO_FILTER, trip })).toBe(false);
+    expect(isFilteredBesidesTrip({ ...NO_FILTER, trip, kind: "videos" })).toBe(true);
+    expect(isFilteredBesidesTrip({ ...NO_FILTER, trip: "none" })).toBe(true);
+    expect(isFilteredBesidesTrip({ ...NO_FILTER, name: " " })).toBe(false);
+  });
+
+  it("clears everything but the trip on show", () => {
+    const filter = { ...NO_FILTER, trip, year: "2025", uncertain: true, name: "img" };
+    expect(clearFilters(filter)).toEqual({ ...NO_FILTER, trip });
+    expect(clearFilters({ ...NO_FILTER, trip: "none", kind: "photos" })).toEqual(NO_FILTER);
+  });
+});
+
+describe("sameFilter", () => {
+  const trip = { id: 7, name: "Japan" };
+
+  it("matches equal filters, and a trip by id even after a rename", () => {
+    expect(sameFilter(NO_FILTER, { ...NO_FILTER })).toBe(true);
+    expect(
+      sameFilter({ ...NO_FILTER, trip }, { ...NO_FILTER, trip: { id: 7, name: "Tokyo" } }),
+    ).toBe(true);
+  });
+
+  it("tells apart any part that differs", () => {
+    expect(
+      sameFilter({ ...NO_FILTER, trip }, { ...NO_FILTER, trip: { id: 8, name: "Japan" } }),
+    ).toBe(false);
+    expect(sameFilter(NO_FILTER, { ...NO_FILTER, trip: "none" })).toBe(false);
+    expect(sameFilter(NO_FILTER, { ...NO_FILTER, year: "2025" })).toBe(false);
+    expect(sameFilter(NO_FILTER, { ...NO_FILTER, kind: "videos" })).toBe(false);
+    expect(sameFilter(NO_FILTER, { ...NO_FILTER, uncertain: true })).toBe(false);
+    expect(sameFilter(NO_FILTER, { ...NO_FILTER, name: "img" })).toBe(false);
   });
 });

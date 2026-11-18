@@ -71,3 +71,23 @@ export function pickWithPartners(sets: DupSet[], hash: string, keep: number | nu
   }
   return picks;
 }
+
+/**
+ * The picks still worth keeping after the sets are read again: those whose set is still listed
+ * and, for a chosen copy, whose copy is still in it. A set that went (binned, or no longer a
+ * duplicate) or a copy that left one loses its pick, so a later set never inherits it.
+ * @param sets - every duplicate set now listed
+ * @param picks - the user's picks
+ * @returns the picks that still apply; the same object when none were dropped
+ */
+export function prunePicks(sets: DupSet[], picks: Picks): Picks {
+  const byHash = new Map(sets.map((s) => [s.hash, s]));
+  const kept: Picks = {};
+  let dropped = false;
+  for (const [hash, pick] of Object.entries(picks)) {
+    const set = byHash.get(hash);
+    if (set && (pick === null || set.copies.some((c) => c.id === pick))) kept[hash] = pick;
+    else dropped = true;
+  }
+  return dropped ? kept : picks;
+}

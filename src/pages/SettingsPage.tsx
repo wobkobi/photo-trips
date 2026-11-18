@@ -15,7 +15,6 @@ import type { PageId } from "../App";
 import { AppIcon } from "../components/AppIcon";
 import { BrandMark } from "../components/BrandMark";
 import { FolderNames } from "../components/FolderNames";
-import { Icon } from "../components/Icon";
 import { InboxSettings } from "../components/InboxSettings";
 import { LegalLinks } from "../components/LegalLinks";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
@@ -29,6 +28,7 @@ import { count } from "../lib/format";
 import { normaliseExtensions } from "../lib/settingValues";
 import { useAction } from "../lib/useAction";
 import { useJobDone, useJobs } from "../lib/useJobs";
+import { usePageMemory } from "../lib/usePageMemory";
 import { useSettings } from "../lib/useSettings";
 
 /** The groups of settings, one shown at a time, in the order the list shows them. */
@@ -76,7 +76,8 @@ export function SettingsPage({
   const windowing = useAction();
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [version, setVersion] = useState<string | null>(null);
-  const [tab, setTab] = useState<TabId>(showAbout ? "about" : "display");
+  // Opens on the tab last shown; a request for About (below) still wins.
+  const [tab, setTab] = usePageMemory<TabId>("settings.tab", showAbout ? "about" : "display");
   /** A new library folder picked and waiting for the user to confirm it. */
   const [newRoot, setNewRoot] = useState<string | null>(null);
 
@@ -90,8 +91,9 @@ export function SettingsPage({
     };
   }, []);
 
-  // Also while the page is already open, when the menu asks for About again. Switched while
-  // rendering, so About shows in the same paint; the effect then marks the request done.
+  // Also over a remembered tab, and while the page is already open when the menu asks for About
+  // again. Switched while rendering, so About shows in the same paint; the effect then marks the
+  // request done.
   if (showAbout && tab !== "about") setTab("about");
   useEffect(() => {
     if (showAbout) onAboutShown();
@@ -162,24 +164,19 @@ export function SettingsPage({
         <PageHeader
           title="Folder names"
           detail="Every sorted folder gets its new name. Files outside them stay where they are."
+          onBack={applying ? undefined : () => setReview(null)}
           actions={
             !moving && (
-              <>
-                <Button variant="ghost" onClick={() => setReview(null)} disabled={applying}>
-                  <Icon name="back" size={16} />
-                  Back to Settings
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => rename(review)}
-                  disabled={applying}
-                  busy={running !== null}
-                >
-                  {review.files > 0
-                    ? `Rename folders and move ${count(review.files, "file", "files")}`
-                    : "Save folder names"}
-                </Button>
-              </>
+              <Button
+                variant="primary"
+                onClick={() => rename(review)}
+                disabled={applying}
+                busy={running !== null}
+              >
+                {review.files > 0
+                  ? `Rename folders and move ${count(review.files, "file", "files")}`
+                  : "Save folder names"}
+              </Button>
             )
           }
         />
@@ -418,6 +415,8 @@ function SettingsTabs({
    * @param event - the key press on a tab
    */
   function onKey(event: KeyboardEvent): void {
+    // Alt+arrows are the app's Back and Forward.
+    if (event.altKey) return;
     const at = TABS.findIndex((t) => t.id === tab);
     const steps: Record<string, number> = {
       ArrowDown: at + 1,

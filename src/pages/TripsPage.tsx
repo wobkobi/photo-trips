@@ -8,7 +8,6 @@ import {
 } from "react";
 import type { PageId } from "../App";
 import { Field, INPUT } from "../components/Field";
-import { Icon } from "../components/Icon";
 import { PhotoPicker, PickBar } from "../components/PhotoPicker";
 import { MovingProgress, PlanView, ResultBanner } from "../components/PlanPreview";
 import { Button, EmptyState, HOVER_RING, LIST_FILL, PageHeader } from "../components/ui";
@@ -58,6 +57,11 @@ interface Editor {
    * days can start unticked.
    */
   picked: ReadonlySet<number> | null;
+  /**
+   * The name, dates or ticks have been changed by hand since the editor opened, so stepping back
+   * would lose work. Ticks set from the Library's picks don't count.
+   */
+  changed: boolean;
 }
 
 /**
@@ -71,6 +75,22 @@ function newEditor(start: TripStart | null): Editor {
     form: start?.form ?? EMPTY_FORM,
     left: NONE_LEFT,
     picked: start?.picked ? new Set(start.picked) : null,
+    changed: false,
+  };
+}
+
+/**
+ * The editor for an existing trip, with the photos taken out of it unticked.
+ * @param trip - the trip to edit
+ * @returns the editor state
+ */
+function editorOf(trip: TripInfo): Editor {
+  return {
+    trip,
+    form: formFromTrip(trip),
+    left: new Set(trip.excluded),
+    picked: null,
+    changed: false,
   };
 }
 
@@ -92,6 +112,8 @@ interface Review {
  * @param props - Component props.
  * @param props.draft - a trip started elsewhere (a Library selection or a suggestion) to open
  * @param props.onDraftUsed - called once the draft has opened in the editor
+ * @param props.edit - a trip to open in the editor, from the Library's Edit
+ * @param props.onEditUsed - called once that trip has opened in the editor
  * @param props.onNavigate - switch to another page
  * @param props.onShowTrip - open the Library showing only one trip's photos
  * @returns the page
@@ -99,18 +121,25 @@ interface Review {
 export function TripsPage({
   draft,
   onDraftUsed,
+  edit,
+  onEditUsed,
   onNavigate,
   onShowTrip,
 }: {
   draft: TripStart | null;
   onDraftUsed: () => void;
+  edit: TripInfo | null;
+  onEditUsed: () => void;
   onNavigate: (page: PageId) => void;
   onShowTrip: (trip: FilterTrip) => void;
 }): ReactElement {
   const { running } = useJobs();
   const { settings } = useSettings();
   const [trips, setTrips] = useState<TripInfo[] | null>(null);
-  const [editor, setEditor] = useState<Editor | null>(() => (draft ? newEditor(draft) : null));
+  const [editor, setEditor] = useState<Editor | null>(() => {
+    if (draft) return newEditor(draft);
+    return edit ? editorOf(edit) : null;
+  });
   const [review, setReview] = useState<Review | null>(null);
   const [applying, setApplying] = useState<string | null>(null);
   const [result, setResult] = useState<{ summary: ApplySummary; done: string } | null>(null);
@@ -120,6 +149,9 @@ export function TripsPage({
   useEffect(() => {
     if (draft) onDraftUsed();
   }, [draft, onDraftUsed]);
+  useEffect(() => {
+    if (edit) onEditUsed();
+  }, [edit, onEditUsed]);
 
   const load = useCallback(() => {
     api.listTrips().then(
@@ -234,14 +266,31 @@ export function TripsPage({
   const moving = running?.kind === "apply" || running?.kind === "undo";
   const busy = running !== null || checking;
   const listing = !moving && review === null && editor === null;
+  // The step on screen: a change under review, else the trip form, else the list of trips.
+  const reviewing = !moving && review !== null;
+  const editing = !moving && review === null && editor !== null;
+  let title = "Trips";
+  if (reviewing) title = "Preview";
+  else if (editing) title = editor.trip ? `Edit ${editor.trip.name}` : "New trip";
+  // Back from a review returns to the form it came from, or the list for a delete. Not once the
+  // change is confirmed, while its job is starting.
+  const onBack =
+    reviewing && applying === null
+      ? () => setReview(null)
+      : editing
+        ? () => setEditor(null)
+        : undefined;
 
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Trips"
+        title={title}
         detail={
           listing && trips !== null && trips.length > 0 ? trips.length.toLocaleString() : undefined
         }
+        onBack={onBack}
+        // A changed form steps back by its arrow only, so a stray Esc can't lose the work.
+        backKeys={!(editing && editor.changed)}
         actions={
           listing ? (
             <Button
@@ -256,19 +305,13 @@ export function TripsPage({
           ) : (
             review !== null &&
             !moving && (
-              <>
-                <Button variant="ghost" onClick={() => setReview(null)} busy={busy}>
-                  <Icon name="back" size={16} />
-                  {editor ? "Back to the trip" : "Back"}
-                </Button>
-                <Button
-                  variant={review.danger ? "danger" : "primary"}
-                  onClick={() => apply(review)}
-                  busy={busy}
-                >
-                  {review.action}
-                </Button>
-              </>
+              <Button
+                variant={review.danger ? "danger" : "primary"}
+                onClick={() => apply(review)}
+                busy={busy}
+              >
+                {review.action}
+              </Button>
             )
           )
         }
@@ -322,12 +365,7 @@ export function TripsPage({
               onShow={() => onShowTrip({ id: trip.id, name: trip.name })}
               onEdit={() => {
                 setResult(null);
-                setEditor({
-                  trip,
-                  form: formFromTrip(trip),
-                  left: new Set(trip.excluded),
-                  picked: null,
-                });
+                setEditor(editorOf(trip));
               }}
               onDelete={() => {
                 setResult(null);
@@ -492,13 +530,13 @@ function TripEditor({
   const set =
     (field: keyof TripForm) =>
     (value: string): void =>
-      onChange({ ...editor, form: { ...form, [field]: value } });
+      onChange({ ...editor, form: { ...form, [field]: value }, changed: true });
   /**
    * Store new unticked photos; a manual change ends the Library picks' hold on the ticks.
    * @param next - ids of the photos unticked
    */
   const setLeft = (next: ReadonlySet<number>): void => {
-    onChange({ ...editor, left: next, picked: null });
+    onChange({ ...editor, left: next, picked: null, changed: true });
   };
 
   // Photos picked in the Library become the ticked ones once their days have loaded. Later date
@@ -524,7 +562,6 @@ function TripEditor({
   return (
     <div className="flex flex-1 flex-col">
       <form onSubmit={submit} className="flex flex-col gap-3 px-5 pt-4 pb-3">
-        <h2 className="text-[18px] font-semibold">{trip ? `Edit ${trip.name}` : "New trip"}</h2>
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
           <Field label="Name">
             <input

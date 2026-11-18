@@ -1,6 +1,15 @@
 // Small shared building blocks: buttons, page header, empty state.
 
-import { useContext, type ComponentProps, type ReactElement, type ReactNode } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  type ComponentProps,
+  type ReactElement,
+  type ReactNode,
+} from "react";
+import { historyStepForButton, historyStepForKey, isTextEntry, modalOnScreen } from "../lib/menu";
 import { JOB_NAMES, JobsContext } from "../lib/useJobs";
 import { Icon } from "./Icon";
 
@@ -77,25 +86,125 @@ export function Button({
 /**
  * The toolbar along the top of a page: its name, a short note beside it (a count, say), and
  * actions on the right. It stays in view while the page scrolls.
+ *
+ * A sub-step of a page (a review, a form) passes `onBack`, which puts a back arrow before the
+ * title and makes Escape, Alt+Left and the mouse's back button step back too, ahead of the app's
+ * own back through the places visited. The keys are left alone when something else has already
+ * handled them, when they're for a box being typed in, and while a modal (the photo viewer, the
+ * tour, an open dialog) is on screen, since it handles its own keys.
+ *
+ * A step holding work that stepping back would lose (a changed form, an import being checked)
+ * passes `backKeys={false}`: only the arrow steps back, and Alt+Left and the mouse's back button
+ * are marked used without moving, so the app's own back doesn't leave the page either.
+ *
+ * After a back, focus that was in the header or went with the old step moves to the new step's
+ * title, so the keyboard carries on from the top of the page rather than from nowhere.
  * @param props - Component props.
- * @param props.title - page title
+ * @param props.title - page title, or the step's name on a sub-step
  * @param props.detail - a short note after the title
  * @param props.actions - buttons for the right side
+ * @param props.onBack - leave the sub-step for the screen it came from; omit on a top-level page
+ * @param props.backKeys - whether Escape, Alt+Left and the mouse's back button step back too
+ *   (default true); false keeps them from leaving a step with unsaved work
  * @returns the header element
  */
 export function PageHeader({
   title,
   detail,
   actions,
+  onBack,
+  backKeys = true,
 }: {
   title: string;
   detail?: ReactNode;
   actions?: ReactNode;
+  onBack?: () => void;
+  backKeys?: boolean;
 }): ReactElement {
+  // The listener reads the latest handler from the ref, so it's only added and removed when the
+  // back arrow comes and goes, not on every render that passes a new function.
+  const back = useRef(onBack);
+  useEffect(() => {
+    back.current = onBack;
+  });
+  const header = useRef<HTMLElement>(null);
+  // Step back, then once the next step has drawn, move focus to its title if focus is in the
+  // header or went with the old step. Focus the next step put somewhere itself stays there. The
+  // page may have changed, so the title is looked up afresh.
+  const goBack = useCallback(() => {
+    back.current?.();
+    requestAnimationFrame(() => {
+      const now = document.activeElement;
+      const lost = now === null || now === document.body || !now.isConnected;
+      if (!lost && !header.current?.contains(now)) return;
+      document.querySelector<HTMLElement>("main h1")?.focus({ preventScroll: true });
+    });
+  }, []);
+  const hasBack = onBack !== undefined;
+  useEffect(() => {
+    if (!hasBack) return;
+    /**
+     * Escape or Alt+Left steps back. A held key steps back once, not through every step.
+     * @param event - the document's keydown
+     */
+    function onKey(event: KeyboardEvent): void {
+      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey) return;
+      if (event.shiftKey || isTextEntry(event.target) || modalOnScreen()) return;
+      const altLeft = historyStepForKey(event) === "back";
+      if (!backKeys) {
+        // Kept from the app's history back too, which would leave the page and the work.
+        if (altLeft) event.preventDefault();
+        return;
+      }
+      const escape = event.key === "Escape" && !event.altKey;
+      if (!escape && !altLeft) return;
+      // Marks the key as used, so a page's own Escape handler (clearing a selection) and the
+      // app's history back both skip it.
+      event.preventDefault();
+      goBack();
+    }
+    /**
+     * The mouse's back button steps back, as Alt+Left does.
+     * @param event - the document's mouseup
+     */
+    function onMouse(event: MouseEvent): void {
+      if (event.defaultPrevented || historyStepForButton(event.button) !== "back") return;
+      if (modalOnScreen()) return;
+      event.preventDefault();
+      if (backKeys) goBack();
+    }
+    // On the document rather than the window, so these run before the app's history back and
+    // forward, which listen on the window and leave a key or button already used here alone.
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mouseup", onMouse);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mouseup", onMouse);
+    };
+  }, [hasBack, backKeys, goBack]);
+
   return (
-    <header className="sticky top-0 z-20 flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-5 py-2">
+    <header
+      ref={header}
+      className="sticky top-0 z-20 flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-5 py-2"
+    >
       <div className="flex min-w-0 flex-1 basis-60 flex-wrap items-baseline gap-x-3">
-        <h1 className="text-[20px] font-semibold">{title}</h1>
+        {hasBack && (
+          // Negative margins keep the button within the title's line height, so centring it on
+          // that line lines its arrow up with the title's letters rather than pushing them down.
+          <button
+            type="button"
+            onClick={goBack}
+            aria-label="Back"
+            title={backKeys ? "Back (Esc)" : "Back"}
+            className="-my-1 -mr-1 -ml-1.5 inline-flex size-8 shrink-0 items-center justify-center self-center rounded-md text-muted transition-colors hover:bg-raised hover:text-ink active:bg-line"
+          >
+            <Icon name="back" size={20} />
+          </button>
+        )}
+        <h1 tabIndex={-1} className="text-[20px] font-semibold outline-none">
+          {title}
+        </h1>
         {detail && <p className="text-[14px] text-muted">{detail}</p>}
       </div>
       {/* Buttons that don't fit move to the next line whole, rather than breaking their words. */}

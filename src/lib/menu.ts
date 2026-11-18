@@ -1,5 +1,6 @@
-// Keyboard shortcuts for the window's menu bar. Keys pressed in the page never reach the native
-// menu, so the page matches them here and asks the backend to run the same menu item.
+// Keyboard shortcuts for the window's menu bar, and the keys and mouse buttons that go back and
+// forward. Keys pressed in the page never reach the native menu, so the page matches them here and
+// asks the backend to run the same menu item.
 
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef } from "react";
@@ -18,10 +19,10 @@ const SHORTCUTS: Record<string, string> = {
   "Ctrl+,": "menu-settings",
   F1: "menu-help",
   "Ctrl+1": "menu-page-library",
-  "Ctrl+2": "menu-page-sort",
-  "Ctrl+3": "menu-page-trips",
-  "Ctrl+4": "menu-page-suggestions",
-  "Ctrl+5": "menu-page-import",
+  "Ctrl+2": "menu-page-trips",
+  "Ctrl+3": "menu-page-import",
+  "Ctrl+4": "menu-page-sort",
+  "Ctrl+5": "menu-page-suggestions",
   "Ctrl+6": "menu-page-duplicates",
   "Ctrl+7": "menu-page-history",
 };
@@ -39,6 +40,66 @@ export function shortcutFor(event: KeyPress): string | null {
   const digit = /^Digit(\d)$/.exec(event.code)?.[1];
   const key = digit ?? (event.key.length === 1 ? event.key.toUpperCase() : event.key);
   return SHORTCUTS[`${event.ctrlKey ? "Ctrl+" : ""}${key}`] ?? null;
+}
+
+/** A step through the places visited. */
+export type HistoryStep = "back" | "forward";
+
+/**
+ * The step Alt+Left or Alt+Right asks for.
+ * @param event - the keydown
+ * @returns back or forward, or null for any other keys
+ */
+export function historyStepForKey(event: KeyPress): HistoryStep | null {
+  if (!event.altKey || event.ctrlKey || event.shiftKey || event.metaKey) return null;
+  if (event.key === "ArrowLeft") return "back";
+  if (event.key === "ArrowRight") return "forward";
+  return null;
+}
+
+/**
+ * The step a mouse's side button asks for. `MouseEvent.button` counts from 0, so the buttons
+ * Windows calls 4 (back) and 5 (forward) arrive as 3 and 4.
+ * @param button - the event's `button`
+ * @returns back or forward, or null for any other button
+ */
+export function historyStepForButton(button: number): HistoryStep | null {
+  if (button === 3) return "back";
+  if (button === 4) return "forward";
+  return null;
+}
+
+/** Input types that take no typing, so keys on one are free for the page. */
+const NOT_TEXT_INPUTS = new Set([
+  "checkbox",
+  "radio",
+  "button",
+  "submit",
+  "reset",
+  "range",
+  "color",
+]);
+
+/**
+ * A key press aimed at a box that takes typing, where Escape and the arrows belong to the box.
+ * @param target - the key press's target
+ * @returns true for a text-like input, a textarea, a select or editable text
+ */
+export function isTextEntry(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable || target.tagName === "TEXTAREA" || target.tagName === "SELECT") {
+    return true;
+  }
+  return target instanceof HTMLInputElement && !NOT_TEXT_INPUTS.has(target.type);
+}
+
+/**
+ * Whether a modal is on screen, which handles its own keys. The viewer and the tour mark
+ * themselves aria-modal; a native dialog is open when shown.
+ * @returns true while one is showing
+ */
+export function modalOnScreen(): boolean {
+  return document.querySelector('dialog[open], [aria-modal="true"]') !== null;
 }
 
 /**
