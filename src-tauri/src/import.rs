@@ -417,7 +417,7 @@ fn row_json(to: &Path, row: &NewRow, hash: Option<&str>, table: &FormatTable, no
 
 /// Hashes of the library's photos and videos with these sizes, hashing (and saving) any that
 /// weren't yet. A file that can't be read is skipped and stays unhashed.
-fn library_hashes(ctx: &Ctx, sizes: &HashSet<u64>) -> Result<LibraryHashes> {
+fn library_hashes(ctx: &Ctx, sizes_wanted: &HashSet<u64>) -> Result<LibraryHashes> {
     let rows: Vec<(i64, PathBuf, u64, Option<String>)> = {
         let conn = lock(ctx.db)?;
         let mut stmt = conn.prepare(
@@ -432,7 +432,7 @@ fn library_hashes(ctx: &Ctx, sizes: &HashSet<u64>) -> Result<LibraryHashes> {
             ))
         })?;
         rows.filter_map(|r| r.ok())
-            .filter(|(_, _, size, _)| sizes.contains(size))
+            .filter(|(_, _, size, _)| sizes_wanted.contains(size))
             .collect()
     };
     let unhashed: Vec<(i64, PathBuf)> = rows
@@ -458,9 +458,20 @@ fn library_hashes(ctx: &Ctx, sizes: &HashSet<u64>) -> Result<LibraryHashes> {
         }
         tx.commit()?;
     }
-    let sizes = rows.iter().map(|(_, _, size, _)| *size).collect();
+    let mut sizes: HashSet<u64> = rows.iter().map(|(_, _, size, _)| *size).collect();
     let mut hashes: HashSet<String> = rows.into_iter().filter_map(|(_, _, _, h)| h).collect();
     hashes.extend(fresh.into_iter().flatten());
+    // Copies Duplicates removed count as in the library, so they aren't brought back.
+    let removed: Vec<(String, u64)> = {
+        let conn = lock(ctx.db)?;
+        let mut stmt = conn.prepare("SELECT hash, size FROM removed_copies")?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get::<_, i64>(1)? as u64)))?;
+        rows.filter_map(|r| r.ok()).collect()
+    };
+    for (hash, size) in removed.into_iter().filter(|(_, size)| sizes_wanted.contains(size)) {
+        sizes.insert(size);
+        hashes.insert(hash);
+    }
     Ok(LibraryHashes { sizes, hashes })
 }
 

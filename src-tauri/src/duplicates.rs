@@ -196,8 +196,54 @@ pub fn remove_duplicates(
             label: &label,
             on_begin: None,
         };
+        remember_removed(&state.db, &removals, ctx.cancel_flag(), &|stage, done, total| {
+            ctx.report(stage, done, total)
+        })?;
         executor::remove(&env, &batch, &removals)
     })
+}
+
+/// Note the hash and size of each copy about to go, for Import to leave out (see
+/// `removed_copies` in db.rs). Copies with no hash yet are read now, while they're still there.
+fn remember_removed(db: &Mutex<Connection>, removals: &[Removal], cancel: &AtomicBool, report: Report) -> Result<()> {
+    let ids: Vec<i64> = removals
+        .iter()
+        .filter(|r| r.keeper.is_some())
+        .filter_map(|r| r.files.first().map(|f| f.media_id))
+        .collect();
+    let rows: Vec<(PathBuf, i64, Option<String>)> = {
+        let conn = lock(db)?;
+        let mut stmt = conn.prepare("SELECT path, size, hash FROM media WHERE id = ?1")?;
+        ids.iter()
+            .filter_map(|id| {
+                stmt.query_row([id], |r| Ok((PathBuf::from(r.get::<_, String>(0)?), r.get(1)?, r.get(2)?)))
+                    .ok()
+            })
+            .collect()
+    };
+    let unhashed: Vec<PathBuf> = rows
+        .iter()
+        .filter(|(_, _, hash)| hash.is_none())
+        .map(|(path, _, _)| path.clone())
+        .collect();
+    let mut fresh = hash::many(&unhashed, "Noting the copies going", cancel, report).into_iter();
+    let found: Vec<(String, i64)> = rows
+        .into_iter()
+        .filter_map(|(_, size, hash)| Some((hash.or_else(|| fresh.next().flatten())?, size)))
+        .collect();
+    if cancel.load(Ordering::Relaxed) {
+        return Err(Error::msg("Cancelled"));
+    }
+    let mut conn = lock(db)?;
+    let tx = conn.transaction()?;
+    {
+        let mut insert = tx.prepare("INSERT OR IGNORE INTO removed_copies (hash, size) VALUES (?1, ?2)")?;
+        for (hash, size) in &found {
+            insert.execute(params![hash, size])?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
 }
 
 fn locate_exiftool(app: &AppHandle) -> Option<PathBuf> {
@@ -1348,5 +1394,32 @@ mod tests {
         let summary = run_removals(&db, root, &removals);
         assert_eq!((summary.moved, summary.failed), (1, 0));
         assert!(!stripped.exists() && fake::holds(&stripped) && kept.exists());
+    }
+
+    #[test]
+    fn removed_copies_are_noted_for_import_to_leave_out() {
+        let (dir, db) = library(&[("a/IMG_1.JPG", PHOTO), ("b/IMG_1.JPG", OTHER)]);
+        let gone = dir.path().join("b/IMG_1.JPG");
+        let rows = index::load_rows(&db.lock().unwrap()).unwrap();
+        let id = rows.iter().find(|r| r.path.ends_with("b/IMG_1.JPG")).unwrap().id;
+        let removal = Removal {
+            files: vec![BinFile {
+                media_id: id,
+                path: gone.clone(),
+            }],
+            keeper: Some(Keeper {
+                path: dir.path().join("a/IMG_1.JPG"),
+                same: Same::Bytes(String::new()),
+            }),
+        };
+        remember_removed(&db, &[removal], &AtomicBool::new(false), &no_report).unwrap();
+        let noted: (String, i64) = db
+            .lock()
+            .unwrap()
+            .query_row("SELECT hash, size FROM removed_copies", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert_eq!(noted, (hash::file(&gone).unwrap(), OTHER.len() as i64));
     }
 }

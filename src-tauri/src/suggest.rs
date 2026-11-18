@@ -9,6 +9,7 @@
 // 4. Name it after the area, region or country its located photos fit (see `place_name`), or its
 //    dates.
 // 5. Leave out runs that overlap a trip or a dismissed suggestion.
+// 6. Add folders that look like trips (see `folder_trips`), over any run they overlap.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::OnceLock;
@@ -20,10 +21,11 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::AppState;
-use crate::commands::lock_db;
+use crate::commands::{library_root, lock_db};
 use crate::dates::DateSource;
 use crate::db;
 use crate::error::{Error, Result};
+use crate::folder_trips::{self, FolderTrip};
 use crate::groups::{self, Group};
 use crate::index;
 use crate::trips::{self, SampleTile, Trip};
@@ -490,6 +492,9 @@ pub struct Suggestion {
     /// Whole km, when some days were away.
     pub away_km: Option<u32>,
     pub sample: Vec<SampleTile>,
+    /// The folder it was found from, relative to the library, when it's a folder that looks
+    /// like a trip rather than a run of busy days.
+    pub folder: Option<String>,
 }
 
 /// Where home is, for the page to explain away days.
@@ -555,7 +560,7 @@ pub fn home_place(location: String) -> Result<Option<String>> {
     }))
 }
 
-fn load_dismissed(conn: &Connection) -> Result<Vec<(NaiveDate, NaiveDate)>> {
+pub(crate) fn load_dismissed(conn: &Connection) -> Result<Vec<(NaiveDate, NaiveDate)>> {
     let mut stmt = conn.prepare("SELECT start_day, end_day FROM dismissed_suggestions")?;
     let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
     let parse = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok();
@@ -582,9 +587,10 @@ fn spread<T: Copy>(items: &[T], limit: usize) -> Vec<T> {
 /// Trips Pic Cabinet thinks you took, with their photo counts, names and sample photos.
 #[tauri::command(async)]
 pub fn suggest_trips(state: State<'_, AppState>) -> Result<Suggestions> {
-    let (rows, trips, dismissed, (min_photos, set_home)) = {
+    let (root, rows, trips, dismissed, (min_photos, set_home)) = {
         let conn = lock_db(&state)?;
         (
+            library_root(&conn).ok(),
             index::load_rows(&conn)?,
             trips::load(&conn)?,
             load_dismissed(&conn)?,
@@ -609,11 +615,15 @@ pub fn suggest_trips(state: State<'_, AppState>) -> Result<Suggestions> {
         .iter()
         .filter(|r| is_clear(r, &trips, &[]))
         .partition(|r| is_clear(r, &[], &dismissed));
-    let suggestions = clear
+    // Folders come first: a run of busy days over one says the same trip less well.
+    let folders = root.map_or_else(Vec::new, |root| folder_trips::find(&root, &groups, &trips, &dismissed));
+    let mut suggestions: Vec<Suggestion> = clear
         .into_iter()
-        .rev()
+        .filter(|run| folders.iter().all(|f| f.end < run.start || run.end < f.start))
         .map(|run| describe(run, &groups))
+        .chain(folders.iter().map(|f| from_folder(f, &groups)))
         .collect();
+    suggestions.sort_by(|a, b| b.start_day.cmp(&a.start_day));
     let home = found.home.map(|home| HomeInfo {
         place: place_of(home).map(|p| p.town),
         set: set_home.is_some(),
@@ -649,6 +659,28 @@ fn describe(run: &Run, groups: &[Group]) -> Suggestion {
         away_days: run.away_days,
         away_km: run.away_km.map(|km| km.round() as u32),
         sample: trips::sample(&inside),
+        folder: None,
+    }
+}
+
+/// A folder that looks like a trip as a suggestion, named after the folder. Its files are every
+/// photo taken in its days, since that's what the trip would hold.
+fn from_folder(found: &FolderTrip, groups: &[Group]) -> Suggestion {
+    let start: NaiveDateTime = found.start.and_time(NaiveTime::MIN);
+    let end = found.end.and_hms_opt(23, 59, 59).unwrap_or(start);
+    let inside: Vec<&Group> = groups
+        .iter()
+        .filter(|g| start <= g.taken_at && g.taken_at <= end)
+        .collect();
+    Suggestion {
+        start_day: found.start.format("%Y-%m-%d").to_string(),
+        end_day: found.end.format("%Y-%m-%d").to_string(),
+        name: found.name.clone(),
+        files: inside.len(),
+        away_days: 0,
+        away_km: None,
+        sample: trips::sample(&inside),
+        folder: Some(found.folder.clone()),
     }
 }
 

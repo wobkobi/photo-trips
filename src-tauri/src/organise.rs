@@ -1,7 +1,7 @@
 // Commands for sorting the library into trip and year/month folders: a dry-run preview for
 // the user to review, then applying exactly that preview as one undoable batch.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -14,11 +14,13 @@ use crate::AppState;
 use crate::commands::{format_table, library_root, lock_db};
 use crate::error::{Error, Result};
 use crate::executor::{self, Env, NewBatch, OnBegin};
+use crate::folder_trips;
 use crate::groups;
 use crate::index;
 use crate::jobs;
 use crate::naming::Naming;
 use crate::planner::{self, GroupMove, Plan, Rules};
+use crate::suggest;
 use crate::trips;
 
 /// A previewed plan waiting for the user to apply it.
@@ -104,6 +106,9 @@ pub struct Preview {
     /// Destination folders, relative to the library, with how many files each receives.
     pub folders: Vec<FolderCount>,
     pub items: Vec<PreviewItem>,
+    /// Folders that look like trips (see `folder_trips`) the plan moves files out of, so the
+    /// page can offer to make them trips instead.
+    pub trip_folders: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -131,7 +136,7 @@ pub struct PreviewItem {
 /// Work out the moves that would put every file in its trip or year and month folder.
 #[tauri::command(async)]
 pub fn plan_organise(state: State<'_, AppState>, previews: State<'_, Previews>) -> Result<Preview> {
-    let (root, table, rows, trips, naming) = {
+    let (root, table, rows, trips, naming, dismissed) = {
         let conn = lock_db(&state)?;
         (
             library_root(&conn)?,
@@ -139,6 +144,7 @@ pub fn plan_organise(state: State<'_, AppState>, previews: State<'_, Previews>) 
             index::load_rows(&conn)?,
             trips::load(&conn)?,
             Naming::load(&conn)?,
+            suggest::load_dismissed(&conn)?,
         )
     };
     let versions: HashMap<i64, i64> = rows.iter().map(|r| (r.id, r.mtime)).collect();
@@ -156,6 +162,16 @@ pub fn plan_organise(state: State<'_, AppState>, previews: State<'_, Previews>) 
     );
     let label = sort_label(plan.file_count());
     let mut preview = describe(&root, &plan, &versions);
+    let emptied: HashSet<&str> = preview
+        .items
+        .iter()
+        .filter_map(|item| Path::new(&item.from).parent()?.to_str())
+        .collect();
+    preview.trip_folders = folder_trips::find(&root, &groups, &trips, &dismissed)
+        .into_iter()
+        .map(|f| f.folder)
+        .filter(|folder| emptied.contains(folder.as_str()))
+        .collect();
     preview.id = previews.store(PendingBatch {
         kind: "organise",
         label,
@@ -270,6 +286,7 @@ pub(crate) fn describe(root: &Path, plan: &Plan, versions: &HashMap<i64, i64>) -
             .map(|(folder, files)| FolderCount { folder, files })
             .collect(),
         items,
+        trip_folders: Vec::new(),
     }
 }
 

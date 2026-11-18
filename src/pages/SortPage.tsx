@@ -10,9 +10,11 @@ import { useToasts } from "../lib/useToasts";
 /**
  * Sort the library into trip and year/month folders: review every move first, then apply it
  * as one change that can be undone. The result shows as a toast with Undo.
+ * @param props - Component props.
+ * @param props.onSuggestions - open Suggestions, where folders that look like trips can become trips
  * @returns the page
  */
-export function SortPage(): ReactElement {
+export function SortPage({ onSuggestions }: { onSuggestions: () => void }): ReactElement {
   const { running } = useJobs();
   const { expectJob } = useToasts();
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -128,7 +130,41 @@ export function SortPage(): ReactElement {
         <p className="px-8 py-6 text-muted">Working out where everything goes</p>
       )}
       {!moving && preview !== null && preview.files === 0 && <NothingToDo preview={preview} />}
+      {ready && preview.tripFolders.length > 0 && (
+        <TripFolders folders={preview.tripFolders} onSuggestions={onSuggestions} />
+      )}
       {ready && <PlanView preview={preview} skipped={skipped} onToggle={toggle} />}
+    </div>
+  );
+}
+
+/**
+ * Folders the sort would empty that look like trips Pic Cabinet doesn't know about. Sorting
+ * spreads them into month folders; making them trips keeps them together.
+ * @param props - Component props.
+ * @param props.folders - the folders, relative to the library
+ * @param props.onSuggestions - open Suggestions, where each can become a trip or be sorted normally
+ * @returns the notice
+ */
+function TripFolders({
+  folders,
+  onSuggestions,
+}: {
+  folders: string[];
+  onSuggestions: () => void;
+}): ReactElement {
+  const named = folders.length === 1 ? folders[0] : `${folders.length} folders`;
+  return (
+    <div className="mx-5 mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-line bg-surface px-4 py-3">
+      <p className="min-w-0 flex-1 basis-72 text-[15px]">
+        {named} {folders.length === 1 ? "looks" : "look"} like{" "}
+        {folders.length === 1 ? "a trip" : "trips"}. Sorting moves{" "}
+        {folders.length === 1 ? "its" : "their"} files into month folders.
+        {folders.length > 1 && (
+          <span className="block break-all text-muted">{folders.join(", ")}</span>
+        )}
+      </p>
+      <Button onClick={onSuggestions}>{folders.length === 1 ? "Make a trip" : "Make trips"}</Button>
     </div>
   );
 }

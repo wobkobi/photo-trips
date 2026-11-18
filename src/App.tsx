@@ -533,7 +533,7 @@ function CurrentPage({
         />
       );
     case "sort":
-      return <SortPage />;
+      return <SortPage onSuggestions={() => onNavigate("suggestions")} />;
     case "trips":
       return (
         <TripsPage

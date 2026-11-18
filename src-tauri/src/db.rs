@@ -136,6 +136,15 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE media ADD COLUMN fingerprint TEXT;
     ALTER TABLE media ADD COLUMN camera INTEGER;
 "#,
+    // Hashes of copies Duplicates removed. Import leaves them out, so a copy whose details differ
+    // from the one kept (and so has a different hash) doesn't come back from the phone or card
+    // it was imported from.
+    r#"
+    CREATE TABLE removed_copies (
+        hash TEXT PRIMARY KEY,
+        size INTEGER NOT NULL
+    );
+"#,
 ];
 
 /// Index into [`MIGRATIONS`] of the one that turns stored phone times into real moments.

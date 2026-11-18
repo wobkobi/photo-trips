@@ -11,6 +11,7 @@ const japan: Suggestion = {
   awayDays: 0,
   awayKm: null,
   sample: [],
+  folder: null,
 };
 
 describe("daysIn", () => {

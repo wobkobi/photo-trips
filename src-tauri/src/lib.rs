@@ -9,6 +9,7 @@ mod error;
 mod executor;
 mod exiftool;
 mod extensions;
+mod folder_trips;
 mod formats;
 mod groups;
 mod hash;
