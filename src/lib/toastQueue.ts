@@ -68,12 +68,19 @@ export interface ToastInput {
   /** The History batch its Undo puts back; no Undo when absent. */
   batchId?: number;
   link?: ToastLink;
+  /**
+   * The job that made it. A new toast replaces an earlier one from the same job unless that one
+   * is a warning, so deleting photo after photo shows one toast, not a stack over the photo.
+   * Older batches stay undoable from History.
+   */
+  job?: string;
 }
 
 export interface Toast extends Required<Pick<ToastInput, "text" | "problem">> {
   id: number;
   batchId: number | null;
   link: ToastLink | null;
+  job: string | null;
 }
 
 /** A page's wishes for the toast of a job it is about to start. */
@@ -134,15 +141,17 @@ export type ToastAction =
 export function toastReducer(state: ToastState, action: ToastAction): ToastState {
   switch (action.type) {
     case "add": {
-      const { text, problem = false, batchId, link } = action.toast;
+      const { text, problem = false, batchId, link, job } = action.toast;
       const toast: Toast = {
         id: state.next,
         text,
         problem,
         batchId: batchId ?? null,
         link: link ?? null,
+        job: job ?? null,
       };
-      return { toasts: [...state.toasts, toast].slice(-MAX_TOASTS), next: state.next + 1 };
+      const kept = state.toasts.filter((t) => t.problem || job === undefined || t.job !== job);
+      return { toasts: [...kept, toast].slice(-MAX_TOASTS), next: state.next + 1 };
     }
     case "dismiss":
       return remove(state, (t) => t.id === action.id);

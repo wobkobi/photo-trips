@@ -67,33 +67,18 @@ pub fn import_sources(devices: State<Devices>) -> Vec<Device> {
     devices.list()
 }
 
-/// Marks the import notification, so a click on it opens Import rather than just the window.
-const OPENS: (&str, &str) = ("opens", "import");
-/// The notification's device id, so a click checks that device even after another arrives.
-const DEVICE_KEY: &str = "device";
+/// The import notification's device id, so a click checks that device even after another arrives.
+pub const DEVICE_KEY: &str = "device";
+
+/// The card or phone with this id, while it is still connected.
+pub fn connected(app: &AppHandle, id: Option<&str>) -> Option<Device> {
+    let devices = app.try_state::<Devices>()?;
+    let current = devices.current.lock().ok()?;
+    current.iter().find(|d| Some(d.id.as_str()) == id).cloned()
+}
 
 /// Start checking for cards and phones in the background.
 pub fn start(app: &AppHandle) {
-    let clicked = app.clone();
-    // Windows only reports clicks for the installed app, which has a registered app id.
-    let _ = app.notification().on_action(move |performed| {
-        let Some(shown) = performed.notification() else {
-            return;
-        };
-        let ours = shown.extra().get(OPENS.0).is_some_and(|v| v == OPENS.1);
-        if !ours || performed.action_id() != "tap" {
-            return;
-        }
-        // Still plugged in: check it. Gone: open Import anyway, to pick another source.
-        let id = shown.extra().get(DEVICE_KEY).and_then(|v| v.as_str());
-        let device = clicked.try_state::<Devices>().and_then(|d| {
-            d.current
-                .lock()
-                .ok()
-                .and_then(|c| c.iter().find(|d| Some(d.id.as_str()) == id).cloned())
-        });
-        tray::open_import_from(&clicked, device);
-    });
     let app = app.clone();
     let spawned = std::thread::Builder::new()
         .name("devices".into())
@@ -224,7 +209,7 @@ fn notify(app: &AppHandle, device: &Device) {
         .builder()
         .title(format!("Import photos from {}?", device.name))
         .body("Click to see what's new.")
-        .extra(OPENS.0, OPENS.1)
+        .extra(tray::OPENS_KEY, tray::OPENS_IMPORT)
         .extra(DEVICE_KEY, &device.id)
         .show();
     if let Err(err) = shown {

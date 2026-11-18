@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.36.0] - 2026-11-19
+
+### Added
+
+- **Notifications:** Clicking the update notification opens Settings > About to install it, clicking
+  the inbox notification opens History, and clicking the tray notice opens the window.
+
+### Fixed
+
+- **Toasts:** Sending photos to the Recycle Bin one after another shows one result instead of a pile
+  covering the photo; earlier ones can still be undone from History.
+
 ## [0.35.0] - 2026-11-18
 
 ### Added

@@ -90,6 +90,20 @@ describe("toastReducer", () => {
     expect(state.toasts.map((t) => t.text)).toEqual(["c"]);
   });
 
+  it("replaces an earlier toast from the same job, but never a warning", () => {
+    let state = toastReducer(NO_TOASTS, { type: "add", toast: { text: "a", job: "remove" } });
+    state = toastReducer(state, {
+      type: "add",
+      toast: { text: "b", job: "remove", problem: true },
+    });
+    state = toastReducer(state, { type: "add", toast: { text: "c", job: "apply" } });
+    state = toastReducer(state, { type: "add", toast: { text: "d", job: "remove" } });
+    state = toastReducer(state, { type: "add", toast: { text: "e" } });
+    expect(state.toasts.map((t) => t.text)).toEqual(["c", "d", "e"]);
+    state = toastReducer(state, { type: "add", toast: { text: "f", job: "remove" } });
+    expect(state.toasts.map((t) => t.text)).toEqual(["c", "e", "f"]);
+  });
+
   it("returns the same state when nothing matches", () => {
     const state = toastReducer(NO_TOASTS, { type: "add", toast: { text: "a" } });
     expect(toastReducer(state, { type: "undone", batchId: 9 })).toBe(state);
