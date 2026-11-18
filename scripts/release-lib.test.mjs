@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   assetName,
   assetUrl,
+  betaPull,
+  betaTitle,
   changeHistory,
   changelogSection,
+  compareReleases,
+  feedCandidates,
   manifest,
+  nextBeta,
   releaseNotes,
 } from "./release-lib.mjs";
 
@@ -135,5 +140,48 @@ describe("changeHistory", () => {
 
   it("leaves out sections newer than the release", () => {
     expect(changeHistory(CHANGELOG, "0.10.1").map((c) => c.version)).toEqual(["0.10.1"]);
+  });
+});
+
+describe("compareReleases", () => {
+  it("puts a beta below the release it leads up to and above the one before", () => {
+    const sorted = ["0.31.0", "0.31.0-beta.10", "0.30.7", "0.31.0-beta.2"].sort(compareReleases);
+    expect(sorted).toEqual(["0.30.7", "0.31.0-beta.2", "0.31.0-beta.10", "0.31.0"]);
+  });
+
+  it("treats the same version as equal", () => {
+    expect(compareReleases("0.31.0", "0.31.0")).toBe(0);
+    expect(compareReleases("0.31.0-beta.3", "0.31.0-beta.3")).toBe(0);
+  });
+});
+
+describe("nextBeta", () => {
+  it("counts on from the highest beta of the same version", () => {
+    const tags = ["v0.31.0-beta.2", "v0.31.0-beta.10", "v0.3.0-beta.40", "v0.31.0"];
+    expect(nextBeta("0.31.0", tags)).toBe("0.31.0-beta.11");
+  });
+
+  it("starts at 1", () => {
+    expect(nextBeta("0.32.0", ["v0.31.0-beta.4", "beta-feed"])).toBe("0.32.0-beta.1");
+  });
+});
+
+describe("betaTitle", () => {
+  it("names the pull request, which betaPull reads back", () => {
+    const title = betaTitle("0.31.0-beta.3", 49);
+    expect(title).toBe("Pic Cabinet 0.31.0-beta.3 from #49");
+    expect(betaPull(title)).toBe(49);
+  });
+
+  it("finds no pull request in a finished release's title", () => {
+    expect(betaPull("Pic Cabinet 0.30.7")).toBeNull();
+    expect(betaPull("Beta update feed")).toBeNull();
+  });
+});
+
+describe("feedCandidates", () => {
+  it("lists releases and betas newest first, without the feed or stray tags", () => {
+    const tags = ["v0.30.7", "beta-feed", "v0.31.0-beta.2", "v0.31.0-beta.10", "nightly"];
+    expect(feedCandidates(tags)).toEqual(["0.31.0-beta.10", "0.31.0-beta.2", "0.30.7"]);
   });
 });

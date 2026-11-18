@@ -3,7 +3,7 @@
 # only) stop after the first step, so only changes to the app reach installed copies.
 #
 # Signing needs the updater's private key, pasted whole into the PHOTO_TRIPS_UPDATER_KEY
-# repository secret. Pull requests never run this, so the key is only used on main.
+# repository secret. beta.yml uses the same key for pull request betas, never for forks.
 name: Release
 
 on:
@@ -30,6 +30,8 @@ jobs:
   release:
     name: Release
     runs-on: windows-latest
+    outputs:
+      published: ${{ steps.publish.outcome == 'success' && !inputs.dry_run }}
     steps:
       - uses: actions/checkout@v5
 
@@ -61,6 +63,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          # beta.yml reads this cache too
+          shared-key: release
 
       - if: steps.version.outputs.new == 'true'
         run: npm ci
@@ -80,7 +84,25 @@ jobs:
           echo "PHOTO_TRIPS_UPDATER_KEY=$RUNNER_TEMP/updater.key" >> "$GITHUB_ENV"
 
       - name: Build, sign and publish
+        id: publish
         if: steps.version.outputs.new == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: npm run release -- ${{ inputs.dry_run && '--dry-run' || '' }}
+
+  # Copies on the beta channel move to the new release, since it outranks the betas leading up to it
+  feed:
+    name: Point the beta feed at the newest release
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: beta-feed
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Update the feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/beta-feed.mjs
