@@ -8,36 +8,38 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- Right-click on the open photo in the viewer shows the same menu as its tile; while a menu is open,
-  Delete and the arrow keys no longer act behind it
-- In the Library's viewer, Delete or the bin button asks, then sends the photo to the Recycle Bin;
-  the viewer stays open on the next photo
-- Each linked file in the viewer's details opens with a click, and a RAW copy can be shown in its
-  folder; a Live Photo plays its clip from the viewer bar; tiles mark Live Photos with a ring and
-  RAW pairs with RAW; the name search finds a photo by its linked files' names too
-- The photo menu starts with View and shows each item's shortcut; Delete and Ctrl+C act on the
-  focused photo when nothing is selected, and no longer reach the page behind a dialog
-- F or F11 shows the open photo or video fullscreen, with the menu bar hidden; Esc leaves fullscreen
-  first, and closing the viewer or hiding to the tray leaves it too
-- The Recycle Bin question and Set date open as dialogs above the photo viewer and menus; Enter
-  answers, Esc cancels, and keys no longer act on the page behind
-- The viewer shows how far a photo is zoomed as a percent of its real size; 1 or a click goes to
-  exactly 100%, 0 fits, and Ctrl+wheel or a touchpad pinch zooms smoothly around the pointer
-- The viewer's details panel opens and closes with I, and stays as you left it; the photo uses the
-  full space beside it
-- The viewer has a slim bar over the photo: Back, the file name and date, "N of M", and buttons for
+- **Library:** Tiles mark Live Photos with a ring and RAW pairs with RAW, and the name search finds
+  a photo by its linked files' names too.
+- **Library:** The photo menu starts with View and shows each item's shortcut. Delete and Ctrl+C act
+  on the focused photo when nothing is selected, and no longer reach the page behind a dialog.
+- **Viewer:** A slim bar over the photo: Back, the file name and date, "N of M", and buttons for
   Zoom, Rotate, Show in folder, Copy, Open and Info. It fades while the mouse rests and comes back
   when you move it. The same bar shows wherever photos open, including Import and Duplicates.
-- The details panel is shorter: "4032 × 3024 · 12 MP", a video's length as a clock time such as
-  2:14, and the camera settings on one line with no "More details" to open.
+- **Viewer:** Delete or the bin button asks, then sends the photo to the Recycle Bin, and the viewer
+  stays open on the next photo.
+- **Viewer:** Right-click on the open photo shows the same menu as its tile. While a menu is open,
+  Delete and the arrow keys no longer act behind it.
+- **Viewer:** F or F11 shows the open photo or video fullscreen, with the menu bar hidden. Esc
+  leaves fullscreen first, and closing the viewer or hiding to the tray leaves it too.
+- **Viewer:** Shows how far a photo is zoomed as a percent of its real size. 1 or a click goes to
+  exactly 100%, 0 fits, and Ctrl+wheel or a touchpad pinch zooms smoothly around the pointer.
+- **Viewer:** The details panel opens and closes with I and stays as you left it, and the photo uses
+  the full space beside it.
+- **Viewer:** The details panel is shorter: "4032 × 3024 · 12 MP", a video's length as a clock time
+  such as 2:14, and the camera settings on one line with no "More details" to open.
+- **Viewer:** Each linked file in the details opens with a click, a RAW copy can be shown in its
+  folder, and a Live Photo plays its clip from the viewer bar.
+- **Recycle Bin:** The Recycle Bin question and Set date open as dialogs above the photo viewer and
+  menus. Enter answers, Esc cancels, and keys no longer act on the page behind.
 
 ### Fixed
 
-- Fixed: Enter no longer cancels the Recycle Bin question while another job runs, and a held Enter
-  answers it once; photos sent to the Recycle Bin no longer flash back when two go in quick
-  succession; keys no longer zoom or turn the photo behind the viewer's menu; Ctrl+C copies the open
-  photo; a zoomed photo refits after turning it or hiding the details; quitting in fullscreen keeps
-  the window's own size
+- **Recycle Bin:** Enter no longer cancels the Recycle Bin question while another job runs, a held
+  Enter answers it once, and photos sent to the Recycle Bin no longer flash back when two go in
+  quick succession.
+- **Viewer:** Keys no longer zoom or turn the photo behind the viewer's menu, Ctrl+C copies the open
+  photo, a zoomed photo refits after turning it or hiding the details, and quitting in fullscreen
+  keeps the window's own size.
 
 ## [0.31.0] - 2026-11-18
 
