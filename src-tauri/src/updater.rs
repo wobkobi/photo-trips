@@ -7,13 +7,19 @@
 //
 // The app checks shortly after it starts and then once a day, and says so once per version.
 // Nothing installs without a click in Settings > About.
+//
+// With Beta updates on, checks read the beta feed instead, which names the newest release of
+// any kind (a pre-release like 0.31.0-beta.3, or a stable one). The plugin only offers a
+// version above the running one by semver, where 0.31.0-beta.3 < 0.31.0, so a beta copy moves
+// onto the stable release when it ships, and turning the setting off never downgrades: the app
+// waits for the next stable version above the beta it's on.
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant, SystemTime};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, Url};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_updater::{Update, UpdaterExt};
 
@@ -38,6 +44,11 @@ const WAKE_EVERY: Duration = Duration::from_secs(60 * 60);
 const EMIT_EVERY: Duration = Duration::from_millis(100);
 /// The version the last notification was about, so each version is announced once.
 const NOTIFIED_KEY: &str = "update_notified";
+/// The Settings switch for pre-release updates, stored as "true"/"false"; off when unset.
+pub const BETA_KEY: &str = "beta_updates";
+/// Always names the newest release, beta or stable. The stable address is in tauri.conf.json.
+/// It's on a branch because published releases are immutable, so a release file can't be updated.
+const BETA_FEED: &str = "https://raw.githubusercontent.com/wobkobi/pic-cabinet/update-feed/beta.json";
 
 /// A newer version on offer.
 #[derive(Debug, Clone, Serialize)]
@@ -180,12 +191,32 @@ fn is_due(last: Option<SystemTime>, now: SystemTime) -> bool {
     }
 }
 
+/// The address to check instead of tauri.conf.json's, or `None` to keep the configured one.
+fn feed_override(beta: bool) -> Option<&'static str> {
+    beta.then_some(BETA_FEED)
+}
+
+/// Whether Beta updates is on. An unreadable setting counts as off, the stable feed.
+fn beta_enabled(app: &AppHandle) -> bool {
+    let state = app.state::<AppState>();
+    lock_db(&state)
+        .ok()
+        .and_then(|conn| db::get_bool(&conn, BETA_KEY, false).ok())
+        .unwrap_or(false)
+}
+
 /// Ask GitHub releases for a newer version, and remember the answer.
 async fn check(app: &AppHandle) -> Result<Option<Available>> {
     let updates = app.state::<Updates>();
-    let found = app
-        .updater()
-        .map_err(|err| Error::msg(err.to_string()))?
+    let updater = match feed_override(beta_enabled(app)) {
+        Some(feed) => {
+            let url = Url::parse(feed).map_err(|err| Error::msg(err.to_string()))?;
+            app.updater_builder().endpoints(vec![url]).and_then(|builder| builder.build())
+        }
+        None => app.updater(),
+    }
+    .map_err(|err| Error::msg(err.to_string()))?;
+    let found = updater
         .check()
         .await
         .map_err(|err| Error::msg(err.to_string()))?;
@@ -382,6 +413,15 @@ mod tests {
             serde_json::json!({ "stage": "waiting", "kind": "import" })
         );
         assert_eq!(json(InstallProgress::Installing), serde_json::json!({ "stage": "installing" }));
+    }
+
+    #[test]
+    fn beta_updates_read_the_beta_feed() {
+        assert_eq!(feed_override(false), None);
+        let feed = feed_override(true).unwrap();
+        assert!(Url::parse(feed).is_ok());
+        assert!(feed.starts_with("https://raw.githubusercontent.com/wobkobi/pic-cabinet/"));
+        assert!(feed.ends_with("/beta.json"));
     }
 
     #[test]

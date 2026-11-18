@@ -24,7 +24,7 @@ import { UpdateCheck } from "../components/UpdateCheck";
 import { api, AUTOSTART_CHANGED, errorText, type Preview } from "../lib/api";
 import { PHOTO_SIZES, photoSizeOf, TEXT_SIZES, textSizeOf, themeOf, THEMES } from "../lib/display";
 import { count } from "../lib/format";
-import { normaliseExtensions } from "../lib/settingValues";
+import { normaliseExtensions, versionLabel } from "../lib/settingValues";
 import { useAction } from "../lib/useAction";
 import { useJobDone, useJobs } from "../lib/useJobs";
 import { usePageMemory } from "../lib/usePageMemory";
@@ -345,7 +345,9 @@ export function SettingsPage({
                 <AppIcon size={56} className="shrink-0" />
                 <div>
                   <p className="font-brand text-[17px] leading-tight font-bold">Pic Cabinet</p>
-                  {version && <p className="mt-1 text-[15px] text-muted">Version {version}</p>}
+                  {version && (
+                    <p className="mt-1 text-[15px] text-muted">{versionLabel(version)}</p>
+                  )}
                   <p className="mt-0.5 flex items-center gap-1.5 text-[15px] text-muted">
                     <BrandMark size={16} className="shrink-0 text-logo" />© 2026 To the Point Tech.
                     All rights reserved.

@@ -48,6 +48,27 @@ export function cameraName(make: string | null, model: string | null): string | 
 }
 
 /**
+ * The lens, without what the lines around it already say. Phones name the lens after
+ * themselves and its aperture ("iPhone 13 Pro back triple camera 5.7mm f/1.5"), so the leading
+ * model and a trailing aperture that matches the shot's are dropped: "Back triple camera 5.7mm".
+ * @param details - the file's details
+ * @returns the lens, or null when none is recorded or nothing is left
+ */
+export function lensText(details: FileDetails): string | null {
+  let lens = details.lens?.trim() ?? "";
+  const model = details.model?.trim();
+  if (model && lens.toLowerCase().startsWith(`${model.toLowerCase()} `)) {
+    lens = lens.slice(model.length).trim();
+  }
+  // "f/1.5" or "f/1.8" at the end, compared as numbers so "f/1.50" still matches 1.5.
+  const aperture = /\s*f\/(\d+(?:\.\d+)?)$/i.exec(lens);
+  if (aperture && details.fNumber && Number(aperture[1]) === Number(short(details.fNumber))) {
+    lens = lens.slice(0, aperture.index).trim();
+  }
+  return lens ? lens.charAt(0).toUpperCase() + lens.slice(1) : null;
+}
+
+/**
  * One decimal place at most: 1.6, 2, 5.1.
  * @param n - the number to shorten
  * @returns the number as text

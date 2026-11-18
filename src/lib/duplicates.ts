@@ -39,7 +39,7 @@ export function removalPlan(
     const remove = set.copies.filter((c) => c.id !== keep).map((c) => c.id);
     choices.push({ keep, remove });
     copies += remove.length;
-    bytes += set.size * remove.length;
+    bytes += set.copies.filter((c) => c.id !== keep).reduce((sum, c) => sum + c.size, 0);
   }
   return { choices, copies, bytes };
 }

@@ -3,6 +3,7 @@ import type { PageId } from "../App";
 import { Icon, type IconName } from "../components/Icon";
 import { Button, EmptyState, PageHeader } from "../components/ui";
 import { api, errorText, type BatchEntry, type BatchInfo, type EntryStatus } from "../lib/api";
+import { titleText } from "../lib/batchTitle";
 import { count, formatWhen } from "../lib/format";
 import { BATCH_PAGE } from "../lib/lastUndo";
 import { useJobDone, useJobs } from "../lib/useJobs";
@@ -221,7 +222,7 @@ function BatchRow({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 hover:bg-surface">
         <div className="min-w-0 flex-1">
           {/* Labels can hold a whole folder path, which has nowhere else to break. */}
-          <p className="font-semibold wrap-anywhere">{batch.label}</p>
+          <p className="font-semibold wrap-anywhere">{titleText(batch)}</p>
           <p className="mt-0.5 flex flex-wrap gap-x-3 text-[14px] text-muted">
             <span>{formatWhen(batch.createdAt)}</span>
             <span className={trouble ? "text-warn" : undefined}>{statusText(batch)}</span>

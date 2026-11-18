@@ -231,11 +231,21 @@ export type TripChange =
   | { action: "update"; id: number; draft: TripDraft }
   | { action: "delete"; id: number };
 
-/** Photos or videos that are identical, byte for byte. Mirrors DupSet in duplicates.rs. */
+/**
+ * Photos or videos that are the same: identical byte for byte, or the same picture or video with
+ * different details. Mirrors DupSet in duplicates.rs.
+ */
 export interface DupSet {
+  /** Names the set: the files' hash, or `picture:` and the fingerprint they share. */
   hash: string;
+  /** Size of the suggested keeper; every copy's size when the copies are identical. */
   size: number;
   kind: "photo" | "raw" | "video";
+  /**
+   * The copies share their picture or video but not the details stored with it, so their sizes
+   * differ and the copy with the most details is suggested.
+   */
+  detailsDiffer: boolean;
   /** Suggested keeper first. */
   copies: DupCopy[];
 }
@@ -245,6 +255,7 @@ export interface DupCopy {
   version: number;
   /** Relative to the library folder. */
   path: string;
+  size: number;
   /** Already in the trip or month folder it belongs in. */
   inPlace: boolean;
   /** Other files that travel with this copy (a Live Photo video, a sidecar). */
@@ -254,11 +265,16 @@ export interface DupCopy {
    * per kind, and its copies share these ids across the sets.
    */
   group: number;
+  /** Details this copy holds, listed only when the set's details differ. */
+  details: DupDetail[];
 }
+
+/** A detail a copy of the same picture can hold or have lost. */
+export type DupDetail = "location" | "date" | "camera";
 
 export interface DupReport {
   sets: DupSet[];
-  /** Files that share a size with another but haven't been compared yet. */
+  /** Files that might be a copy of another but haven't been compared yet. */
   unchecked: number;
   /** Copies beyond the first in every set. */
   extra: number;
@@ -586,6 +602,14 @@ export const api = {
   locationMap: (lat: number, lon: number, spanKm: number) =>
     invoke<MapView>("location_map", { lat, lon, spanKm }),
   /**
+   * The suburb, region and country around a location, from Nominatim (OpenStreetMap). The app
+   * spaces these a second apart, so a lookup can wait behind others.
+   * @param lat - latitude in degrees
+   * @param lon - longitude in degrees
+   * @returns the place name, or null when there's no suburb or town there to name
+   */
+  placeName: (lat: number, lon: number) => invoke<string | null>("place_name", { lat, lon }),
+  /**
    * Open an indexed file in its default Windows app.
    * @param id - media id
    * @returns resolves once opened
@@ -717,7 +741,8 @@ export const api = {
    */
   planNaming: (naming: Naming) => invoke<Preview>("plan_naming", { naming }),
   /**
-   * Compare same-size files in the background (job kind "duplicates").
+   * Compare same-size files, then fingerprint files that might be the same picture with
+   * different details, in the background (job kind "duplicates").
    * @returns resolves once the job has started
    */
   findDuplicates: () => invoke<void>("find_duplicates"),

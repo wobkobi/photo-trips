@@ -25,6 +25,7 @@ use serde::Serialize;
 
 use crate::db;
 use crate::error::{Error, Result};
+use crate::exiftool::{self, ExifTool};
 use crate::formats::{FormatTable, Kind};
 use crate::hash;
 use crate::index::Report;
@@ -153,11 +154,24 @@ pub struct Removal {
     pub keeper: Option<Keeper>,
 }
 
-/// The copy of a duplicate that stays, and the hash it and the copy going must still have.
-#[derive(Debug, Clone, PartialEq)]
+/// The copy of a duplicate that stays, and what it and the copy going must still share.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Keeper {
     pub path: PathBuf,
-    pub hash: String,
+    pub same: Same,
+}
+
+/// What a duplicate copy and its keeper must still share when the copy goes.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Same {
+    /// Every byte: the blake3 hash of the whole file.
+    Bytes(String),
+    /// The picture or video data, whatever the details around it say: ExifTool's fingerprint,
+    /// read again with the given ExifTool.
+    Picture {
+        fingerprint: String,
+        exiftool: PathBuf,
+    },
 }
 
 /// A database change that belongs to a batch (saving a trip, say), made in the same
@@ -226,7 +240,8 @@ fn begin_removals(
                 (SELECT json_object('id', id, 'path', path, 'group_key', group_key,
                     'kind', kind, 'size', size, 'mtime', mtime, 'taken_at', taken_at,
                     'tz_offset_min', tz_offset_min, 'date_source', date_source, 'lat', lat,
-                    'lon', lon, 'hash', hash, 'indexed_at', indexed_at, 'date_set', date_set)
+                    'lon', lon, 'hash', hash, 'indexed_at', indexed_at, 'date_set', date_set,
+                    'fingerprint', fingerprint, 'camera', camera)
                  FROM media WHERE id = ?4))",
         )?;
         let mut seq = 0_i64;
@@ -359,8 +374,9 @@ pub fn apply(env: &Env, batch: &NewBatch, plan: &Plan) -> Result<ApplySummary> {
 }
 
 /// Send duplicate copies to the Recycle Bin as one undoable batch. In the summary, `moved`
-/// counts files that went to the bin. Each copy and its keeper are hashed again first, so a
-/// file that changed since the duplicate check is never removed.
+/// counts files that went to the bin. Each copy and its keeper are hashed again first (or
+/// fingerprinted again, for a copy whose details differ), so a file that changed since the
+/// duplicate check is never removed.
 pub fn remove(env: &Env, batch: &NewBatch, removals: &[Removal]) -> Result<ApplySummary> {
     let stage = if removals.iter().all(|r| r.keeper.is_some()) {
         "Moving copies to the Recycle Bin"
@@ -375,6 +391,7 @@ pub fn remove(env: &Env, batch: &NewBatch, removals: &[Removal]) -> Result<Apply
     };
     let mut emptied = BTreeSet::new();
     let mut keepers = HashMap::new();
+    let mut tool = None;
     (env.report)(stage, 0, total);
     for (removal, removal_ids) in removals.iter().zip(&ids) {
         if env.cancel.load(Ordering::Relaxed) {
@@ -383,7 +400,7 @@ pub fn remove(env: &Env, batch: &NewBatch, removals: &[Removal]) -> Result<Apply
         }
         // A photo goes whole or not at all: once one file can't go, the rest stay and those
         // already in the bin come back out.
-        let mut kept = removal_blocker(removal, &mut keepers);
+        let mut kept = removal_blocker(removal, &mut keepers, &mut tool);
         let mut binned: Vec<Binned> = Vec::new();
         for (file, &id) in removal.files.iter().zip(removal_ids) {
             if let Some(reason) = &kept {
@@ -619,17 +636,28 @@ fn add_media_row(conn: &Connection, entry_id: i64, hash: Option<&str>) -> Result
 
 /// Why a removal must not go ahead, if it mustn't: the copy or its keeper changed or went
 /// since the duplicate check. A photo binned outright has no check. `keepers` remembers each
-/// keeper's result, since one keeper can stand for several copies.
-fn removal_blocker(removal: &Removal, keepers: &mut HashMap<PathBuf, bool>) -> Option<String> {
+/// keeper's result, since one keeper can stand for several copies; it is keyed by the check as
+/// well, since a keeper can be checked by bytes for one copy and by picture for another.
+/// `tool` is the ExifTool session picture checks share, started on first use.
+fn removal_blocker<'a>(
+    removal: &'a Removal,
+    keepers: &mut HashMap<&'a Keeper, bool>,
+    tool: &mut Option<ExifTool>,
+) -> Option<String> {
     let copy = &removal.files.first()?.path;
     let keeper = removal.keeper.as_ref()?;
     if same_path(copy, &keeper.path) {
         return Some("It is the copy being kept".into());
     }
-    let matches = |path: &Path| hash::file(path).is_ok_and(|h| h == keeper.hash);
-    let keeper_ok = *keepers
-        .entry(keeper.path.clone())
-        .or_insert_with(|| matches(&keeper.path));
+    let mut matches = |path: &Path| still_same(path, &keeper.same, tool);
+    let keeper_ok = match keepers.get(keeper) {
+        Some(&ok) => ok,
+        None => {
+            let ok = matches(&keeper.path);
+            keepers.insert(keeper, ok);
+            ok
+        }
+    };
     if !keeper_ok {
         return Some(format!(
             "Kept because the copy being kept ({}) changed or went since the check",
@@ -640,6 +668,22 @@ fn removal_blocker(removal: &Removal, keepers: &mut HashMap<PathBuf, bool>) -> O
         return Some("Kept because it changed or went since the check".into());
     }
     None
+}
+
+/// True when the file at `path` still has what [`Same`] asks for, read fresh from disk. An
+/// unreadable file, or ExifTool failing to start or answer, counts as changed, so nothing goes
+/// on a check that couldn't be made.
+fn still_same(path: &Path, same: &Same, tool: &mut Option<ExifTool>) -> bool {
+    match same {
+        Same::Bytes(hash) => hash::file(path).is_ok_and(|h| &h == hash),
+        Same::Picture {
+            fingerprint,
+            exiftool,
+        } => exiftool::pictures_with(tool, exiftool, &[path.to_path_buf()])
+            .and_then(|found| found.into_iter().next().flatten())
+            .and_then(|picture| picture.fingerprint)
+            .is_some_and(|f| &f == fingerprint),
+    }
 }
 
 /// Move every file of one group, or none of them: when one fails, those already moved go back.
@@ -975,7 +1019,8 @@ fn restore_media_row(conn: &Connection, entry_id: i64) -> Result<()> {
     )?;
     conn.execute(
         "INSERT INTO media (id, path, group_key, kind, size, mtime, taken_at, tz_offset_min,
-                            date_source, lat, lon, hash, indexed_at, date_set)
+                            date_source, lat, lon, hash, indexed_at, date_set, fingerprint,
+                            camera)
          SELECT CASE WHEN EXISTS (SELECT 1 FROM media WHERE id = json_extract(r, '$.id'))
                      THEN NULL ELSE json_extract(r, '$.id') END,
                 json_extract(r, '$.path'), json_extract(r, '$.group_key'),
@@ -983,7 +1028,8 @@ fn restore_media_row(conn: &Connection, entry_id: i64) -> Result<()> {
                 json_extract(r, '$.taken_at'), json_extract(r, '$.tz_offset_min'),
                 json_extract(r, '$.date_source'), json_extract(r, '$.lat'),
                 json_extract(r, '$.lon'), json_extract(r, '$.hash'),
-                json_extract(r, '$.indexed_at'), json_extract(r, '$.date_set')
+                json_extract(r, '$.indexed_at'), json_extract(r, '$.date_set'),
+                json_extract(r, '$.fingerprint'), json_extract(r, '$.camera')
          FROM (SELECT media_row AS r FROM journal WHERE id = ?1 AND media_row IS NOT NULL)",
         [entry_id],
     )?;
@@ -1584,7 +1630,7 @@ mod tests {
             }],
             keeper: Some(Keeper {
                 path: rows[1 - i].path.clone(),
-                hash: "not checked by begin".into(),
+                same: Same::Bytes("not checked by begin".into()),
             }),
         };
         let removals = [removal(0), removal(1)];

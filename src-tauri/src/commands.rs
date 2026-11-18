@@ -33,6 +33,7 @@ const WRITABLE_SETTINGS: &[&str] = &[
     "menu_narrow",
     "tour_done",
     "theme",
+    crate::updater::BETA_KEY,
 ];
 
 /// Text sizes offered in Settings, as page zoom percentages. Zoom scales the whole page, so
@@ -223,6 +224,9 @@ pub fn set_setting(
         }
         "theme" if !THEMES.contains(&value.as_str()) => {
             return Err(Error::msg("Choose one of the themes shown"));
+        }
+        crate::updater::BETA_KEY if value != "true" && value != "false" => {
+            return Err(Error::msg("Beta updates must be true or false"));
         }
         _ => {}
     }

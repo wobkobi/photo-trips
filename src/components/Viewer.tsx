@@ -15,6 +15,7 @@ import { formatTaken } from "../lib/format";
 import { isFullscreenKey, useFullscreen } from "../lib/fullscreen";
 import { useLayer } from "../lib/layers";
 import { keyCommand, type PhotoCommand } from "../lib/photoCommands";
+import { useContainedSelection } from "../lib/textSelection";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { savedPanel, savePanel } from "../lib/viewerPanel";
 import {
@@ -146,12 +147,13 @@ export interface ViewSource {
 /**
  * Full-window view of one file with its details. Arrow keys step through the source.
  *
- * A slim bar over the top of the stage carries Back, the file's name and date, its place in the
- * source and an icon row: the photo's zoom and rotate and a Live Photo's Play, then Show in
- * folder, Copy and Open, built from the source so every caller gets them, then Info, Fullscreen
- * and, where the caller passes a bin command, Bin. The bar and side arrows fade once the pointer
- * has rested for {@link REST_MS}, and stay while the pointer is over them or keyboard focus is
- * inside them. Fullscreen is left when the viewer closes.
+ * A slim bar across the top of the viewer, over the photo and the details panel, carries Back,
+ * the file's name and date, its place in the source and an icon row: the photo's zoom and rotate
+ * and a Live Photo's Play, then Show in folder, Copy and Open, built from the source so every
+ * caller gets them, then Info, Fullscreen and, where the caller passes a bin command, Bin. The
+ * bar and side arrows fade once the pointer has rested for {@link REST_MS}, and stay while the
+ * pointer is over them or keyboard focus is inside them. Fullscreen is left when the viewer
+ * closes.
  * @param props - Component props.
  * @param props.source - the files
  * @param props.index - which file is open
@@ -254,6 +256,8 @@ export function Viewer({
 
   // The details panel follows the last choice made with Info or the I key.
   const [info, setInfo] = useState(savedPanel);
+  const panel = useRef<HTMLElement>(null);
+  useContainedSelection(panel);
 
   /** Show or hide the details panel and keep the choice. */
   const toggleInfo = useCallback(() => {
@@ -532,20 +536,7 @@ export function Viewer({
         onContextMenu={onStageMenu}
         className="on-dark relative flex min-w-0 flex-1 items-center justify-center overflow-hidden bg-ground"
       >
-        {item && live && (
-          <VideoPlayer
-            key={`${key}-live`}
-            src={live}
-            poster={item.preview}
-            label={item.name}
-            onEnded={() => setLiveKey(null)}
-            onError={() => {
-              setLiveKey(null);
-              setFailure({ key, message: "This Live Photo's clip can't play inside Pic Cabinet" });
-            }}
-          />
-        )}
-        {item && !live && (
+        {item && (
           <Media
             key={key}
             item={item}
@@ -559,15 +550,36 @@ export function Viewer({
             tools={photoTools}
           />
         )}
+        {/* The clip plays over the still in the same box, so the picture stays put. A click or
+            its end shows the still again. */}
+        {item && live && (
+          <video
+            key={`${key}-live`}
+            src={live}
+            poster={item.original ?? item.preview}
+            aria-label={`${item.name}, Live Photo`}
+            autoPlay
+            onClick={() => setLiveKey(null)}
+            onEnded={() => setLiveKey(null)}
+            onError={() => {
+              setLiveKey(null);
+              setFailure({ key, message: "This Live Photo's clip can't play inside Pic Cabinet" });
+            }}
+            className="absolute inset-0 size-full cursor-pointer bg-ground object-contain"
+          />
+        )}
         {error && (
           <p className="absolute inset-x-0 top-14 mx-auto w-fit max-w-[80%] rounded-md bg-surface/90 px-3 py-1.5 text-danger">
             {error}
           </p>
         )}
 
+        {/* Fixed, which here is the viewer's own box (it fills the window), so the bar spans the
+            details panel too and its buttons stay put as the panel opens. It stays in the stage
+            for the stage's dark colours and its place in the tab order. */}
         <div
           data-chrome
-          className={`absolute inset-x-0 top-0 flex h-12 items-center gap-3 bg-surface/85 pr-2 pl-1.5 ${chrome}`}
+          className={`fixed inset-x-0 top-0 z-10 flex h-12 items-center gap-3 bg-surface/85 pr-2 pl-1.5 ${chrome}`}
         >
           <button
             type="button"
@@ -655,7 +667,10 @@ export function Viewer({
       </div>
 
       {info && (
-        <aside className="flex w-80 max-w-[45%] shrink-0 flex-col border-l border-line bg-surface">
+        <aside
+          ref={panel}
+          className="flex w-80 max-w-[45%] shrink-0 flex-col border-l border-line bg-surface pt-12"
+        >
           <div className="flex-1 overflow-y-auto px-5 pt-4 pb-6">
             {item && (
               <>

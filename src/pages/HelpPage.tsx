@@ -39,7 +39,7 @@ const PAGES: { id: PageId; title: string; icon: IconName; text: string }[] = [
     id: "duplicates",
     title: "Duplicates",
     icon: "duplicates",
-    text: "Finds exact copies and sends the extras to the Recycle Bin, keeping one.",
+    text: "Finds copies, even ones with different details, and sends the extras to the Recycle Bin, keeping one.",
   },
   {
     id: "history",

@@ -84,6 +84,17 @@ export function busyChoices(current: number): number[] {
 }
 
 /**
+ * The app's version as Settings > About shows it, marking a pre-release build.
+ * @param version - the running version, e.g. "0.31.0-beta.3"
+ * @returns e.g. "Version 0.31.0-beta.3 (beta)", or "Version 0.30.0" for a release
+ */
+export function versionLabel(version: string): string {
+  // Semver puts a pre-release after the first "-"; build metadata after "+" doesn't count.
+  const beta = version.split("+")[0].includes("-");
+  return beta ? `Version ${version} (beta)` : `Version ${version}`;
+}
+
+/**
  * One line on what the inbox watcher is doing.
  * @param status - the watcher's state
  * @returns e.g. "Watching 2 folders. 3 files are still copying in."

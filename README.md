@@ -67,6 +67,11 @@ Pic Cabinet finds files with identical contents anywhere in the library, whateve
 sends the extra copies to the Recycle Bin, keeping one. Only files the same size as another are read
 in full, so checking a large library is quick.
 
+It also finds copies of the same picture or video whose details differ, such as a Live Photo clip
+saved again under a new name. ExifTool fingerprints just the picture or video, leaving the details
+out, for files that share a date, size or name with another. These sets suggest keeping the copy
+with the most details: a location, a date taken and the camera.
+
 ### Lets you look through it all
 
 The Library page shows the whole collection as a timeline of thumbnails, which can be narrowed to
@@ -99,7 +104,8 @@ your photo library is in.
 
 Pic Cabinet checks for updates once a day and lets you know when one is ready. Settings > About
 shows what's new and installs it with **Install and restart**. Updates are signed, and the app
-refuses any that aren't.
+refuses any that aren't. Turn on **Beta updates** there to get new versions before they're
+released; turning it off again keeps the version you have until the next full release.
 
 ## Privacy
 

@@ -12,7 +12,15 @@ import {
 } from "../components/ui";
 import { Viewer } from "../components/Viewer";
 import { useLibrarySource } from "../components/viewSources";
-import { api, errorText, thumbUrl, type DupCopy, type DupReport, type DupSet } from "../lib/api";
+import {
+  api,
+  errorText,
+  thumbUrl,
+  type DupCopy,
+  type DupDetail,
+  type DupReport,
+  type DupSet,
+} from "../lib/api";
 import { keeperOf, pickWithPartners, prunePicks, removalPlan, type Picks } from "../lib/duplicates";
 import { count, formatBytes, splitPath } from "../lib/format";
 import { useJobDone, useJobs } from "../lib/useJobs";
@@ -32,10 +40,16 @@ const KIND_TEXT: Record<DupSet["kind"], [string, string]> = {
   video: ["video", "videos"],
 };
 
+const DETAIL_TEXT: Record<DupDetail, string> = {
+  location: "location",
+  date: "date",
+  camera: "camera",
+};
+
 /**
- * Photos and videos that are exact copies of each other. One copy of each set stays; the
- * rest go to the Recycle Bin as one change that History can undo. The result shows as a toast
- * with Undo.
+ * Photos and videos that are copies of each other: exact copies, or the same picture with
+ * different details. One copy of each set stays; the rest go to the Recycle Bin as one change
+ * that History can undo. The result shows as a toast with Undo.
  * @returns the page
  */
 export function DuplicatesPage(): ReactElement {
@@ -87,7 +101,7 @@ export function DuplicatesPage(): ReactElement {
   const sets = report?.sets ?? [];
   const plan = removalPlan(sets, picks);
   /**
-   * Hash the files not compared yet.
+   * Compare the files not compared yet.
    * @returns resolves once the check is queued
    */
   const check = (): Promise<void> => run(api.findDuplicates);
@@ -172,8 +186,8 @@ export function DuplicatesPage(): ReactElement {
 }
 
 /**
- * Shown when no sets are left: either nothing is duplicated, or some same-size files still need
- * comparing.
+ * Shown when no sets are left: either nothing is duplicated, or some files that might be copies
+ * still need comparing.
  * @param props - Component props.
  * @param props.report - the latest duplicates report
  * @param props.busy - a job is running, so the check button is disabled
@@ -192,15 +206,15 @@ function NoSets({
   if (report.unchecked === 0) {
     return (
       <EmptyState title="No duplicates">
-        <p>No two photos or videos in your library are the same file.</p>
+        <p>No two photos or videos in your library are the same picture.</p>
       </EmptyState>
     );
   }
   return (
     <EmptyState title="Check for duplicates">
       <p>
-        {count(report.unchecked, "photo or video is", "photos and videos are")} the same size as
-        another file. Checking reads only those.
+        {count(report.unchecked, "photo or video shares", "photos and videos share")} a size, date
+        or name with another file. Checking reads only those.
       </p>
       <Button variant="primary" onClick={onCheck} busy={busy}>
         Check for duplicates
@@ -256,6 +270,12 @@ function Summary({
             oldest. Click another copy to keep that one instead, or Keep all to leave a set alone. A
             copied Live Photo or RAW pair shows as two sets, and choosing a copy in one chooses the
             same pair in the other.
+          </p>
+          <p>
+            Sets marked different details are the same picture or video with different details
+            stored in each file, so their sizes differ. These keep the copy with the most of a
+            location, a date taken and the camera. When only hidden details differ, such as an ID a
+            phone adds on export, the copies look the same and any of them can be kept.
           </p>
           <p>
             Sidecar files like .aae and .xmp that only belonged to a removed copy go with it. The
@@ -362,6 +382,10 @@ function SetRow({
   const ids = useMemo(() => set.copies.map((c) => c.id), [set.copies]);
   const source = useLibrarySource(ids);
   const shown = viewing === null ? null : set.copies[viewing];
+  // Copies can differ only in details the card doesn't list (an ID the phone adds on export),
+  // so the list shows only when it tells the copies apart.
+  const first = set.copies[0].details.join(",");
+  const detailsVary = set.copies.some((c) => c.details.join(",") !== first);
   return (
     <div
       ref={measureRef}
@@ -373,7 +397,13 @@ function SetRow({
       <div className="flex items-center justify-between gap-4">
         <p className="text-[15px] text-muted">
           {count(set.copies.length, `copy of the same ${one}`, `copies of the same ${one}`)},{" "}
-          {formatBytes(set.size)} each
+          {set.detailsDiffer ? (
+            <span className="text-ink">
+              {detailsVary ? "different details" : "only hidden details differ"}
+            </span>
+          ) : (
+            `${formatBytes(set.size)} each`
+          )}
         </p>
         <Button
           variant="ghost"
@@ -391,6 +421,8 @@ function SetRow({
           <CopyCard
             key={copy.id}
             copy={copy}
+            detailsDiffer={set.detailsDiffer}
+            showDetails={detailsVary}
             state={keep === null ? "keep-all" : copy.id === keep ? "keep" : "bin"}
             onKeep={() => onPick(copy.id)}
             onZoom={() => setViewing(index)}
@@ -425,6 +457,8 @@ function SetRow({
  * One copy: kept, going to the bin, or kept because its whole set is left alone.
  * @param props - Component props.
  * @param props.copy - the file this card shows
+ * @param props.detailsDiffer - the set's copies differ in details, so each shows its size
+ * @param props.showDetails - list the details this copy holds, since they differ between copies
  * @param props.state - whether the copy stays, goes, or stays with its whole set
  * @param props.onKeep - keep this copy instead
  * @param props.onZoom - open the copy in the viewer
@@ -432,11 +466,15 @@ function SetRow({
  */
 function CopyCard({
   copy,
+  detailsDiffer,
+  showDetails,
   state,
   onKeep,
   onZoom,
 }: {
   copy: DupCopy;
+  detailsDiffer: boolean;
+  showDetails: boolean;
   state: "keep" | "bin" | "keep-all";
   onKeep: () => void;
   onZoom: () => void;
@@ -446,9 +484,12 @@ function CopyCard({
   const ext = name.split(".").pop() ?? "";
   const going = state === "bin";
   const notes = [
+    detailsDiffer && formatBytes(copy.size),
     copy.inPlace && "In its folder",
     copy.extra > 0 && `+${count(copy.extra, "file", "files")} with it`,
   ].filter(Boolean);
+  const held = copy.details.map((d) => DETAIL_TEXT[d]).join(", ");
+  const details = held ? held.charAt(0).toUpperCase() + held.slice(1) : "No details";
 
   return (
     <li className="group relative w-40 shrink-0">
@@ -506,6 +547,11 @@ function CopyCard({
           {folder || "Library folder"}
         </span>
         <span className="block h-[1.5em] truncate text-[14px] text-faint">{notes.join(", ")}</span>
+        {showDetails && (
+          <span className="block truncate text-[14px] text-faint" title={details}>
+            {details}
+          </span>
+        )}
       </button>
       {/* Beside the card's button, not in it, since a button can't hold another button. */}
       <button

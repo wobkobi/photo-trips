@@ -128,7 +128,19 @@ const MIGRATIONS: &[&str] = &[
     SET modified = CAST(strftime('%s', modified, 'unixepoch', 'utc') AS INTEGER)
     WHERE modified > 0;
 "#,
+    // A fingerprint of a file's picture or video data alone, leaving out its details, so
+    // Duplicates can spot copies whose details differ. '' when ExifTool can't fingerprint the
+    // type. camera is 1 when the file names the camera that took it, for choosing which copy
+    // to keep. A refresh clears both when the file changes, as it does the hash.
+    r#"
+    ALTER TABLE media ADD COLUMN fingerprint TEXT;
+    ALTER TABLE media ADD COLUMN camera INTEGER;
+"#,
 ];
+
+/// Index into [`MIGRATIONS`] of the one that turns stored phone times into real moments.
+#[cfg(test)]
+const PHONE_TIMES: usize = 7;
 
 /// Open (or create) the database and bring it up to the latest schema.
 pub fn open(path: &Path) -> Result<Connection> {
@@ -240,7 +252,7 @@ mod tests {
         }
         conn.execute("INSERT INTO device_files VALUES ('phone', 'none', 1, 0, 'h')", [])
             .unwrap();
-        conn.execute_batch(MIGRATIONS[MIGRATIONS.len() - 1]).unwrap();
+        conn.execute_batch(MIGRATIONS[PHONE_TIMES]).unwrap();
         for (i, wall) in walls.iter().enumerate() {
             let stored: i64 = conn
                 .query_row(

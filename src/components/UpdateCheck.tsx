@@ -4,16 +4,31 @@ import type { ReactElement } from "react";
 import type { UpdateProgress } from "../lib/api";
 import { formatBytes } from "../lib/format";
 import { parseReleaseNotes } from "../lib/releaseNotes";
+import { useAction } from "../lib/useAction";
 import { JOB_NAMES } from "../lib/useJobs";
+import { useSettings } from "../lib/useSettings";
 import { useUpdates } from "../lib/useUpdates";
+import { Row, Toggle } from "./SettingParts";
 import { Button, Progress } from "./ui";
 
 /**
- * Check for updates, and show a newer version's notes with a button that installs it.
+ * Check for updates, and show a newer version's notes with a button that installs it. Below,
+ * the Beta updates switch picks which feed the checks read.
  * @returns the update controls
  */
 export function UpdateCheck(): ReactElement {
   const { check, update, progress, error, runCheck, install } = useUpdates();
+  const { settings, save } = useSettings();
+  const beta = useAction();
+
+  /**
+   * Save the switch, then check again so the answer comes from the feed now chosen.
+   * @param on - whether to take pre-release versions
+   */
+  async function setBeta(on: boolean): Promise<void> {
+    const saved = await beta.run(() => save("beta_updates", on ? "true" : "false"));
+    if (saved && check !== "checking" && progress === null) await runCheck();
+  }
 
   return (
     <div className="mt-5 border-t border-line pt-4">
@@ -49,6 +64,24 @@ export function UpdateCheck(): ReactElement {
           {error}
         </p>
       )}
+      <div className="mt-4">
+        <Row
+          title="Beta updates"
+          detail="Try new versions before they're released. They may have bugs."
+        >
+          <Toggle
+            checked={settings?.beta_updates === "true"}
+            disabled={settings === null}
+            label="Beta updates"
+            onChange={(on) => void setBeta(on)}
+          />
+        </Row>
+        {beta.error && (
+          <p role="alert" className="text-[15px] text-danger">
+            {beta.error}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

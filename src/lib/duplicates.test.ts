@@ -6,10 +6,12 @@ import { keeperOf, pickWithPartners, prunePicks, removalPlan } from "./duplicate
  * A copy of a duplicate, not in place.
  * @param id - media id
  * @param group - id of the tile it belongs to; its own id when it is alone
+ * @param size - file size in bytes
  * @returns the copy
  */
-function copy(id: number, group = id): DupCopy {
-  return { id, version: 0, path: `in\\IMG_${id}.jpg`, inPlace: false, extra: 0, group };
+function copy(id: number, group = id, size = 0): DupCopy {
+  const path = `in\\IMG_${id}.jpg`;
+  return { id, version: 0, path, size, inPlace: false, extra: 0, group, details: [] };
 }
 
 /**
@@ -20,7 +22,8 @@ function copy(id: number, group = id): DupCopy {
  * @returns the set
  */
 function set(hash: string, size: number, ids: number[]): DupSet {
-  return { hash, size, kind: "photo", copies: ids.map((id) => copy(id)) };
+  const copies = ids.map((id) => copy(id, id, size));
+  return { hash, size, kind: "photo", detailsDiffer: false, copies };
 }
 
 describe("keeperOf", () => {
@@ -51,15 +54,34 @@ describe("removalPlan", () => {
     expect(plan.copies).toBe(3);
     expect(plan.bytes).toBe(250);
   });
+
+  it("counts each copy's own size when the details differ", () => {
+    const picture: DupSet = {
+      hash: "picture:p",
+      size: 120,
+      kind: "video",
+      detailsDiffer: true,
+      copies: [copy(1, 1, 120), copy(2, 2, 100), copy(3, 3, 90)],
+    };
+    expect(removalPlan([picture], {}).bytes).toBe(190);
+    expect(removalPlan([picture], { "picture:p": 3 }).bytes).toBe(220);
+  });
 });
 
 describe("pickWithPartners", () => {
   // Two copies of a Live Photo: tile 1 is photo 1 with clip 11, tile 2 is photo 2 with clip 12.
-  const photos: DupSet = { hash: "p", size: 100, kind: "photo", copies: [copy(1), copy(2)] };
+  const photos: DupSet = {
+    hash: "p",
+    size: 100,
+    kind: "photo",
+    detailsDiffer: false,
+    copies: [copy(1), copy(2)],
+  };
   const clips: DupSet = {
     hash: "v",
     size: 900,
     kind: "video",
+    detailsDiffer: false,
     copies: [copy(11, 1), copy(12, 2)],
   };
   const other = set("o", 50, [5, 6]);
