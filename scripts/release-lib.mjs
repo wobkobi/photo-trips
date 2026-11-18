@@ -149,3 +149,82 @@ export function manifest({ version, notes, changes, signature, url, date }) {
 export function assetUrl(version, name) {
   return `https://github.com/${RELEASES_REPO}/releases/download/v${version}/${name}`;
 }
+
+/** Release tag whose beta.json asset is the beta channel's update manifest. */
+export const BETA_FEED_TAG = "beta-feed";
+
+/**
+ * Order two release versions, each "x.y.z" or "x.y.z-beta.n". A beta sorts below the release
+ * it leads up to, as semver has it, so a beta tester moves on to the finished version.
+ * @param {string} a - first version
+ * @param {string} b - second version
+ * @returns negative, zero or positive, as a is older than, equal to or newer than b
+ */
+export function compareReleases(a, b) {
+  const [x, y] = [a, b].map(splitRelease);
+  const core = compareVersions(x.core, y.core);
+  if (core !== 0) return core;
+  if (x.beta === y.beta) return 0;
+  return x.beta - y.beta;
+}
+
+/**
+ * Split a release version into its x.y.z and beta number.
+ * @param {string} version - "x.y.z" or "x.y.z-beta.n"
+ * @returns {{ core: string, beta: number }} the beta number is Infinity for a finished release,
+ *   which outranks every beta of it
+ */
+function splitRelease(version) {
+  const match = /^(\d+\.\d+\.\d+)(?:-beta\.(\d+))?$/.exec(version);
+  if (!match) throw new Error(`not a release version: ${version}`);
+  return { core: match[1], beta: match[2] === undefined ? Infinity : Number(match[2]) };
+}
+
+/**
+ * The next beta of a version: one past the highest beta of it already published, so beta numbers
+ * count up across every pull request without gaps.
+ * @param {string} version - package.json version, e.g. "0.31.0"
+ * @param {string[]} tags - tags of the releases already published
+ * @returns the beta version, e.g. "0.31.0-beta.3"
+ */
+export function nextBeta(version, tags) {
+  const prefix = `v${version}-beta.`;
+  const taken = tags
+    .filter((tag) => tag.startsWith(prefix) && /^\d+$/.test(tag.slice(prefix.length)))
+    .map((tag) => Number(tag.slice(prefix.length)));
+  return `${version}-beta.${Math.max(0, ...taken) + 1}`;
+}
+
+/**
+ * Release title of a beta. The pull request number in it is how a closed pull request's betas
+ * are found again, see {@link betaPull}.
+ * @param {string} version - beta version
+ * @param {number} pull - pull request number
+ * @returns the title
+ */
+export function betaTitle(version, pull) {
+  return `Pic Cabinet ${version} from #${pull}`;
+}
+
+/**
+ * The pull request a beta came from, read back from its title.
+ * @param {string} title - release title
+ * @returns the pull request number, or null when the release isn't a beta
+ */
+export function betaPull(title) {
+  const match = /^Pic Cabinet \d+\.\d+\.\d+-beta\.\d+ from #(\d+)$/.exec(title);
+  return match ? Number(match[1]) : null;
+}
+
+/**
+ * Releases the beta feed can point at, newest first: every finished release and beta, but not
+ * the feed's own release or tags that aren't versions.
+ * @param {string[]} tags - tags of the published releases
+ * @returns the versions, without their "v"
+ */
+export function feedCandidates(tags) {
+  return tags
+    .filter((tag) => /^v\d+\.\d+\.\d+(?:-beta\.\d+)?$/.test(tag))
+    .map((tag) => tag.slice(1))
+    .sort((a, b) => compareReleases(b, a));
+}
