@@ -27,6 +27,7 @@ import {
   manifest,
   nextBeta,
   releaseNotes,
+  withoutMentions,
 } from "./release-lib.mjs";
 
 const root = resolve(import.meta.dirname, "..");
@@ -167,7 +168,7 @@ const announce = manifest({
 });
 writeFileSync(latest, `${JSON.stringify(announce, null, 2)}\n`);
 const notesFile = join(stage, "notes.md");
-writeFileSync(notesFile, `${notes}\n`);
+writeFileSync(notesFile, `${withoutMentions(notes)}\n`);
 
 if (dryRun) {
   console.log(`release: dry run, nothing published. Files are in ${stage}`);
