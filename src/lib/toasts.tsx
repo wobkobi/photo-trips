@@ -34,7 +34,8 @@ export function ToastProvider({ children }: { children: ReactNode }): ReactEleme
     if (!wishes) return;
     expected.current.delete(done.kind);
     if (done.ok && done.result) {
-      dispatch({ type: "add", toast: jobToast(done.result as ApplySummary, wishes) });
+      const toast = jobToast(done.result as ApplySummary, wishes);
+      dispatch({ type: "add", toast: { ...toast, job: done.kind } });
     }
   });
 
